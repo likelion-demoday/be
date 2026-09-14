@@ -159,7 +159,9 @@ test: 일반 로그인 서비스 테스트 추가
 - Reviewer를 최소 1명 지정하고 1명 이상의 Approve 후 Merge합니다.
 - 리뷰 반영 여부와 테스트 결과를 반드시 작성합니다.
 - 리뷰 가능한 크기를 유지하고 서로 무관한 변경을 한 PR에 넣지 않습니다.
-- Merge 방식은 `Squash and merge`를 기본으로 합니다.
+- 기능 브랜치 → `develop` 머지는 `Squash and merge`를 기본으로 합니다.
+- `develop` → `main` 배포 머지는 `Create a merge commit`을 사용합니다.
+  - Squash하면 여러 팀원의 커밋이 하나로 합쳐져 `main` 기준 Contributors에서 개별 authorship이 사라집니다.
 
 예시:
 
