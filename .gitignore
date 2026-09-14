@@ -22,3 +22,23 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# Local configuration (실제 값은 커밋하지 않고 .example 만 공유)
+src/main/resources/application-local.yml
+application-local.yml
+
+# OS
+.DS_Store
+Thumbs.db
