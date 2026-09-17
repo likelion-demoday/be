@@ -1,0 +1,28 @@
+# 로컬 개발용 MySQL
+#   docker compose -f docker-compose.local.yml up -d
+# 여기 값은 로컬 전용 기본값이다. 운영 비밀번호를 넣지 않는다.
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: resay-mysql-local
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: resay
+      MYSQL_USER: resay
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-resay}
+      TZ: Asia/Seoul
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - resay-mysql-local-data:/var/lib/mysql
+
+volumes:
+  resay-mysql-local-data:

@@ -50,7 +50,12 @@ out/
 
 # Local configuration (실제 값은 커밋하지 않고 .example 만 공유)
 src/main/resources/application-local.yml
+src/main/resources/application-local.yaml
 application-local.yml
+application-local.yaml
+.env
+.env.*
+!.env.example
 
 # OS
 .DS_Store
