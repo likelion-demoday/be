@@ -43,15 +43,17 @@ public class User extends BaseEntity {
     @Column(nullable = false, length = 50)
     private String nickname;
 
+    // MySQL에서 enum 매핑은 네이티브 enum 컬럼이나 CHECK 제약조건으로 생성되어
+    // 값을 추가할 때마다 ALTER가 필요해진다. 순수 varchar로 고정한다.
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, columnDefinition = "varchar(20)")
     private Provider provider;
 
     @Column(name = "provider_id", length = 100)
     private String providerId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, columnDefinition = "varchar(20)")
     private Role role;
 
     private User(
