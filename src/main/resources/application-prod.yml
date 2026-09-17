@@ -1,0 +1,20 @@
+# 운영 설정
+# 실제 값은 이 파일에 적지 않는다. 배포 환경의 환경변수로만 주입한다.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+  jpa:
+    hibernate:
+      # 운영에서는 스키마를 자동 변경하지 않는다
+      ddl-auto: validate
+    show-sql: false
+
+logging:
+  level:
+    root: info
+    com.example.resay: info
