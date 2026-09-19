@@ -30,9 +30,16 @@ public class ClovaSpeechManualTest {
 
         HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
-        ResponseEntity<String> response = restTemplate.postForEntity(
-                invokeUrl + "/recognizer/upload", requestEntity, String.class);
+        // 응답만 String 대신 ClovaSpeechResponse로 바로 파싱
+        ResponseEntity<ClovaSpeechResponse> response = restTemplate.postForEntity(
+                invokeUrl + "/recognizer/upload", requestEntity, ClovaSpeechResponse.class);
 
-        System.out.println(response.getBody());
+        ClovaSpeechResponse body2 = response.getBody();
+
+        System.out.println("전체 응답: " + body2);
+
+        System.out.println("화자 수: " + body2.speakers().size());
+        body2.segments().forEach(seg ->
+                System.out.println("[" + seg.speaker().label() + "] " + seg.text()));
     }
 }
