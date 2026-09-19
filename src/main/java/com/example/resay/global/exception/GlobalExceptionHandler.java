@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -33,6 +34,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiResponse<Void>> handleAuthenticationException() {
         return createFailureResponse(GeneralErrorCode.UNAUTHORIZED, null);
+    }
+
+    // Bearer 토큰 서명 불일치 · 만료 · 형식 오류
+    @ExceptionHandler(OAuth2AuthenticationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidTokenException() {
+        return createFailureResponse(GeneralErrorCode.INVALID_TOKEN, null);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

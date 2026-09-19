@@ -12,6 +12,8 @@ public enum GeneralErrorCode implements BaseErrorCode {
 
     BAD_REQUEST(HttpStatus.BAD_REQUEST, "COMMON400_1", "잘못된 요청입니다."),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "COMMON401_1", "인증되지 않았습니다."),
+    // 프론트가 토큰 재발급·재로그인을 판단할 수 있도록 토큰 없음(401_1)과 구분한다
+    INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "COMMON401_2", "유효하지 않거나 만료된 토큰입니다."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "COMMON403_1", "접근이 금지되었습니다."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "COMMON404_1", "해당 리소스를 찾을 수 없습니다."),
     METHOD_NOT_ALLOWED(
