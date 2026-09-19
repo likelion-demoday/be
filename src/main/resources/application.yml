@@ -25,6 +25,13 @@ springdoc:
     operations-sorter: method
     tags-sorter: alpha
 
+# JWT
+# 서명 키는 HS256 기준 32바이트 이상이어야 한다. 실제 값은 환경변수 JWT_SECRET으로만 주입한다.
+jwt:
+  secret: ${JWT_SECRET:}
+  issuer: resay
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:1h}
+
 # 외부 연동 설정
 # 실제 값은 저장소에 두지 않고 환경변수로 주입한다. 담당자별로 본인 값만 채우면 된다.
 clova:

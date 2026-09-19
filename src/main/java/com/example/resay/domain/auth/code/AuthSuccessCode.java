@@ -1,0 +1,18 @@
+package com.example.resay.domain.auth.code;
+
+import com.example.resay.global.apiPayload.code.BaseSuccessCode;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import org.springframework.http.HttpStatus;
+
+@Getter
+@AllArgsConstructor
+public enum AuthSuccessCode implements BaseSuccessCode {
+
+    SIGNUP(HttpStatus.CREATED, "AUTH201_1", "회원가입이 완료되었습니다."),
+    LOGIN(HttpStatus.OK, "AUTH200_1", "로그인되었습니다.");
+
+    private final HttpStatus httpStatus;
+    private final String code;
+    private final String message;
+}
