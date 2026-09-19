@@ -20,7 +20,10 @@ server:
   shutdown: graceful
 
 springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:true}
   swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}
     path: /swagger-ui.html
     operations-sorter: method
     tags-sorter: alpha
@@ -31,6 +34,10 @@ jwt:
   secret: ${JWT_SECRET:}
   issuer: resay
   access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:1h}
+
+# CORS 허용 도메인 (쉼표로 구분). 로컬 기본값은 프론트 개발 서버 포트
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
 
 # 외부 연동 설정
 # 실제 값은 저장소에 두지 않고 환경변수로 주입한다. 담당자별로 본인 값만 채우면 된다.

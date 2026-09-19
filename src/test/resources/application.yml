@@ -26,3 +26,6 @@ jwt:
   secret: test-only-jwt-secret-key-for-unit-tests-0123456789
   issuer: resay
   access-token-expiration: 1h
+
+cors:
+  allowed-origins: http://localhost:3000
