@@ -20,3 +20,9 @@ spring:
     multipart:
       max-file-size: 200MB
       max-request-size: 210MB
+
+# 테스트 전용 JWT 키 (실제 환경에서 사용하지 않는 고정값)
+jwt:
+  secret: test-only-jwt-secret-key-for-unit-tests-0123456789
+  issuer: resay
+  access-token-expiration: 1h

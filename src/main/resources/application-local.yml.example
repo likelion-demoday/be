@@ -15,6 +15,10 @@ spring:
       ddl-auto: update
     show-sql: true
 
+# 로컬 전용 JWT 서명 키. 32자 이상 아무 문자열로 바꿔서 사용한다 (운영 키와 절대 같게 쓰지 않는다)
+jwt:
+  secret: 로컬_전용_JWT_서명키를_32자_이상으로_입력하세요
+
 logging:
   level:
     org.hibernate.SQL: debug
