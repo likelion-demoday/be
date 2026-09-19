@@ -2,6 +2,7 @@ package com.example.resay.domain.auth.controller;
 
 import com.example.resay.domain.auth.code.AuthSuccessCode;
 import com.example.resay.domain.auth.dto.LoginRequestDto;
+import com.example.resay.domain.auth.dto.RefreshTokenRequestDto;
 import com.example.resay.domain.auth.dto.SignupRequestDto;
 import com.example.resay.domain.auth.dto.TokenResponseDto;
 import com.example.resay.domain.auth.service.AuthService;
@@ -37,5 +38,23 @@ public class AuthController {
         TokenResponseDto response = authService.login(request);
         return ResponseEntity.status(AuthSuccessCode.LOGIN.getHttpStatus())
                 .body(ApiResponse.onSuccess(AuthSuccessCode.LOGIN, response));
+    }
+
+    @PostMapping("/reissue")
+    public ResponseEntity<ApiResponse<TokenResponseDto>> reissue(
+            @Valid @RequestBody RefreshTokenRequestDto request
+    ) {
+        TokenResponseDto response = authService.reissue(request);
+        return ResponseEntity.status(AuthSuccessCode.REISSUE.getHttpStatus())
+                .body(ApiResponse.onSuccess(AuthSuccessCode.REISSUE, response));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>> logout(
+            @Valid @RequestBody RefreshTokenRequestDto request
+    ) {
+        authService.logout(request);
+        return ResponseEntity.status(AuthSuccessCode.LOGOUT.getHttpStatus())
+                .body(ApiResponse.onSuccess(AuthSuccessCode.LOGOUT));
     }
 }

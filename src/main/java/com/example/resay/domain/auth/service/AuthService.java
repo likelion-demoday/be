@@ -2,6 +2,7 @@ package com.example.resay.domain.auth.service;
 
 import com.example.resay.domain.auth.code.AuthErrorCode;
 import com.example.resay.domain.auth.dto.LoginRequestDto;
+import com.example.resay.domain.auth.dto.RefreshTokenRequestDto;
 import com.example.resay.domain.auth.dto.SignupRequestDto;
 import com.example.resay.domain.auth.dto.TokenResponseDto;
 import com.example.resay.domain.user.entity.Provider;
@@ -24,6 +25,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final RefreshTokenService refreshTokenService;
 
     // 가입 직후 바로 서비스를 이용할 수 있도록 로그인과 같은 토큰을 발급한다
     @Transactional
@@ -47,6 +49,7 @@ public class AuthService {
         return issueToken(user);
     }
 
+    @Transactional
     public TokenResponseDto login(LoginRequestDto request) {
         User user = userRepository.findByEmail(normalizeEmail(request.email()))
                 .filter(found -> found.getProvider() == Provider.LOCAL)
@@ -55,9 +58,25 @@ public class AuthService {
         return issueToken(user);
     }
 
+    // 사용한 리프레시 토큰은 폐기하고 새 토큰 쌍을 발급한다 (rotation)
+    @Transactional
+    public TokenResponseDto reissue(RefreshTokenRequestDto request) {
+        Long userId = refreshTokenService.consume(request.refreshToken());
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new GeneralException(AuthErrorCode.INVALID_REFRESH_TOKEN));
+        return issueToken(user);
+    }
+
+    // 이미 폐기됐거나 없는 토큰이어도 결과는 같으므로 항상 성공으로 응답한다
+    @Transactional
+    public void logout(RefreshTokenRequestDto request) {
+        refreshTokenService.revoke(request.refreshToken());
+    }
+
     private TokenResponseDto issueToken(User user) {
-        return TokenResponseDto.from(
-                jwtTokenProvider.issueAccessToken(user.getId(), user.getRole().name())
+        return TokenResponseDto.of(
+                jwtTokenProvider.issueAccessToken(user.getId(), user.getRole().name()),
+                refreshTokenService.issue(user.getId())
         );
     }
 

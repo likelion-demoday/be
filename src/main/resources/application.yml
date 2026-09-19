@@ -34,6 +34,7 @@ jwt:
   secret: ${JWT_SECRET:}
   issuer: resay
   access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:1h}
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:14d}
 
 # CORS 허용 도메인 (쉼표로 구분). 로컬 기본값은 프론트 개발 서버 포트
 cors:
