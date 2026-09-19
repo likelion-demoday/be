@@ -13,6 +13,7 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.util.StringUtils;
 
 @Getter
 @Entity
@@ -72,6 +73,9 @@ public class User extends BaseEntity {
     }
 
     public static User createLocal(String email, String encodedPassword, String nickname) {
+        requireText(email, "email");
+        requireText(encodedPassword, "encodedPassword");
+        requireText(nickname, "nickname");
         return new User(email, encodedPassword, nickname, Provider.LOCAL, null);
     }
 
@@ -81,9 +85,22 @@ public class User extends BaseEntity {
             String email,
             String nickname
     ) {
-        if (provider == Provider.LOCAL) {
-            throw new IllegalArgumentException("소셜 가입에는 LOCAL 가입 경로를 사용할 수 없습니다.");
+        if (provider == null || provider == Provider.LOCAL) {
+            throw new IllegalArgumentException("소셜 가입에는 LOCAL이 아닌 가입 경로가 필요합니다.");
+        }
+        // MySQL UNIQUE는 NULL 중복을 막지 못하므로 (provider, NULL) 계정이 여러 건 생기지 않게 여기서 막는다
+        requireText(providerId, "providerId");
+        requireText(nickname, "nickname");
+        // 이메일 제공에 동의하지 않은 소셜 계정은 null로 저장한다
+        if (email != null) {
+            requireText(email, "email");
         }
         return new User(email, null, nickname, provider, providerId);
+    }
+
+    private static void requireText(String value, String fieldName) {
+        if (!StringUtils.hasText(value)) {
+            throw new IllegalArgumentException(fieldName + "은(는) 비어 있을 수 없습니다.");
+        }
     }
 }
