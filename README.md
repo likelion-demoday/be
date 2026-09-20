@@ -19,8 +19,9 @@
 음성 업로드
   → CLOVA Speech 전사·화자 분리
   → 서버 정량 지표 계산
-  → OpenAI 대화 습관 분석
+  → LINER 개인·단체 대화 분석 및 근거 자료 검색
   → 근거 발화 연결
+  → 개인 분석 캐릭터 이미지 생성
   → 리포트 저장·조회
 ```
 
@@ -39,12 +40,20 @@ src
 │   │       │   ├── recording
 │   │       │   ├── transcription
 │   │       │   ├── analysis
-│   │       │   └── report
+│   │       │   │   ├── personal
+│   │       │   │   └── group
+│   │       │   ├── report
+│   │       │   └── character
 │   │       ├── global
 │   │       │   ├── apiPayload
 │   │       │   ├── config
 │   │       │   ├── exception
 │   │       │   ├── infrastructure
+│   │       │   │   ├── kakao
+│   │       │   │   ├── clova
+│   │       │   │   ├── liner
+│   │       │   │   ├── image
+│   │       │   │   └── storage
 │   │       │   └── security
 │   │       └── Application.java
 │   └── resources
@@ -61,7 +70,10 @@ src
 | `global/apiPayload` | 공통 응답 형식과 상태 코드 |
 | `global/config` | 애플리케이션 공통 설정 |
 | `global/exception` | 공통 예외와 예외 처리 |
-| `global/infrastructure` | CLOVA, OpenAI, 스토리지 등 외부 연동 |
+| `domain/analysis/personal` | 본인 화자의 개인 대화 지표와 분석 |
+| `domain/analysis/group` | 전체 대화의 참여 균형과 상호작용 분석 |
+| `domain/character` | 개인 분석 캐릭터 유형과 생성 상태 |
+| `global/infrastructure` | Kakao, CLOVA, LINER, 이미지 생성, 스토리지 등 외부 연동 |
 | `global/security` | 인증·인가와 JWT 처리 |
 
 각 도메인의 기본 구성은 다음을 따릅니다. 필요하지 않은 패키지는 만들지 않습니다.
@@ -194,7 +206,7 @@ test: 일반 로그인 서비스 테스트 추가
 
 ### External API
 
-- CLOVA Speech와 OpenAI 응답 객체를 도메인 계층에서 직접 사용하지 않습니다.
+- CLOVA Speech, LINER와 이미지 생성 API 응답 객체를 도메인 계층에서 직접 사용하지 않습니다.
 - 외부 API 응답은 `global/infrastructure`에서 내부 모델로 변환합니다.
 - 전사 결과에는 provider, 모델, 처리 시각과 원본 응답 위치를 기록합니다.
 - 동일 음성의 중복 전사를 막기 위해 파일 해시와 처리 옵션을 기준으로 캐싱합니다.
