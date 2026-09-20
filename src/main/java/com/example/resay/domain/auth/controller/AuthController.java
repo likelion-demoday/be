@@ -1,6 +1,7 @@
 package com.example.resay.domain.auth.controller;
 
 import com.example.resay.domain.auth.code.AuthSuccessCode;
+import com.example.resay.domain.auth.dto.KakaoLoginRequestDto;
 import com.example.resay.domain.auth.dto.LoginRequestDto;
 import com.example.resay.domain.auth.dto.RefreshTokenRequestDto;
 import com.example.resay.domain.auth.dto.SignupRequestDto;
@@ -38,6 +39,15 @@ public class AuthController {
         TokenResponseDto response = authService.login(request);
         return ResponseEntity.status(AuthSuccessCode.LOGIN.getHttpStatus())
                 .body(ApiResponse.onSuccess(AuthSuccessCode.LOGIN, response));
+    }
+
+    @PostMapping("/oauth/kakao")
+    public ResponseEntity<ApiResponse<TokenResponseDto>> loginWithKakao(
+            @Valid @RequestBody KakaoLoginRequestDto request
+    ) {
+        TokenResponseDto response = authService.loginWithKakao(request);
+        return ResponseEntity.status(AuthSuccessCode.SOCIAL_LOGIN.getHttpStatus())
+                .body(ApiResponse.onSuccess(AuthSuccessCode.SOCIAL_LOGIN, response));
     }
 
     @PostMapping("/reissue")

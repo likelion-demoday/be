@@ -1,6 +1,7 @@
 package com.example.resay.domain.auth.service;
 
 import com.example.resay.domain.auth.code.AuthErrorCode;
+import com.example.resay.domain.auth.dto.KakaoLoginRequestDto;
 import com.example.resay.domain.auth.dto.LoginRequestDto;
 import com.example.resay.domain.auth.dto.RefreshTokenRequestDto;
 import com.example.resay.domain.auth.dto.SignupRequestDto;
@@ -9,6 +10,9 @@ import com.example.resay.domain.user.entity.Provider;
 import com.example.resay.domain.user.entity.User;
 import com.example.resay.domain.user.repository.UserRepository;
 import com.example.resay.global.exception.GeneralException;
+import com.example.resay.global.infrastructure.kakao.KakaoClient;
+import com.example.resay.global.infrastructure.kakao.KakaoProperties;
+import com.example.resay.global.infrastructure.kakao.KakaoUserResponse;
 import com.example.resay.global.security.JwtTokenProvider;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +30,9 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
+    private final SocialLoginService socialLoginService;
+    private final KakaoClient kakaoClient;
+    private final KakaoProperties kakaoProperties;
 
     // 가입 직후 바로 서비스를 이용할 수 있도록 로그인과 같은 토큰을 발급한다
     @Transactional
@@ -55,6 +62,26 @@ public class AuthService {
                 .filter(found -> found.getProvider() == Provider.LOCAL)
                 .filter(found -> passwordEncoder.matches(request.password(), found.getPassword()))
                 .orElseThrow(() -> new GeneralException(AuthErrorCode.INVALID_CREDENTIALS));
+        return issueToken(user);
+    }
+
+    // 프론트가 카카오에서 받은 인가 코드로 로그인하거나 자동 가입한다
+    @Transactional
+    public TokenResponseDto loginWithKakao(KakaoLoginRequestDto request) {
+        if (!kakaoProperties.isConfigured()) {
+            throw new GeneralException(AuthErrorCode.SOCIAL_LOGIN_NOT_CONFIGURED);
+        }
+        if (!kakaoProperties.isAllowedRedirectUri(request.redirectUri())) {
+            throw new GeneralException(AuthErrorCode.INVALID_REDIRECT_URI);
+        }
+
+        KakaoUserResponse kakaoUser = kakaoClient.fetchUser(request.code(), request.redirectUri());
+        User user = socialLoginService.findOrCreate(
+                Provider.KAKAO,
+                String.valueOf(kakaoUser.id()),
+                kakaoUser.email(),
+                kakaoUser.nickname()
+        );
         return issueToken(user);
     }
 
