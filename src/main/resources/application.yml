@@ -40,6 +40,17 @@ jwt:
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
 
+# 소셜 로그인
+# 키가 없어도 서버는 뜬다. 해당 소셜 로그인 API를 호출할 때만 설정을 확인한다.
+oauth:
+  kakao:
+    client-id: ${KAKAO_REST_API_KEY:}
+    client-secret: ${KAKAO_CLIENT_SECRET:}
+    # 프론트가 Kakao.Auth.authorize에 사용한 값과 정확히 같아야 한다
+    allowed-redirect-uris: ${KAKAO_ALLOWED_REDIRECT_URIS:http://localhost:5173/oauth/kakao/callback}
+    token-uri: https://kauth.kakao.com/oauth/token
+    user-info-uri: https://kapi.kakao.com/v2/user/me
+
 # 외부 연동 설정
 # 실제 값은 저장소에 두지 않고 환경변수로 주입한다. 담당자별로 본인 값만 채우면 된다.
 clova:
