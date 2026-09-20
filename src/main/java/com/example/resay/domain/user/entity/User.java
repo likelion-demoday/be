@@ -98,6 +98,11 @@ public class User extends BaseEntity {
         return new User(email, null, nickname, provider, providerId);
     }
 
+    public void updateNickname(String nickname) {
+        requireText(nickname, "nickname");
+        this.nickname = nickname;
+    }
+
     private static void requireText(String value, String fieldName) {
         if (!StringUtils.hasText(value)) {
             throw new IllegalArgumentException(fieldName + "은(는) 비어 있을 수 없습니다.");
