@@ -19,6 +19,24 @@ server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
 
+# 헬스체크
+# - /actuator/health/liveness : 앱이 살아있는지만 본다 (컨테이너 재시작 판단용)
+# - /actuator/health          : DB 연결·디스크 여유까지 본다 (모니터링용). 상세 내용은 외부에 노출하지 않는다
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    diskspace:
+      # 음성 파일이 쌓이는 서비스라 여유 공간이 이보다 적으면 DOWN으로 본다 (60GB 디스크의 약 10%)
+      threshold: 6GB
+
 springdoc:
   api-docs:
     enabled: ${SWAGGER_ENABLED:true}

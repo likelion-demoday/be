@@ -14,6 +14,10 @@ spring:
       ddl-auto: validate
     show-sql: false
 
+# Caddy(리버스 프록시)가 HTTPS를 처리하고 HTTP로 넘겨주므로, 원래 요청의 https·호스트를 헤더로 인식한다
+server:
+  forward-headers-strategy: framework
+
 logging:
   level:
     root: info
