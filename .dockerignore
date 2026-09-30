@@ -1,0 +1,27 @@
+# 빌드 결과물·캐시
+build/
+.gradle/
+out/
+
+# IDE·OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# 비밀값이 든 로컬 설정은 이미지에 절대 들어가면 안 된다
+src/main/resources/application-local.yml
+src/main/resources/application-local.yaml
+.env
+.env.*
+deploy/.env.prod
+
+# 이미지와 무관한 파일
+.git/
+.github/
+ideas/
+*.md
+docker-compose*.yml
+scripts/
+deploy/

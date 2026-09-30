@@ -32,6 +32,9 @@ public class SecurityConfig {
             "/swagger-ui.html",
             "/swagger-ui/**",
             "/v3/api-docs/**",
+            // 컨테이너 헬스체크용. 상세 정보는 노출하지 않도록 설정되어 있다
+            "/actuator/health",
+            "/actuator/health/**",
             // 허용된 API에서 발생한 오류가 /error로 넘어갈 때 401로 바뀌지 않게 한다
             "/error"
     };

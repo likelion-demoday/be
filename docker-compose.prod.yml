@@ -1,0 +1,99 @@
+# 운영 서버용 구성: 앱 + MySQL + Caddy(HTTPS 리버스 프록시)
+#
+# 실행: ./deploy/deploy.sh
+#   (직접 실행 시) docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml up -d --build
+#
+# 메모리 배분 (Lightsail 2GB + 스왑 2GB 기준)
+#   app   : JVM 힙 512MB + 메타스페이스 등 → 약 800MB
+#   mysql : 버퍼 풀 256MB → 약 450MB
+#   caddy : 약 30MB
+
+services:
+  app:
+    build: .
+    image: resay-app:latest
+    restart: unless-stopped
+    env_file: deploy/.env.prod
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:mysql://mysql:3306/resay?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      STORAGE_BASE_PATH: /app/storage
+      JAVA_TOOL_OPTIONS: >-
+        -Xms256m -Xmx512m
+        -XX:MaxMetaspaceSize=192m
+        -XX:+UseSerialGC
+        -XX:+ExitOnOutOfMemoryError
+    volumes:
+      # 음성 파일은 컨테이너를 다시 만들어도 남아 있어야 한다
+      - resay-storage:/app/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health/liveness"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: resay
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: Asia/Seoul
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --innodb-buffer-pool-size=256M
+      - --max-connections=50
+      - --performance-schema=OFF
+    volumes:
+      - resay-mysql:/var/lib/mysql
+    # 외부로 포트를 열지 않는다 (앱 컨테이너에서만 접근)
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_DOMAIN: ${API_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # 발급받은 인증서가 여기 저장된다. 지우면 재발급되고, 너무 자주 재발급하면 Let's Encrypt 발급 제한에 걸린다
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  resay-storage:
+  resay-mysql:
+  caddy-data:
+  caddy-config:
