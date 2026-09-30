@@ -1,0 +1,108 @@
+package com.example.resay.domain.analysis.service;
+
+import com.example.resay.domain.analysis.code.AnalysisErrorCode;
+import com.example.resay.domain.analysis.entity.AnalysisStatus;
+import com.example.resay.domain.analysis.entity.ConversationAnalysis;
+import com.example.resay.domain.analysis.repository.ConversationAnalysisRepository;
+import com.example.resay.global.exception.GeneralException;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+
+@ExtendWith(MockitoExtension.class)
+class AnalysisServiceTest {
+
+    @Mock
+    private ConversationAnalysisRepository conversationAnalysisRepository;
+
+    @InjectMocks
+    private AnalysisService analysisService;
+
+    @Test
+    void startsAnalysis() {
+        given(conversationAnalysisRepository.existsByRecordingId(1L)).willReturn(false);
+
+        analysisService.start(1L);
+
+        ArgumentCaptor<ConversationAnalysis> captor = ArgumentCaptor.forClass(ConversationAnalysis.class);
+        then(conversationAnalysisRepository).should().saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getRecordingId()).isEqualTo(1L);
+        assertThat(captor.getValue().getStatus()).isEqualTo(AnalysisStatus.ANALYZING);
+    }
+
+    @Test
+    void rejectsExistingAnalysis() {
+        given(conversationAnalysisRepository.existsByRecordingId(1L)).willReturn(true);
+
+        assertThatThrownBy(() -> analysisService.start(1L))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(AnalysisErrorCode.ANALYSIS_ALREADY_EXISTS)
+                );
+
+        then(conversationAnalysisRepository).shouldHaveNoMoreInteractions();
+    }
+
+    @Test
+    void handlesConcurrentDuplicateAnalysis() {
+        given(conversationAnalysisRepository.existsByRecordingId(1L)).willReturn(false);
+        given(conversationAnalysisRepository.saveAndFlush(org.mockito.ArgumentMatchers.any()))
+                .willThrow(DataIntegrityViolationException.class);
+
+        assertThatThrownBy(() -> analysisService.start(1L))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(AnalysisErrorCode.ANALYSIS_ALREADY_EXISTS)
+                );
+    }
+
+    @Test
+    void completesAnalysis() {
+        ConversationAnalysis analysis = ConversationAnalysis.start(1L);
+        given(conversationAnalysisRepository.findByRecordingId(1L)).willReturn(Optional.of(analysis));
+
+        analysisService.complete(1L);
+
+        assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.COMPLETED);
+    }
+
+    @Test
+    void failsAnalysis() {
+        ConversationAnalysis analysis = ConversationAnalysis.start(1L);
+        given(conversationAnalysisRepository.findByRecordingId(1L)).willReturn(Optional.of(analysis));
+
+        analysisService.fail(1L);
+
+        assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.FAILED);
+    }
+
+    @Test
+    void rejectsMissingAnalysis() {
+        given(conversationAnalysisRepository.findByRecordingId(1L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> analysisService.complete(1L))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(AnalysisErrorCode.ANALYSIS_NOT_FOUND)
+                );
+    }
+
+    @Test
+    void rejectsInvalidStatusChange() {
+        ConversationAnalysis analysis = ConversationAnalysis.start(1L);
+        analysis.complete();
+        given(conversationAnalysisRepository.findByRecordingId(1L)).willReturn(Optional.of(analysis));
+
+        assertThatThrownBy(() -> analysisService.fail(1L))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(AnalysisErrorCode.INVALID_ANALYSIS_STATUS)
+                );
+    }
+}
