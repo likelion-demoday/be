@@ -108,7 +108,8 @@ services:
     environment:
       API_DOMAIN: ${API_DOMAIN}
     volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # 파일 하나가 아니라 폴더를 연결한다. 파일만 연결하면 배포로 파일이 교체돼도 컨테이너는 옛 내용을 계속 본다
+      - ./deploy/caddy:/etc/caddy:ro
       # 발급받은 인증서가 여기 저장된다. 지우면 재발급되고, 너무 자주 재발급하면 Let's Encrypt 발급 제한에 걸린다
       - caddy-data:/data
       - caddy-config:/config

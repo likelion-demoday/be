@@ -87,12 +87,12 @@ AWS Lightsail 한 대에 **앱 + MySQL + Caddy(HTTPS)** 를 Docker Compose로 �
 
 ```bash
 IP=13.125.20.135
-aws lightsail get-instance-access-details --instance-name resay-api --protocol ssh   --query 'accessDetails.hostKeys[].[algorithm,publicKey]' --output text   | tr -d '
-' | while read -r alg key; do echo "$IP $alg $key"; done >> ~/.ssh/known_hosts
+aws lightsail get-instance-access-details --instance-name resay-api --protocol ssh \
+  --query 'accessDetails.hostKeys[].[algorithm,publicKey]' --output text \
+  | tr -d '\r' | while read -r alg key; do echo "$IP $alg $key"; done >> ~/.ssh/known_hosts
 
 # 기본 키 페어 내려받기 (내용을 화면에 출력하지 않는다)
-aws lightsail download-default-key-pair --query privateKeyBase64 --output text | tr -d '
-' > ~/.ssh/lightsail-resay-api.pem
+aws lightsail download-default-key-pair --query privateKeyBase64 --output text | tr -d '\r' > ~/.ssh/lightsail-resay-api.pem
 chmod 600 ~/.ssh/lightsail-resay-api.pem
 
 ssh -i ~/.ssh/lightsail-resay-api.pem -o IdentitiesOnly=yes ubuntu@$IP 'ls /var/log/resay-bootstrap-done && docker --version'
@@ -119,9 +119,11 @@ chmod 600 deploy/.env.prod
 
 1. 원격의 해당 커밋을 임시 폴더에 꺼내 `./gradlew clean build` (테스트가 실패하면 배포하지 않는다)
 2. JAR과 배포 파일(`Dockerfile`, `docker-compose.prod.yml`, `deploy/`)을 서버 `~/resay`로 전송
-3. 서버에서 `deploy/deploy.sh` 실행 → 이미지 생성, 컨테이너 교체, 앱이 healthy가 될 때까지 대기
+3. 서버에서 `deploy/deploy.sh` 실행 → Caddy 설정 검사, 이미지 생성, 컨테이너 교체, 앱이 healthy가 될 때까지 대기, Caddy 설정 반영
 
 필요한 것: JDK 17(`JAVA_HOME`), 서버 SSH 키. 처음에는 이미지 내려받기 때문에 몇 분 걸린다.
+
+> 앱 컨테이너가 교체되는 **약 30초 동안은 API가 502를 응답한다.** 프론트가 연동 테스트 중이면 배포 전에 알린다.
 
 ### 8. 확인
 
@@ -167,7 +169,7 @@ Lightsail **자동 스냅샷**도 켠다 (인스턴스 → 스냅샷 → 자동 
 | Docker | 공식 저장소에서 서명 키 지문을 확인하고 설치. 외부 TCP 소켓 없음. 컨테이너 로그 상한 설정 |
 | 앱 컨테이너 | root가 아닌 사용자, 리눅스 권한 전부 제거(`cap_drop: ALL`), 권한 상승 차단 |
 | 요청 크기 | 음성 업로드(`POST /api/v1/recordings`)만 210MB, 나머지 API는 1MB (Caddy) |
-| HTTPS | Caddy가 인증서 자동 발급 · 갱신, HTTP는 HTTPS로 리다이렉트 |
+| HTTPS | Caddy가 인증서 자동 발급 · 갱신, HTTP는 HTTPS로 리다이렉트. TLS 1.2 이상만 허용 |
 | 비밀값 | `deploy/.env.prod`(권한 600)에만 두고 저장소에 올리지 않음 |
 
 다시 점검할 때
@@ -191,6 +193,7 @@ apt list --upgradable 2>/dev/null | wc -l       # 1이면 대기 중인 업데�
 | --- | --- | --- |
 | 재배포 | 로컬 | `./deploy/push.sh` (런칭 후에는 `./deploy/push.sh main`) |
 | 환경변수 변경 반영 | 서버 | `deploy/.env.prod` 수정 후 `cd ~/resay && ./deploy/deploy.sh` |
+| 프록시 설정 변경 (업로드 용량 제한 등) | 로컬 | `deploy/caddy/Caddyfile` 수정 → 머지 → `./deploy/push.sh` (문법을 검사한 뒤 끊김 없이 반영된다. 오류가 있으면 배포가 중단되고 기존 설정이 유지된다) |
 | 앱 로그 | 서버 | `cd ~/resay && docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml logs -f --tail 200 app` |
 | 상태 | 서버 | `cd ~/resay && docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml ps` |
 | 메모리 · 디스크 | 서버 | `free -h` / `docker stats --no-stream` / `df -h /` |
@@ -233,4 +236,4 @@ git log --oneline -10 origin/develop     # 되돌릴 커밋 확인
 | `push.sh`가 접속에서 멈춤 | 서버 호스트 키가 `known_hosts`에 없거나 SSH 키 경로가 다름 (5단계) |
 | 프론트에서 CORS 오류 | `CORS_ALLOWED_ORIGINS`에 프론트 주소가 **프로토콜까지 정확히** 들어갔는지 (`https://resay.site`) |
 | 카카오 로그인 `AUTH400_1` | `KAKAO_ALLOWED_REDIRECT_URIS`와 카카오 콘솔·프론트가 쓰는 주소가 글자 하나까지 같은지 |
-| 업로드가 413 | Caddyfile `max_size`와 스프링 multipart 설정(210MB) 확인 |
+| 업로드가 413 | `deploy/caddy/Caddyfile`의 `max_size`와 스프링 multipart 설정(파일 200MB) 확인. 업로드 경로(`POST /api/v1/recordings`) 외에는 1MB 제한 |

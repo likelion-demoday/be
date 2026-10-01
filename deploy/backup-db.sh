@@ -3,7 +3,7 @@
 # 결제 내역이 대회 평가 증빙이라, 런칭(10/31) 이후에는 반드시 켜 둔다.
 #
 # cron 등록 (매일 새벽 4시):
-#   0 4 * * * /home/ubuntu/be/deploy/backup-db.sh >> /home/ubuntu/backup.log 2>&1
+#   0 4 * * * /home/ubuntu/resay/deploy/backup-db.sh >> /home/ubuntu/backup.log 2>&1
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
