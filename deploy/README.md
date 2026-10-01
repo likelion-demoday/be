@@ -123,7 +123,8 @@ chmod 600 deploy/.env.prod
 
 필요한 것: JDK 17(`JAVA_HOME`), 서버 SSH 키. 처음에는 이미지 내려받기 때문에 몇 분 걸린다.
 
-> 앱 컨테이너가 교체되는 **약 30초 동안은 API가 502를 응답한다.** 프론트가 연동 테스트 중이면 배포 전에 알린다.
+> 앱 코드가 바뀐 배포에서는 컨테이너가 교체되는 **약 20초 동안 API가 502를 응답한다.** 프론트가 연동 테스트 중이면 배포 전에 알린다.
+> (JAR이 그대로면 컨테이너를 교체하지 않으므로 중단이 없다)
 
 ### 8. 확인
 
@@ -198,6 +199,7 @@ apt list --upgradable 2>/dev/null | wc -l       # 1이면 대기 중인 업데�
 | 상태 | 서버 | `cd ~/resay && docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml ps` |
 | 메모리 · 디스크 | 서버 | `free -h` / `docker stats --no-stream` / `df -h /` |
 | 지금 배포된 커밋 | 서버 | `cat ~/resay/REVISION` |
+| DB 백업에서 복구 | 서버 | `cd ~/resay && gunzip -c ~/backups/<파일> \| docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -u root resay'` |
 
 앱에 새 환경변수가 필요해지면 `deploy/.env.prod`에 값을 넣고, **`docker-compose.prod.yml`의 `app.environment` 목록에도 이름을 추가**해야 앱에 전달된다.
 
