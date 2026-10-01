@@ -23,6 +23,12 @@ services:
         -XX:MaxMetaspaceSize=192m
         -XX:+UseSerialGC
         -XX:+ExitOnOutOfMemoryError
+    # 사용자가 올린 파일을 다루는 컨테이너라 권한을 최소로 둔다.
+    # 이미 root가 아닌 사용자로 실행되고(Dockerfile), 리눅스 권한(capability)을 모두 떼고 권한 상승도 막는다.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     volumes:
       # 음성 파일은 컨테이너를 다시 만들어도 남아 있어야 한다
       - resay-storage:/app/storage
@@ -78,7 +84,6 @@ services:
       - "443:443"
     environment:
       API_DOMAIN: ${API_DOMAIN}
-      ACME_EMAIL: ${ACME_EMAIL}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       # 발급받은 인증서가 여기 저장된다. 지우면 재발급되고, 너무 자주 재발급하면 Let's Encrypt 발급 제한에 걸린다
