@@ -1,8 +1,11 @@
 package com.example.resay.domain.analysis.service;
 
 import com.example.resay.domain.analysis.code.AnalysisErrorCode;
+import com.example.resay.domain.analysis.dto.AnalysisResultCommand;
+import com.example.resay.domain.analysis.entity.AnalysisResult;
 import com.example.resay.domain.analysis.entity.AnalysisStatus;
 import com.example.resay.domain.analysis.entity.ConversationAnalysis;
+import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
 import com.example.resay.domain.analysis.repository.ConversationAnalysisRepository;
 import com.example.resay.global.exception.GeneralException;
 import java.util.Optional;
@@ -13,6 +16,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -24,6 +28,9 @@ class AnalysisServiceTest {
 
     @Mock
     private ConversationAnalysisRepository conversationAnalysisRepository;
+
+    @Mock
+    private AnalysisResultRepository analysisResultRepository;
 
     @InjectMocks
     private AnalysisService analysisService;
@@ -66,12 +73,17 @@ class AnalysisServiceTest {
 
     @Test
     void completesAnalysis() {
-        ConversationAnalysis analysis = ConversationAnalysis.start(1L);
+        ConversationAnalysis analysis = savedAnalysis();
         given(conversationAnalysisRepository.findByRecordingId(1L)).willReturn(Optional.of(analysis));
+        given(analysisResultRepository.existsByAnalysisId(10L)).willReturn(false);
 
-        analysisService.complete(1L);
+        analysisService.complete(1L, resultCommand());
 
         assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.COMPLETED);
+        ArgumentCaptor<AnalysisResult> captor = ArgumentCaptor.forClass(AnalysisResult.class);
+        then(analysisResultRepository).should().saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getAnalysisId()).isEqualTo(10L);
+        assertThat(captor.getValue().getResultJson()).isEqualTo("{\"summary\":\"대화 요약\"}");
     }
 
     @Test
@@ -88,9 +100,39 @@ class AnalysisServiceTest {
     void rejectsMissingAnalysis() {
         given(conversationAnalysisRepository.findByRecordingId(1L)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> analysisService.complete(1L))
+        assertThatThrownBy(() -> analysisService.complete(1L, resultCommand()))
                 .isInstanceOfSatisfying(GeneralException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(AnalysisErrorCode.ANALYSIS_NOT_FOUND)
+                );
+    }
+
+    @Test
+    void rejectsExistingAnalysisResult() {
+        ConversationAnalysis analysis = savedAnalysis();
+        given(conversationAnalysisRepository.findByRecordingId(1L)).willReturn(Optional.of(analysis));
+        given(analysisResultRepository.existsByAnalysisId(10L)).willReturn(true);
+
+        assertThatThrownBy(() -> analysisService.complete(1L, resultCommand()))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(AnalysisErrorCode.ANALYSIS_RESULT_ALREADY_EXISTS)
+                );
+
+        assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.ANALYZING);
+    }
+
+    @Test
+    void handlesConcurrentDuplicateAnalysisResult() {
+        ConversationAnalysis analysis = savedAnalysis();
+        given(conversationAnalysisRepository.findByRecordingId(1L)).willReturn(Optional.of(analysis));
+        given(analysisResultRepository.existsByAnalysisId(10L)).willReturn(false);
+        given(analysisResultRepository.saveAndFlush(org.mockito.ArgumentMatchers.any()))
+                .willThrow(DataIntegrityViolationException.class);
+
+        assertThatThrownBy(() -> analysisService.complete(1L, resultCommand()))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(AnalysisErrorCode.ANALYSIS_RESULT_ALREADY_EXISTS)
                 );
     }
 
@@ -104,5 +146,20 @@ class AnalysisServiceTest {
                 .isInstanceOfSatisfying(GeneralException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(AnalysisErrorCode.INVALID_ANALYSIS_STATUS)
                 );
+    }
+
+    private ConversationAnalysis savedAnalysis() {
+        ConversationAnalysis analysis = ConversationAnalysis.start(1L);
+        ReflectionTestUtils.setField(analysis, "id", 10L);
+        return analysis;
+    }
+
+    private AnalysisResultCommand resultCommand() {
+        return new AnalysisResultCommand(
+                "{\"summary\":\"대화 요약\"}",
+                "liner-mark-1.1",
+                "v1",
+                "v1"
+        );
     }
 }
