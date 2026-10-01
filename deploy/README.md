@@ -2,6 +2,9 @@
 
 AWS Lightsail 한 대에 **앱 + MySQL + Caddy(HTTPS)** 를 Docker Compose로 올린다.
 
+**배포는 로컬에서 `./deploy/push.sh` 한 번으로 한다.** 원격 저장소의 커밋을 로컬에서 테스트·빌드하고 JAR만 서버로 보낸다.
+서버는 레포에 접근하지 않는다 (조직 정책으로 deploy key가 막혀 있고, 서버에 GitHub 자격 증명이나 소스를 두지 않기 위해서다).
+
 ```text
 인터넷 ──443──▶ Caddy (HTTPS 자동 발급·갱신) ──▶ app:8080 (Spring) ──▶ mysql:3306
                                                     │
@@ -78,41 +81,50 @@ AWS Lightsail 한 대에 **앱 + MySQL + Caddy(HTTPS)** 를 Docker Compose로 �
 > 반영까지 몇 분~최대 몇 시간. 로컬에서 `nslookup api.resay.site`로 고정 IP가 나오면 된다.
 > **DNS가 반영되기 전에 서버를 띄우면 HTTPS 인증서 발급이 실패한다.** (6단계 전에 확인)
 
-### 5. 서버 기본 설정
+### 5. 서버 호스트 키 등록과 접속 확인 (로컬)
 
-Lightsail 콘솔의 **SSH로 연결** 버튼 또는 로컬 터미널에서 접속한다.
+처음 접속할 때 호스트 키를 그냥 믿지 않고, Lightsail이 기록한 값과 대조해서 등록한다.
 
 ```bash
-# 레포가 private이라 GitHub 인증이 필요하다. 가장 간단한 방법: gh 로그인
-sudo apt-get update && sudo apt-get install -y gh
-gh auth login          # GitHub.com → HTTPS → 브라우저 또는 토큰
+IP=13.125.20.135
+aws lightsail get-instance-access-details --instance-name resay-api --protocol ssh \
+  --query 'accessDetails.hostKeys[].[algorithm,publicKey]' --output text \
+  | tr -d '\r' | while read -r alg key; do echo "$IP $alg $key"; done >> ~/.ssh/known_hosts
 
-git clone https://github.com/likelion-demoday/be.git
-cd be
-sudo bash deploy/server-setup.sh   # 시간대, 스왑 2GB, Docker 설치 (deploy/lightsail.yml로 만든 서버는 이미 되어 있다)
-exit                               # 다시 접속해야 docker 권한이 적용된다
+# 기본 키 페어 내려받기 (내용을 화면에 출력하지 않는다)
+aws lightsail download-default-key-pair --query privateKeyBase64 --output text | tr -d '\r' > ~/.ssh/lightsail-resay-api.pem
+chmod 600 ~/.ssh/lightsail-resay-api.pem
+
+ssh -i ~/.ssh/lightsail-resay-api.pem -o IdentitiesOnly=yes ubuntu@$IP 'ls /var/log/resay-bootstrap-done && docker --version'
 ```
 
-다시 접속한 뒤 `docker ps`가 sudo 없이 되는지 확인.
+`deploy/lightsail.yml`로 만든 서버는 스왑 · Docker 설정이 이미 되어 있다. 콘솔에서 직접 만든 서버라면 `deploy/server-setup.sh`를 서버에서 `sudo bash`로 실행한다.
 
-### 6. 환경변수 작성
+### 6. 환경변수 작성 (서버)
 
 ```bash
-cd ~/be
-cp deploy/.env.prod.example deploy/.env.prod
+mkdir -p ~/resay/deploy && cd ~/resay
+nano deploy/.env.prod        # deploy/.env.prod.example 의 항목을 채운다
 chmod 600 deploy/.env.prod
-nano deploy/.env.prod
 ```
 
-비밀번호·JWT 키는 `openssl rand -base64 48`로 만든다. **로컬에서 쓰던 값을 재사용하지 않는다.**
+비밀번호 · JWT 키는 `openssl rand -hex 32`처럼 서버에서 만든다. **로컬에서 쓰던 값을 재사용하지 않는다.**
+`.env.prod`는 서버에만 있고, 배포할 때 덮어쓰지 않는다.
 
-### 7. 배포
+### 7. 배포 (로컬)
 
 ```bash
-./deploy/deploy.sh
+./deploy/push.sh             # origin/develop 최신 커밋
 ```
 
-처음에는 이미지 빌드 때문에 5분 정도 걸린다.
+1. 원격의 해당 커밋을 임시 폴더에 꺼내 `./gradlew clean build` (테스트가 실패하면 배포하지 않는다)
+2. JAR과 배포 파일(`Dockerfile`, `docker-compose.prod.yml`, `deploy/`)을 서버 `~/resay`로 전송
+3. 서버에서 `deploy/deploy.sh` 실행 → Caddy 설정 검사, 이미지 생성, 컨테이너 교체, 앱이 healthy가 될 때까지 대기, Caddy 설정 반영
+
+필요한 것: JDK 17(`JAVA_HOME`), 서버 SSH 키. 처음에는 이미지 내려받기 때문에 몇 분 걸린다.
+
+> 앱 코드가 바뀐 배포에서는 컨테이너가 교체되는 **약 20초 동안 API가 502를 응답한다.** 프론트가 연동 테스트 중이면 배포 전에 알린다.
+> (JAR이 그대로면 컨테이너를 교체하지 않으므로 중단이 없다)
 
 ### 8. 확인
 
@@ -132,9 +144,9 @@ crontab -e
 
 ```cron
 # 30분마다 디스크 사용량 확인 (80% 넘으면 경고)
-*/30 * * * * /home/ubuntu/be/deploy/check-disk.sh >> /home/ubuntu/disk-check.log 2>&1
+*/30 * * * * /home/ubuntu/resay/deploy/check-disk.sh >> /home/ubuntu/disk-check.log 2>&1
 # 매일 새벽 4시 DB 백업 (7일치 보관)
-0 4 * * * /home/ubuntu/be/deploy/backup-db.sh >> /home/ubuntu/backup.log 2>&1
+0 4 * * * /home/ubuntu/resay/deploy/backup-db.sh >> /home/ubuntu/backup.log 2>&1
 ```
 
 Lightsail **자동 스냅샷**도 켠다 (인스턴스 → 스냅샷 → 자동 스냅샷). DB 덤프는 같은 서버에 저장되므로, 서버가 통째로 망가지는 경우는 스냅샷으로 복구한다.
@@ -158,7 +170,7 @@ Lightsail **자동 스냅샷**도 켠다 (인스턴스 → 스냅샷 → 자동 
 | Docker | 공식 저장소에서 서명 키 지문을 확인하고 설치. 외부 TCP 소켓 없음. 컨테이너 로그 상한 설정 |
 | 앱 컨테이너 | root가 아닌 사용자, 리눅스 권한 전부 제거(`cap_drop: ALL`), 권한 상승 차단 |
 | 요청 크기 | 음성 업로드(`POST /api/v1/recordings`)만 210MB, 나머지 API는 1MB (Caddy) |
-| HTTPS | Caddy가 인증서 자동 발급 · 갱신, HTTP는 HTTPS로 리다이렉트 |
+| HTTPS | Caddy가 인증서 자동 발급 · 갱신, HTTP는 HTTPS로 리다이렉트. TLS 1.2 이상만 허용 |
 | 비밀값 | `deploy/.env.prod`(권한 600)에만 두고 저장소에 올리지 않음 |
 
 다시 점검할 때
@@ -178,26 +190,25 @@ apt list --upgradable 2>/dev/null | wc -l       # 1이면 대기 중인 업데�
 
 ## 평소 작업
 
-| 할 일 | 명령 |
-| --- | --- |
-| 재배포 | `./deploy/deploy.sh` (런칭 후에는 `./deploy/deploy.sh main`) |
-| 앱 로그 | `docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml logs -f --tail 200 app` |
-| 상태 | `docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml ps` |
-| 메모리 | `free -h` / `docker stats --no-stream` |
-| 디스크 | `df -h /` |
-| 환경변수 변경 반영 | `.env.prod` 수정 후 `./deploy/deploy.sh` |
+| 할 일 | 어디서 | 명령 |
+| --- | --- | --- |
+| 재배포 | 로컬 | `./deploy/push.sh` (런칭 후에는 `./deploy/push.sh main`) |
+| 환경변수 변경 반영 | 서버 | `deploy/.env.prod` 수정 후 `cd ~/resay && ./deploy/deploy.sh` |
+| 프록시 설정 변경 (업로드 용량 제한 등) | 로컬 | `deploy/caddy/Caddyfile` 수정 → 머지 → `./deploy/push.sh` (문법을 검사한 뒤 끊김 없이 반영된다. 오류가 있으면 배포가 중단되고 기존 설정이 유지된다) |
+| 앱 로그 | 서버 | `cd ~/resay && docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml logs -f --tail 200 app` |
+| 상태 | 서버 | `cd ~/resay && docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml ps` |
+| 메모리 · 디스크 | 서버 | `free -h` / `docker stats --no-stream` / `df -h /` |
+| 지금 배포된 커밋 | 서버 | `cat ~/resay/REVISION` |
+| DB 백업에서 복구 | 서버 | `cd ~/resay && gunzip -c ~/backups/<파일> \| docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -u root resay'` |
+
+앱에 새 환경변수가 필요해지면 `deploy/.env.prod`에 값을 넣고, **`docker-compose.prod.yml`의 `app.environment` 목록에도 이름을 추가**해야 앱에 전달된다.
 
 ### 롤백
 
 ```bash
-git log --oneline -10               # 되돌릴 커밋 확인
-git checkout <커밋>                  # 해당 시점으로
-docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml up -d --build
+git log --oneline -10 origin/develop     # 되돌릴 커밋 확인
+./deploy/push.sh <커밋해시>               # 그 커밋을 다시 빌드해서 배포
 ```
-
-문제가 해결되면 다시 `./deploy/deploy.sh`로 브랜치 최신 상태로 돌아온다.
-
----
 
 ## 런칭 직전 (10월 말)
 
@@ -205,7 +216,7 @@ docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml up -d --bu
 - [ ] **운영 DB 초기화** (테스트 가입자·결제가 최종 지표에 섞이지 않도록)
 - [ ] `.env.prod`에서 `SWAGGER_ENABLED=true` 줄 삭제
 - [ ] DB 백업 cron 동작 확인
-- [ ] 이후 배포는 `main` 브랜치로
+- [ ] 이후 배포는 `./deploy/push.sh main`
 
 ## 데모데이(11/21) 이후
 
@@ -223,7 +234,8 @@ docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml up -d --bu
 | HTTPS 인증서 발급 실패 | `nslookup api.resay.site`가 고정 IP인지, 방화벽 80·443이 열렸는지, `docker compose ... logs caddy` |
 | 앱이 안 뜸 (`deploy.sh`가 실패) | 로그의 `APPLICATION FAILED TO START` 아래 이유 확인. 대부분 `.env.prod` 누락 (`JWT_SECRET`, `CORS_ALLOWED_ORIGINS` 등은 비어 있으면 일부러 부팅을 막음) |
 | 테이블이 없다는 오류 | 런칭 전이면 `.env.prod`에 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`가 있는지 |
-| 빌드 중 서버가 멈춤 | 메모리 부족. `free -h`로 스왑이 켜져 있는지 확인 |
+| `push.sh`가 빌드에서 멈춤 | 테스트 실패. 출력된 실패 테스트와 전체 로그 경로를 확인하고 고친 뒤 다시 푸시 · 배포. `JAVA_HOME`이 JDK 17을 가리키는지도 확인 |
+| `push.sh`가 접속에서 멈춤 | 서버 호스트 키가 `known_hosts`에 없거나 SSH 키 경로가 다름 (5단계) |
 | 프론트에서 CORS 오류 | `CORS_ALLOWED_ORIGINS`에 프론트 주소가 **프로토콜까지 정확히** 들어갔는지 (`https://resay.site`) |
 | 카카오 로그인 `AUTH400_1` | `KAKAO_ALLOWED_REDIRECT_URIS`와 카카오 콘솔·프론트가 쓰는 주소가 글자 하나까지 같은지 |
-| 업로드가 413 | Caddyfile `max_size`와 스프링 multipart 설정(210MB) 확인 |
+| 업로드가 413 | `deploy/caddy/Caddyfile`의 `max_size`와 스프링 multipart 설정(파일 200MB) 확인. 업로드 경로(`POST /api/v1/recordings`) 외에는 1MB 제한 |
