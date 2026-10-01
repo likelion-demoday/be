@@ -1,12 +1,15 @@
 # 운영 서버용 구성: 앱 + MySQL + Caddy(HTTPS 리버스 프록시)
 #
-# 실행: ./deploy/deploy.sh
-#   (직접 실행 시) docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml up -d --build
+# 배포: 로컬에서 ./deploy/push.sh (JAR을 올린 뒤 서버의 ./deploy/deploy.sh 를 실행한다)
+#   (서버에서 직접 실행 시) docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml up -d --build
 #
 # 메모리 배분 (Lightsail 2GB + 스왑 2GB 기준)
 #   app   : JVM 힙 512MB + 메타스페이스 등 → 약 800MB
 #   mysql : 버퍼 풀 256MB → 약 450MB
 #   caddy : 약 30MB
+
+# 프로젝트 이름을 고정한다. 폴더 이름에서 따오게 두면 폴더가 바뀔 때 볼륨(DB, 음성 파일)을 새로 만들어 버린다
+name: resay
 
 services:
   app:
