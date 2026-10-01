@@ -78,22 +78,33 @@ AWS Lightsail 한 대에 **앱 + MySQL + Caddy(HTTPS)** 를 Docker Compose로 �
 > 반영까지 몇 분~최대 몇 시간. 로컬에서 `nslookup api.resay.site`로 고정 IP가 나오면 된다.
 > **DNS가 반영되기 전에 서버를 띄우면 HTTPS 인증서 발급이 실패한다.** (6단계 전에 확인)
 
-### 5. 서버 기본 설정
+### 5. 서버에서 레포 받기
 
-Lightsail 콘솔의 **SSH로 연결** 버튼 또는 로컬 터미널에서 접속한다.
+레포가 private이라 서버가 코드를 받을 권한이 필요하다. **읽기 전용 deploy key**를 쓴다.
+(이 레포 하나만 읽을 수 있고 푸시는 할 수 없다. 개인 토큰이나 `gh auth login`은 계정 전체 권한이 서버에 남으므로 쓰지 않는다)
 
 ```bash
-# 레포가 private이라 GitHub 인증이 필요하다. 가장 간단한 방법: gh 로그인
-sudo apt-get update && sudo apt-get install -y gh
-gh auth login          # GitHub.com → HTTPS → 브라우저 또는 토큰
+# 서버에서: 키 생성 (개인키는 서버 밖으로 꺼내지 않는다)
+ssh-keygen -t ed25519 -N "" -f ~/.ssh/github_deploy_resay -C "resay-api server (read-only)"
+cat ~/.ssh/github_deploy_resay.pub      # 공개키만 복사
 
-git clone https://github.com/likelion-demoday/be.git
-cd be
-sudo bash deploy/server-setup.sh   # 시간대, 스왑 2GB, Docker 설치 (deploy/lightsail.yml로 만든 서버는 이미 되어 있다)
-exit                               # 다시 접속해야 docker 권한이 적용된다
+# GitHub 레포 → Settings → Deploy keys → Add deploy key (Allow write access는 체크하지 않는다)
+#   또는 로컬에서: gh repo deploy-key add 공개키파일 --repo likelion-demoday/be --title "resay-api server (read-only)"
+
+# 서버에서: GitHub 접속에 이 키를 쓰도록 설정
+cat >> ~/.ssh/config <<'EOF'
+Host github.com
+  User git
+  IdentityFile ~/.ssh/github_deploy_resay
+  IdentitiesOnly yes
+EOF
+chmod 600 ~/.ssh/config
+
+# GitHub 호스트 키는 https://api.github.com/meta 의 ssh_keys 값과 대조해서 known_hosts에 등록한다
+git clone --branch develop git@github.com:likelion-demoday/be.git ~/be
 ```
 
-다시 접속한 뒤 `docker ps`가 sudo 없이 되는지 확인.
+`deploy/lightsail.yml`로 만든 서버는 스왑 · Docker 설정이 이미 되어 있다. 콘솔에서 직접 만든 서버라면 `sudo bash deploy/server-setup.sh`를 실행하고 다시 접속한다.
 
 ### 6. 환경변수 작성
 
