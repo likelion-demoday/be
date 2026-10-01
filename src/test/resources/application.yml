@@ -38,3 +38,8 @@ oauth:
     allowed-redirect-uris: http://localhost:5173/oauth/kakao/callback
     token-uri: https://kauth.kakao.com/oauth/token
     user-info-uri: https://kapi.kakao.com/v2/user/me
+
+# 테스트 전용 스토리지 경로 (실제 파일이 쌓이지 않게 임시 폴더 사용)
+storage:
+  local:
+    base-path: ./build/test-storage
