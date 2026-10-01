@@ -28,6 +28,16 @@ AWS Lightsail 한 대에 **앱 + MySQL + Caddy(HTTPS)** 를 Docker Compose로 �
 > aws cloudformation describe-stacks --stack-name resay-api --query 'Stacks[0].Outputs'   # 고정 IP 확인
 > ```
 >
+> 스택을 만든 뒤 두 가지를 확인한다.
+>
+> ```bash
+> # 1) 첫 부팅 자동 설정이 끝났는지 (서버에서). 실패했으면 로그를 보고 sudo bash deploy/server-setup.sh 로 다시 실행
+> ls /var/log/resay-bootstrap-done && tail -3 /var/log/resay-bootstrap.log
+>
+> # 2) 컨테이너에서 인스턴스 메타데이터(임시 자격 증명)에 접근하지 못하게 홉 제한을 1로 (템플릿으로는 설정할 수 없다)
+> aws lightsail update-instance-metadata-options --instance-name resay-api --http-tokens required --http-put-response-hop-limit 1
+> ```
+>
 > 현재 운영 서버: 스택 `resay-api`, 고정 IP `13.125.20.135` (2026-10-01 생성)
 > 스택을 지워도 인스턴스와 고정 IP는 남도록(`DeletionPolicy: Retain`) 해두었다. 아래 1~3단계는 콘솔로 직접 만들 때의 참고용이다.
 
@@ -79,7 +89,7 @@ gh auth login          # GitHub.com → HTTPS → 브라우저 또는 토큰
 
 git clone https://github.com/likelion-demoday/be.git
 cd be
-sudo bash deploy/server-setup.sh   # 시간대, 스왑 2GB, Docker 설치
+sudo bash deploy/server-setup.sh   # 시간대, 스왑 2GB, Docker 설치 (deploy/lightsail.yml로 만든 서버는 이미 되어 있다)
 exit                               # 다시 접속해야 docker 권한이 적용된다
 ```
 
@@ -136,6 +146,35 @@ Lightsail **자동 스냅샷**도 켠다 (인스턴스 → 스냅샷 → 자동 
 - **CORS**: `.env.prod`의 `CORS_ALLOWED_ORIGINS`에 프론트 운영 주소
 
 ---
+
+## 보안 설정 (2026-10-01 점검)
+
+| 항목 | 상태 |
+| --- | --- |
+| 외부에 열린 포트 | 22 · 80 · 443만 (Lightsail 방화벽). 앱(8080) · DB(3306)는 컨테이너 내부 통신만 |
+| SSH | 키 인증만 허용(비밀번호 로그인 꺼짐), 비밀번호가 설정된 계정 없음, root 로그인 차단 |
+| OS 업데이트 | 전부 적용. 보안 업데이트는 매일 자동 설치(`unattended-upgrades`). 재부팅이 필요한 업데이트는 수동으로 재부팅 |
+| 인스턴스 메타데이터 | IMDSv2 강제 + 홉 제한 1 (컨테이너에서 접근 불가 확인) |
+| Docker | 공식 저장소에서 서명 키 지문을 확인하고 설치. 외부 TCP 소켓 없음. 컨테이너 로그 상한 설정 |
+| 앱 컨테이너 | root가 아닌 사용자, 리눅스 권한 전부 제거(`cap_drop: ALL`), 권한 상승 차단 |
+| 요청 크기 | 음성 업로드(`POST /api/v1/recordings`)만 210MB, 나머지 API는 1MB (Caddy) |
+| HTTPS | Caddy가 인증서 자동 발급 · 갱신, HTTP는 HTTPS로 리다이렉트 |
+| 비밀값 | `deploy/.env.prod`(권한 600)에만 두고 저장소에 올리지 않음 |
+
+다시 점검할 때
+
+```bash
+sudo sshd -T | grep -E "^(passwordauthentication|permitrootlogin|kbdinteractiveauthentication) "   # no / without-password / no
+sudo ss -tlnp                                   # 22, 80, 443 외에 0.0.0.0 으로 열린 포트가 없어야 한다
+apt list --upgradable 2>/dev/null | wc -l       # 1이면 대기 중인 업데이트 없음
+[ -f /var/run/reboot-required ] && echo "재부팅 필요"
+```
+
+알아둘 것
+
+- Docker는 OS 자동 업데이트 대상이 아니다(공식 저장소라서). 필요할 때 `sudo apt-get update && sudo apt-get install --only-upgrade docker-ce docker-ce-cli containerd.io`로 올린다. 올리면 컨테이너가 잠깐 재시작된다
+- SSH(22)는 전체에 열려 있다. 키 인증만 받으므로 무차별 대입은 통하지 않지만, 더 조이려면 Lightsail 방화벽에서 22번의 허용 IP를 제한한다
+- 로그인 시도 횟수 제한(rate limit)은 아직 없다. 런칭 전에 추가를 검토한다
 
 ## 평소 작업
 
