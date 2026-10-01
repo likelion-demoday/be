@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Resay API server on Lightsail - instance, firewall and static IP
+
+# 생성·변경:
+#   aws cloudformation deploy --stack-name resay-api --template-file deploy/lightsail.yml --region ap-northeast-2
+#
+# 주의
+# - UserData, BlueprintId, AvailabilityZone을 바꾸면 CloudFormation이 인스턴스를 "교체"한다.
+#   서버 안에 DB와 음성 파일이 있으므로, 운영 중에는 이 값들을 바꾸지 않는다.
+# - 사양을 올릴 때는 스택을 고치지 말고 스냅샷으로 더 큰 인스턴스를 만든다 (deploy/README.md 참고).
+# - DeletionPolicy가 Retain이라 스택을 지워도 인스턴스와 고정 IP는 남는다.
+#   데모데이 이후 정리할 때는 Lightsail 콘솔에서 인스턴스와 고정 IP를 직접 삭제해야 과금이 멈춘다.
+
+Parameters:
+  InstanceName:
+    Type: String
+    Default: resay-api
+  BundleId:
+    Type: String
+    Default: small_3_0
+    Description: Lightsail plan. small_3_0 is 2 vCPU, 2 GB RAM, 60 GB SSD
+  BlueprintId:
+    Type: String
+    Default: ubuntu_24_04
+  AvailabilityZone:
+    Type: String
+    Default: ap-northeast-2a
+
+Resources:
+  Instance:
+    Type: AWS::Lightsail::Instance
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      InstanceName: !Ref InstanceName
+      AvailabilityZone: !Ref AvailabilityZone
+      BlueprintId: !Ref BlueprintId
+      BundleId: !Ref BundleId
+      Networking:
+        Ports:
+          # SSH
+          - Protocol: tcp
+            FromPort: 22
+            ToPort: 22
+            Cidrs:
+              - 0.0.0.0/0
+          # HTTP - 인증서 발급과 HTTPS 리다이렉트에 필요
+          - Protocol: tcp
+            FromPort: 80
+            ToPort: 80
+            Cidrs:
+              - 0.0.0.0/0
+            Ipv6Cidrs:
+              - '::/0'
+          # HTTPS
+          - Protocol: tcp
+            FromPort: 443
+            ToPort: 443
+            Cidrs:
+              - 0.0.0.0/0
+            Ipv6Cidrs:
+              - '::/0'
+          # 8080(앱), 3306(DB)은 열지 않는다. 외부에는 Caddy만 노출한다
+      # 첫 부팅 때 한 번 실행된다 (deploy/server-setup.sh와 같은 내용)
+      UserData: |
+        #!/bin/bash
+        set -euo pipefail
+        timedatectl set-timezone Asia/Seoul
+        if ! swapon --show | grep -q '/swapfile'; then
+          fallocate -l 2G /swapfile
+          chmod 600 /swapfile
+          mkswap /swapfile
+          swapon /swapfile
+          echo '/swapfile none swap sw 0 0' >> /etc/fstab
+        fi
+        sysctl -w vm.swappiness=10
+        echo 'vm.swappiness=10' > /etc/sysctl.d/99-resay.conf
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update
+        apt-get install -y git curl
+        curl -fsSL https://get.docker.com | sh
+        usermod -aG docker ubuntu
+        systemctl enable --now docker
+        touch /var/log/resay-bootstrap-done
+      Tags:
+        - Key: project
+          Value: resay
+        - Key: managed-by
+          Value: cloudformation
+
+  StaticIp:
+    Type: AWS::Lightsail::StaticIp
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      StaticIpName: !Sub '${InstanceName}-ip'
+      AttachedTo: !Ref Instance
+
+Outputs:
+  InstanceName:
+    Value: !Ref Instance
+  StaticIpAddress:
+    Description: Point the DNS A record for api.resay.site to this address
+    Value: !GetAtt StaticIp.IpAddress

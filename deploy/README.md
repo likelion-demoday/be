@@ -18,6 +18,19 @@ AWS Lightsail 한 대에 **앱 + MySQL + Caddy(HTTPS)** 를 Docker Compose로 �
 
 ## 처음 한 번: 서버 만들기
 
+> **1~3단계(인스턴스 · 고정 IP · 방화벽)는 CloudFormation 템플릿 `deploy/lightsail.yml`로 만든다.**
+> 첫 부팅 때 스왑 2GB · Docker 설치까지 자동으로 끝나므로 5단계의 `server-setup.sh`도 실행할 필요가 없다.
+>
+> ```bash
+> # Windows에서는 한글 주석 때문에 인코딩 지정이 필요하다
+> export AWS_CLI_FILE_ENCODING=UTF-8
+> aws cloudformation deploy --stack-name resay-api --template-file deploy/lightsail.yml --region ap-northeast-2
+> aws cloudformation describe-stacks --stack-name resay-api --query 'Stacks[0].Outputs'   # 고정 IP 확인
+> ```
+>
+> 현재 운영 서버: 스택 `resay-api`, 고정 IP `13.125.20.135` (2026-10-01 생성)
+> 스택을 지워도 인스턴스와 고정 IP는 남도록(`DeletionPolicy: Retain`) 해두었다. 아래 1~3단계는 콘솔로 직접 만들 때의 참고용이다.
+
 ### 1. Lightsail 인스턴스 생성
 
 1. Lightsail 콘솔 → **인스턴스 생성**
