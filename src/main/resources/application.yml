@@ -80,6 +80,13 @@ clova:
     invoke-url: ${CLOVA_SPEECH_INVOKE_URL:}
     secret-key: ${CLOVA_SPEECH_SECRET_KEY:}
 
+liner:
+  api-key: ${LINER_API_KEY:}
+  base-url: ${LINER_BASE_URL:https://platform.liner.com}
+  model: ${LINER_MODEL:liner-mark-1.1}
+  connect-timeout: ${LINER_CONNECT_TIMEOUT:3s}
+  read-timeout: ${LINER_READ_TIMEOUT:120s}
+
 openai:
   api-key: ${OPENAI_API_KEY:}
 
