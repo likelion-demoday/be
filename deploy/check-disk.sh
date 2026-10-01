@@ -3,7 +3,7 @@
 # 디스크가 가득 차면 MySQL이 손상될 수 있어서 미리 알아야 한다.
 #
 # cron 등록 (30분마다):
-#   */30 * * * * /home/ubuntu/be/deploy/check-disk.sh >> /home/ubuntu/disk-check.log 2>&1
+#   */30 * * * * /home/ubuntu/resay/deploy/check-disk.sh >> /home/ubuntu/disk-check.log 2>&1
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

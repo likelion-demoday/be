@@ -1,6 +1,7 @@
 package com.example.resay.domain.auth.service;
 
 import com.example.resay.domain.auth.code.AuthErrorCode;
+import com.example.resay.domain.auth.dto.GoogleLoginRequestDto;
 import com.example.resay.domain.auth.dto.KakaoLoginRequestDto;
 import com.example.resay.domain.auth.dto.LoginRequestDto;
 import com.example.resay.domain.auth.dto.RefreshTokenRequestDto;
@@ -10,6 +11,8 @@ import com.example.resay.domain.user.entity.Provider;
 import com.example.resay.domain.user.entity.User;
 import com.example.resay.domain.user.repository.UserRepository;
 import com.example.resay.global.exception.GeneralException;
+import com.example.resay.global.infrastructure.google.GoogleIdTokenVerifier;
+import com.example.resay.global.infrastructure.google.GoogleUserInfo;
 import com.example.resay.global.infrastructure.kakao.KakaoClient;
 import com.example.resay.global.infrastructure.kakao.KakaoProperties;
 import com.example.resay.global.infrastructure.kakao.KakaoUserResponse;
@@ -33,6 +36,7 @@ public class AuthService {
     private final SocialLoginService socialLoginService;
     private final KakaoClient kakaoClient;
     private final KakaoProperties kakaoProperties;
+    private final GoogleIdTokenVerifier googleIdTokenVerifier;
 
     // 가입 직후 바로 서비스를 이용할 수 있도록 로그인과 같은 토큰을 발급한다
     @Transactional
@@ -81,6 +85,19 @@ public class AuthService {
                 String.valueOf(kakaoUser.id()),
                 kakaoUser.email(),
                 kakaoUser.nickname()
+        );
+        return issueToken(user);
+    }
+
+    // 프론트가 구글 로그인 버튼으로 받은 ID 토큰으로 로그인하거나 자동 가입한다
+    @Transactional
+    public TokenResponseDto loginWithGoogle(GoogleLoginRequestDto request) {
+        GoogleUserInfo googleUser = googleIdTokenVerifier.verify(request.idToken());
+        User user = socialLoginService.findOrCreate(
+                Provider.GOOGLE,
+                googleUser.providerId(),
+                googleUser.email(),
+                googleUser.name()
         );
         return issueToken(user);
     }

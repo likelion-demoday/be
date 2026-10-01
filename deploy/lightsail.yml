@@ -1,0 +1,145 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Resay API server on Lightsail - instance, firewall and static IP
+
+# 생성·변경:
+#   aws cloudformation deploy --stack-name resay-api --template-file deploy/lightsail.yml --region ap-northeast-2
+#
+# 주의 (AWS 리소스 스키마의 createOnlyProperties 기준, 2026-10-01 확인)
+# - InstanceName, BlueprintId, BundleId, AvailabilityZone을 바꾸면 CloudFormation이 인스턴스를 "교체"한다.
+#   서버 안에 DB와 음성 파일이 있으므로, 운영 중에는 이 값들을 바꾸지 않는다.
+# - 사양(BundleId)을 올릴 때도 스택을 고치지 말고 스냅샷으로 더 큰 인스턴스를 만든다 (deploy/README.md 참고).
+# - UserData는 인스턴스가 처음 부팅될 때 한 번만 실행된다. 나중에 고쳐도 교체는 일어나지 않지만,
+#   이미 떠 있는 서버에는 적용되지 않는다 (그때는 deploy/server-setup.sh를 직접 실행).
+# - DeletionPolicy가 Retain이라 스택을 지워도 인스턴스와 고정 IP는 남는다.
+#   데모데이 이후 정리할 때는 Lightsail 콘솔에서 인스턴스와 고정 IP를 직접 삭제해야 과금이 멈춘다.
+
+Parameters:
+  InstanceName:
+    Type: String
+    Default: resay-api
+  BundleId:
+    Type: String
+    Default: small_3_0
+    Description: Lightsail plan. small_3_0 is 2 vCPU, 2 GB RAM, 60 GB SSD
+  BlueprintId:
+    Type: String
+    Default: ubuntu_24_04
+  AvailabilityZone:
+    Type: String
+    Default: ap-northeast-2a
+
+Resources:
+  Instance:
+    Type: AWS::Lightsail::Instance
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      InstanceName: !Ref InstanceName
+      AvailabilityZone: !Ref AvailabilityZone
+      BlueprintId: !Ref BlueprintId
+      BundleId: !Ref BundleId
+      Networking:
+        Ports:
+          # SSH
+          - Protocol: tcp
+            FromPort: 22
+            ToPort: 22
+            Cidrs:
+              - 0.0.0.0/0
+          # HTTP - 인증서 발급과 HTTPS 리다이렉트에 필요
+          - Protocol: tcp
+            FromPort: 80
+            ToPort: 80
+            Cidrs:
+              - 0.0.0.0/0
+            Ipv6Cidrs:
+              - '::/0'
+          # HTTPS
+          - Protocol: tcp
+            FromPort: 443
+            ToPort: 443
+            Cidrs:
+              - 0.0.0.0/0
+            Ipv6Cidrs:
+              - '::/0'
+          # 8080(앱), 3306(DB)은 열지 않는다. 외부에는 Caddy만 노출한다
+      # 첫 부팅 때 한 번 실행된다 (deploy/server-setup.sh와 같은 내용)
+      #
+      # Lightsail은 이 내용을 자기 초기화 스크립트(#!/bin/sh) "뒤에 이어 붙여서" 실행한다.
+      # 그래서 여기 맨 위에 #!/bin/bash를 써도 무시되고 dash로 실행되어 bash 문법(set -o pipefail 등)에서 죽는다.
+      # → 스크립트를 파일로 써낸 뒤 bash로 실행한다. 로그: /var/log/resay-bootstrap.log
+      #
+      # CloudFormation은 템플릿의 한글을 '?'로 바꿔 저장한다. 서버에서 실행되는 내용이 이 파일과 달라지지 않도록
+      # UserData 안에는 ASCII만 쓴다 (설명은 이 주석과 deploy/server-setup.sh의 한글 주석 참고).
+      UserData: |
+        cat > /usr/local/sbin/resay-bootstrap.sh <<'RESAY_BOOTSTRAP'
+        #!/bin/bash
+        set -euo pipefail
+        export DEBIAN_FRONTEND=noninteractive
+        # Right after boot, unattended-upgrades may hold the apt lock, so wait for it
+        APT="apt-get -o DPkg::Lock::Timeout=300"
+
+        timedatectl set-timezone Asia/Seoul
+
+        # Swap so that the app, the database and image builds fit in 2 GB of RAM
+        if ! swapon --show | grep -q '/swapfile'; then
+          fallocate -l 2G /swapfile
+          chmod 600 /swapfile
+          mkswap /swapfile
+          swapon /swapfile
+        fi
+        grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+        echo 'vm.swappiness=10' > /etc/sysctl.d/99-resay.conf
+        sysctl -w vm.swappiness=10 > /dev/null
+
+        $APT update
+        $APT install -y ca-certificates curl git gnupg
+
+        # Official Docker apt repository. Verify the signing key fingerprint before trusting it
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+        # (no grep -q: it exits on first match and can fail the pipeline under pipefail)
+        gpg --show-keys --with-colons /etc/apt/keyrings/docker.asc \
+          | grep '^fpr:::::::::9DC858229FC7DD38854AE2D88D81803C0EBFCD88:' > /dev/null
+        chmod a+r /etc/apt/keyrings/docker.asc
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+          > /etc/apt/sources.list.d/docker.list
+        $APT update
+        $APT install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+        # Cap container logs so they cannot fill the disk
+        install -m 0755 -d /etc/docker
+        cat > /etc/docker/daemon.json <<'DAEMON_JSON'
+        {
+          "log-driver": "json-file",
+          "log-opts": { "max-size": "20m", "max-file": "3" }
+        }
+        DAEMON_JSON
+        systemctl enable docker
+        systemctl restart docker
+        usermod -aG docker ubuntu
+
+        touch /var/log/resay-bootstrap-done
+        RESAY_BOOTSTRAP
+        chmod 700 /usr/local/sbin/resay-bootstrap.sh
+        /usr/local/sbin/resay-bootstrap.sh > /var/log/resay-bootstrap.log 2>&1
+      Tags:
+        - Key: project
+          Value: resay
+        - Key: managed-by
+          Value: cloudformation
+
+  StaticIp:
+    Type: AWS::Lightsail::StaticIp
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      StaticIpName: !Sub '${InstanceName}-ip'
+      AttachedTo: !Ref Instance
+
+Outputs:
+  InstanceName:
+    Value: !Ref Instance
+  StaticIpAddress:
+    Description: Point the DNS A record for api.resay.site to this address
+    Value: !GetAtt StaticIp.IpAddress

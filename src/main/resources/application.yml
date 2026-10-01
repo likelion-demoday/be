@@ -68,6 +68,10 @@ oauth:
     allowed-redirect-uris: ${KAKAO_ALLOWED_REDIRECT_URIS:http://localhost:5173/oauth/kakao/callback}
     token-uri: https://kauth.kakao.com/oauth/token
     user-info-uri: https://kapi.kakao.com/v2/user/me
+  google:
+    # 프론트가 Google Identity Services에 사용하는 Client ID. ID 토큰의 aud와 같아야 한다
+    client-id: ${GOOGLE_CLIENT_ID:}
+    jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
 
 # 외부 연동 설정
 # 실제 값은 저장소에 두지 않고 환경변수로 주입한다. 담당자별로 본인 값만 채우면 된다.

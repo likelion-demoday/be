@@ -38,6 +38,10 @@ oauth:
     allowed-redirect-uris: http://localhost:5173/oauth/kakao/callback
     token-uri: https://kauth.kakao.com/oauth/token
     user-info-uri: https://kapi.kakao.com/v2/user/me
+  google:
+    client-id: test-google-client-id
+    # 통합 테스트에서는 검증기를 목으로 대체하므로 실제로 호출되지 않는다
+    jwk-set-uri: http://127.0.0.1:1/unused
 
 # 테스트 전용 스토리지 경로 (실제 파일이 쌓이지 않게 임시 폴더 사용)
 storage:

@@ -1,6 +1,7 @@
 package com.example.resay.domain.auth.controller;
 
 import com.example.resay.domain.auth.code.AuthSuccessCode;
+import com.example.resay.domain.auth.dto.GoogleLoginRequestDto;
 import com.example.resay.domain.auth.dto.KakaoLoginRequestDto;
 import com.example.resay.domain.auth.dto.LoginRequestDto;
 import com.example.resay.domain.auth.dto.RefreshTokenRequestDto;
@@ -46,6 +47,15 @@ public class AuthController {
             @Valid @RequestBody KakaoLoginRequestDto request
     ) {
         TokenResponseDto response = authService.loginWithKakao(request);
+        return ResponseEntity.status(AuthSuccessCode.SOCIAL_LOGIN.getHttpStatus())
+                .body(ApiResponse.onSuccess(AuthSuccessCode.SOCIAL_LOGIN, response));
+    }
+
+    @PostMapping("/oauth/google")
+    public ResponseEntity<ApiResponse<TokenResponseDto>> loginWithGoogle(
+            @Valid @RequestBody GoogleLoginRequestDto request
+    ) {
+        TokenResponseDto response = authService.loginWithGoogle(request);
         return ResponseEntity.status(AuthSuccessCode.SOCIAL_LOGIN.getHttpStatus())
                 .body(ApiResponse.onSuccess(AuthSuccessCode.SOCIAL_LOGIN, response));
     }
