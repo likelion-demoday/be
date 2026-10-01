@@ -13,7 +13,11 @@ name: resay
 
 services:
   app:
-    build: .
+    build:
+      context: .
+      # 빌드 기록(provenance)을 붙이면 JAR이 같아도 빌드할 때마다 이미지 ID가 바뀐다.
+      # 끄면 내용이 같을 때 ID가 그대로라, 코드가 바뀐 배포에서만 컨테이너가 교체된다
+      provenance: false
     image: resay-app:latest
     restart: unless-stopped
     environment:

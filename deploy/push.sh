@@ -28,12 +28,21 @@ REV="$(git rev-parse --verify --quiet "origin/$REF^{commit}" || git rev-parse --
 echo "    $(git log -1 --format='%h %s (%an, %ad)' --date=format:'%m/%d %H:%M' "$REV")"
 
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK" 2>/dev/null || true' EXIT
+KEEP_WORK=false
+trap '[ "$KEEP_WORK" = true ] || rm -rf "$WORK" 2>/dev/null || true' EXIT
 
-echo "==> 해당 커밋을 깨끗한 폴더에 꺼내 테스트 · 빌드"
+echo "==> 해당 커밋을 깨끗한 폴더에 꺼내 테스트 · 빌드 (1~2분)"
 # 줄바꿈 변환 없이 저장소에 있는 그대로 꺼낸다 (Windows에서 CRLF로 바뀌면 서버에서 스크립트가 실행되지 않는다)
 git -c core.autocrlf=false archive --format=tar "$REV" | tar -x -C "$WORK"
-(cd "$WORK" && ./gradlew --no-daemon --console=plain -q clean build)
+# 테스트 로그는 파일로 받고 실패했을 때만 보여준다.
+# (테스트용 H2 DB를 정리하는 drop table 로그가 배포 화면에 섞여 운영 DB 작업처럼 보이지 않게)
+if ! (cd "$WORK" && ./gradlew --no-daemon --console=plain -q clean build) > "$WORK/build.log" 2>&1; then
+  grep -E ' FAILED$' "$WORK/build.log" | head -n 20 || true
+  tail -n 30 "$WORK/build.log"
+  KEEP_WORK=true
+  echo "테스트 또는 빌드가 실패했습니다. 배포를 중단합니다. (전체 로그: $WORK/build.log)"
+  exit 1
+fi
 
 JAR="$WORK/build/libs/app.jar"
 [ -f "$JAR" ] || { echo "빌드 결과물이 없습니다: $JAR"; exit 1; }

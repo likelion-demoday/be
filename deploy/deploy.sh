@@ -57,8 +57,17 @@ echo "    앱 정상 기동"
 
 echo "==> Caddy 설정 반영"
 # Caddy는 실행 중에 설정 파일을 스스로 다시 읽지 않는다.
-# 내용이 그대로면 아무 일도 일어나지 않고, 바뀌었으면 연결을 끊지 않고 교체된다
-if ! output="$("${COMPOSE[@]}" exec -T caddy caddy reload "${CADDY_CONFIG[@]}" 2>&1)"; then
+# 내용이 그대로면 아무 일도 일어나지 않고, 바뀌었으면 연결을 끊지 않고 교체된다.
+# 방금 다시 만들어진 Caddy는 명령을 받을 준비가 덜 됐을 수 있어서 몇 번 다시 시도한다
+reloaded=false
+for _ in 1 2 3 4 5; do
+  if output="$("${COMPOSE[@]}" exec -T caddy caddy reload "${CADDY_CONFIG[@]}" 2>&1 </dev/null)"; then
+    reloaded=true
+    break
+  fi
+  sleep 3
+done
+if [ "$reloaded" != true ]; then
   echo "$output" | tail -n 20
   echo "Caddy 설정을 반영하지 못했습니다. (이전 설정으로 계속 동작 중)"
   exit 1

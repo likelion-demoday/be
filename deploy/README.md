@@ -232,7 +232,7 @@ git log --oneline -10 origin/develop     # 되돌릴 커밋 확인
 | HTTPS 인증서 발급 실패 | `nslookup api.resay.site`가 고정 IP인지, 방화벽 80·443이 열렸는지, `docker compose ... logs caddy` |
 | 앱이 안 뜸 (`deploy.sh`가 실패) | 로그의 `APPLICATION FAILED TO START` 아래 이유 확인. 대부분 `.env.prod` 누락 (`JWT_SECRET`, `CORS_ALLOWED_ORIGINS` 등은 비어 있으면 일부러 부팅을 막음) |
 | 테이블이 없다는 오류 | 런칭 전이면 `.env.prod`에 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`가 있는지 |
-| `push.sh`가 빌드에서 멈춤 | 테스트 실패. 메시지를 확인하고 고친 뒤 다시 푸시 · 배포. `JAVA_HOME`이 JDK 17을 가리키는지도 확인 |
+| `push.sh`가 빌드에서 멈춤 | 테스트 실패. 출력된 실패 테스트와 전체 로그 경로를 확인하고 고친 뒤 다시 푸시 · 배포. `JAVA_HOME`이 JDK 17을 가리키는지도 확인 |
 | `push.sh`가 접속에서 멈춤 | 서버 호스트 키가 `known_hosts`에 없거나 SSH 키 경로가 다름 (5단계) |
 | 프론트에서 CORS 오류 | `CORS_ALLOWED_ORIGINS`에 프론트 주소가 **프로토콜까지 정확히** 들어갔는지 (`https://resay.site`) |
 | 카카오 로그인 `AUTH400_1` | `KAKAO_ALLOWED_REDIRECT_URIS`와 카카오 콘솔·프론트가 쓰는 주소가 글자 하나까지 같은지 |
