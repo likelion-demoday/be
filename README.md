@@ -6,9 +6,9 @@
 
 - 일반 로그인 및 소셜 로그인
 - 최대 30분 음성 파일 업로드
-- 최대 4명 화자 분리 및 스크립트 생성
-- 사용자 본인 화자 확인
-- 개인·단체 대화 분석 리포트 생성
+- 2명 화자 분리 및 역할 선택
+- 친구 일상, 연인 일상·갈등, 부모·자녀 갈등 분석
+- 관계·상황별 1:1 대화 분석 리포트 생성
 - 근거 발화 스크립트 및 원본 음성 구간 재생
 - 분석 기록 조회 및 삭제
 - 대화 캐릭터 생성
@@ -16,12 +16,13 @@
 ## 처리 흐름
 
 ```text
-음성 업로드
+녹음 또는 음성 파일 업로드
   → CLOVA Speech 전사·화자 분리
+  → 사용자 화자 역할 및 대화 유형 선택
   → 서버 정량 지표 계산
-  → LINER 개인·단체 대화 분석 및 근거 자료 검색
+  → LINER 관계·상황별 대화 분석
   → 근거 발화 연결
-  → 개인 분석 캐릭터 이미지 생성
+  → 분석 캐릭터 이미지 생성
   → 리포트 저장·조회
 ```
 
@@ -40,8 +41,13 @@ src
 │   │       │   ├── recording
 │   │       │   ├── transcription
 │   │       │   ├── analysis
-│   │       │   │   ├── personal
-│   │       │   │   └── group
+│   │       │   │   ├── code
+│   │       │   │   ├── dto
+│   │       │   │   ├── entity
+│   │       │   │   ├── model
+│   │       │   │   ├── port
+│   │       │   │   ├── repository
+│   │       │   │   └── service
 │   │       │   ├── report
 │   │       │   └── character
 │   │       ├── global
@@ -70,9 +76,10 @@ src
 | `global/apiPayload` | 공통 응답 형식과 상태 코드 |
 | `global/config` | 애플리케이션 공통 설정 |
 | `global/exception` | 공통 예외와 예외 처리 |
-| `domain/analysis/personal` | 본인 화자의 개인 대화 지표와 분석 |
-| `domain/analysis/group` | 전체 대화의 참여 균형과 상호작용 분석 |
-| `domain/character` | 개인 분석 캐릭터 유형과 생성 상태 |
+| `domain/analysis` | 1:1 대화의 정량 지표와 관계·상황별 분석 |
+| `domain/analysis/model` | 외부 서비스에 종속되지 않는 분석 입력·결과 모델 |
+| `domain/analysis/port` | 전사 데이터 조회와 AI 분석 호출 경계 |
+| `domain/character` | 분석 결과 기반 캐릭터 유형과 생성 상태 |
 | `global/infrastructure` | Kakao, CLOVA, LINER, 이미지 생성, 스토리지 등 외부 연동 |
 | `global/security` | 인증·인가와 JWT 처리 |
 
