@@ -68,17 +68,20 @@ Resources:
       # Lightsail은 이 내용을 자기 초기화 스크립트(#!/bin/sh) "뒤에 이어 붙여서" 실행한다.
       # 그래서 여기 맨 위에 #!/bin/bash를 써도 무시되고 dash로 실행되어 bash 문법(set -o pipefail 등)에서 죽는다.
       # → 스크립트를 파일로 써낸 뒤 bash로 실행한다. 로그: /var/log/resay-bootstrap.log
+      #
+      # CloudFormation은 템플릿의 한글을 '?'로 바꿔 저장한다. 서버에서 실행되는 내용이 이 파일과 달라지지 않도록
+      # UserData 안에는 ASCII만 쓴다 (설명은 이 주석과 deploy/server-setup.sh의 한글 주석 참고).
       UserData: |
         cat > /usr/local/sbin/resay-bootstrap.sh <<'RESAY_BOOTSTRAP'
         #!/bin/bash
         set -euo pipefail
         export DEBIAN_FRONTEND=noninteractive
-        # 부팅 직후에는 자동 업데이트가 apt 잠금을 잡고 있을 수 있어 기다린다
+        # Right after boot, unattended-upgrades may hold the apt lock, so wait for it
         APT="apt-get -o DPkg::Lock::Timeout=300"
 
         timedatectl set-timezone Asia/Seoul
 
-        # 2GB 메모리에 앱, DB, 이미지 빌드를 같이 돌리기 위한 스왑
+        # Swap so that the app, the database and image builds fit in 2 GB of RAM
         if ! swapon --show | grep -q '/swapfile'; then
           fallocate -l 2G /swapfile
           chmod 600 /swapfile
@@ -92,10 +95,10 @@ Resources:
         $APT update
         $APT install -y ca-certificates curl git gnupg
 
-        # Docker 공식 저장소. 받은 서명 키가 Docker의 공식 키인지 지문으로 확인한 뒤 등록한다
+        # Official Docker apt repository. Verify the signing key fingerprint before trusting it
         install -m 0755 -d /etc/apt/keyrings
         curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-        # (grep -q는 일치 즉시 종료해서 pipefail과 함께 쓰면 드물게 실패할 수 있어 쓰지 않는다)
+        # (no grep -q: it exits on first match and can fail the pipeline under pipefail)
         gpg --show-keys --with-colons /etc/apt/keyrings/docker.asc \
           | grep '^fpr:::::::::9DC858229FC7DD38854AE2D88D81803C0EBFCD88:' > /dev/null
         chmod a+r /etc/apt/keyrings/docker.asc
@@ -104,7 +107,7 @@ Resources:
         $APT update
         $APT install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-        # 컨테이너 로그가 디스크를 채우지 않도록 전역 상한을 둔다
+        # Cap container logs so they cannot fill the disk
         install -m 0755 -d /etc/docker
         cat > /etc/docker/daemon.json <<'DAEMON_JSON'
         {
