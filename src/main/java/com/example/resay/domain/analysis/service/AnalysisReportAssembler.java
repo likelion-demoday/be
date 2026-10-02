@@ -1,15 +1,14 @@
 package com.example.resay.domain.analysis.service;
 
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
+import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.ConversationMetrics;
 import com.example.resay.domain.analysis.model.SpeakerMetrics;
 import com.example.resay.domain.analysis.model.SpeakerRole;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 // 정량적 분석과 정성적 분석을 합침
@@ -33,10 +32,11 @@ public class AnalysisReportAssembler {
             throw new IllegalArgumentException("보고서 생성 입력은 비어 있을 수 없습니다.");
         }
 
-        Map<String, Object> report = new LinkedHashMap<>();
-        report.put("recordingInfo", recordingInfo(source));
-        report.put("quantitativeAnalysis", quantitativeAnalysis(source, metrics));
-        report.put("qualitativeAnalysis", qualitativeAnalysis(source, qualitativeResult.resultJson()));
+        AnalysisReport report = new AnalysisReport(
+                recordingInfo(source),
+                quantitativeAnalysis(source, metrics),
+                qualitativeAnalysis(source, qualitativeResult.resultJson())
+        );
 
         return new AnalysisModelResult(
                 writeJson(report),
@@ -46,15 +46,15 @@ public class AnalysisReportAssembler {
         );
     }
 
-    private Map<String, Object> recordingInfo(AnalysisSource source) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("recordingId", source.recordingId());
-        result.put("scenario", source.scenario());
-        result.put("durationMs", source.durationMs());
-        return result;
+    private AnalysisReport.RecordingInfo recordingInfo(AnalysisSource source) {
+        return new AnalysisReport.RecordingInfo(
+                source.recordingId(),
+                source.scenario(),
+                source.durationMs()
+        );
     }
 
-    private Map<String, Object> quantitativeAnalysis(
+    private AnalysisReport.QuantitativeAnalysis quantitativeAnalysis(
             AnalysisSource source,
             ConversationMetrics metrics
     ) {
@@ -62,26 +62,30 @@ public class AnalysisReportAssembler {
         source.segments().forEach(segment -> roles.add(segment.speakerRole()));
         List<SpeakerMetrics> speakers = roles.stream().map(metrics::metricsFor).toList();
 
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("speakers", speakers);
-        result.put("speakingSpeedComparison", metrics.speakingSpeedComparison().orElse(null));
-        return result;
+        return new AnalysisReport.QuantitativeAnalysis(
+                speakers,
+                metrics.speakingSpeedComparison().orElse(null)
+        );
     }
 
-    private Map<String, Object> qualitativeAnalysis(AnalysisSource source, String resultJson) {
-        Map<String, Object> result = readJsonObject(resultJson);
-        Object timeline = result.get("timeline");
-        if (timeline instanceof List<?> items) {
-            result.put("timeline", enrichTimeline(items, source.segments()));
-        }
-        return result;
+    private AnalysisReport.QualitativeAnalysis qualitativeAnalysis(
+            AnalysisSource source,
+            String resultJson
+    ) {
+        AnalysisReport.QualitativeAnalysis result = readQualitativeAnalysis(resultJson);
+        return new AnalysisReport.QualitativeAnalysis(
+                result.overview(),
+                enrichTimeline(result.timeline(), source.segments()),
+                result.speakerInsights(),
+                result.scenarioInsights()
+        );
     }
 
-    private List<Map<String, Object>> enrichTimeline(
-            List<?> items,
+    private List<AnalysisReport.TimelineItem> enrichTimeline(
+            List<AnalysisReport.TimelineItem> items,
             List<AnalysisSegment> segments
     ) {
-        Map<Long, AnalysisSegment> segmentsById = new LinkedHashMap<>();
+        java.util.Map<Long, AnalysisSegment> segmentsById = new java.util.LinkedHashMap<>();
         segments.forEach(segment -> segmentsById.put(segment.segmentId(), segment));
 
         return items.stream()
@@ -89,22 +93,16 @@ public class AnalysisReportAssembler {
                 .toList();
     }
 
-    private Map<String, Object> enrichTimelineItem(
-            Object item,
-            Map<Long, AnalysisSegment> segmentsById
+    private AnalysisReport.TimelineItem enrichTimelineItem(
+            AnalysisReport.TimelineItem item,
+            java.util.Map<Long, AnalysisSegment> segmentsById
     ) {
-        if (!(item instanceof Map<?, ?> rawItem)) {
-            throw new IllegalStateException("대화 타임라인 형식이 올바르지 않습니다.");
-        }
-
-        Map<String, Object> timelineItem = stringKeyMap(rawItem);
-        Object evidence = timelineItem.get("evidenceSegmentIds");
-        if (!(evidence instanceof List<?> evidenceIds) || evidenceIds.isEmpty()) {
+        List<Long> evidenceIds = item.evidenceSegmentIds();
+        if (evidenceIds.isEmpty()) {
             throw new IllegalStateException("대화 타임라인의 근거 발화가 비어 있습니다.");
         }
 
         List<AnalysisSegment> evidenceSegments = evidenceIds.stream()
-                .map(this::toLong)
                 .map(segmentsById::get)
                 .toList();
         if (evidenceSegments.stream().anyMatch(java.util.Objects::isNull)) {
@@ -113,34 +111,24 @@ public class AnalysisReportAssembler {
 
         long startMs = evidenceSegments.stream().mapToLong(AnalysisSegment::startMs).min().orElseThrow();
         long endMs = evidenceSegments.stream().mapToLong(AnalysisSegment::endMs).max().orElseThrow();
-        timelineItem.put("startMs", startMs);
-        timelineItem.put("endMs", endMs);
-        return timelineItem;
+        return new AnalysisReport.TimelineItem(
+                item.title(),
+                item.description(),
+                item.evidenceSegmentIds(),
+                startMs,
+                endMs
+        );
     }
 
-    private Long toLong(Object value) {
-        if (value instanceof Number number) {
-            return number.longValue();
-        }
-        throw new IllegalStateException("근거 발화 ID 형식이 올바르지 않습니다.");
-    }
-
-    private Map<String, Object> readJsonObject(String json) {
+    private AnalysisReport.QualitativeAnalysis readQualitativeAnalysis(String json) {
         try {
-            Map<?, ?> raw = objectMapper.readValue(json, Map.class);
-            return stringKeyMap(raw);
+            return objectMapper.readValue(json, AnalysisReport.QualitativeAnalysis.class);
         } catch (Exception exception) {
             throw new IllegalStateException("정성 분석 결과를 보고서 형식으로 변환할 수 없습니다.", exception);
         }
     }
 
-    private Map<String, Object> stringKeyMap(Map<?, ?> raw) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        raw.forEach((key, value) -> result.put(String.valueOf(key), value));
-        return result;
-    }
-
-    private String writeJson(Map<String, Object> report) {
+    private String writeJson(AnalysisReport report) {
         try {
             return objectMapper.writeValueAsString(report);
         } catch (Exception exception) {

@@ -57,7 +57,8 @@ class AnalysisProcessorIntegrationTest {
         assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.COMPLETED);
         assertThat(result.getResultJson())
                 .contains("\"quantitativeAnalysis\"")
-                .contains("\"qualitativeAnalysis\":{\"summary\":\"대화 요약\"}");
+                .contains("\"qualitativeAnalysis\":{\"overview\"")
+                .contains("\"title\":\"대화 요약\"");
         assertThat(result.getModelName()).isEqualTo("fake-model");
         assertThat(result.getPromptVersion()).isEqualTo("test-v1");
         assertThat(result.getSchemaVersion()).isEqualTo("analysis-report-v1");
@@ -129,7 +130,24 @@ class AnalysisProcessorIntegrationTest {
                 throw new RuntimeException("가짜 모델 호출 실패");
             }
             return new AnalysisModelResult(
-                    "{\"summary\":\"대화 요약\"}",
+                    """
+                            {
+                              "overview": {
+                                "title": "대화 요약",
+                                "description": "두 사람이 인사를 나눴습니다.",
+                                "evidenceSegmentIds": [1, 2]
+                              },
+                              "timeline": [
+                                {
+                                  "title": "인사",
+                                  "description": "두 사람이 서로 인사했습니다.",
+                                  "evidenceSegmentIds": [1, 2]
+                                }
+                              ],
+                              "speakerInsights": [],
+                              "scenarioInsights": []
+                            }
+                            """,
                     "fake-model",
                     "test-v1",
                     "test-v1"

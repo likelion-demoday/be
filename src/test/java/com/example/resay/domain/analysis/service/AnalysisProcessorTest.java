@@ -65,7 +65,8 @@ class AnalysisProcessorTest {
         assertThat(captor.getValue().resultJson())
                 .contains("\"recordingInfo\"")
                 .contains("\"quantitativeAnalysis\"")
-                .contains("\"qualitativeAnalysis\":{\"summary\":\"대화 요약\"}");
+                .contains("\"qualitativeAnalysis\":{\"overview\"")
+                .contains("\"title\":\"대화 요약\"");
         assertThat(captor.getValue().modelName()).isEqualTo("liner-mark-1.1");
         then(analysisService).should(never()).fail(1L);
     }
@@ -141,10 +142,31 @@ class AnalysisProcessorTest {
 
     private AnalysisModelResult modelResult() {
         return new AnalysisModelResult(
-                "{\"summary\":\"대화 요약\"}",
+                qualitativeResultJson(),
                 "liner-mark-1.1",
                 "v1",
                 "v1"
         );
+    }
+
+    private String qualitativeResultJson() {
+        return """
+                {
+                  "overview": {
+                    "title": "대화 요약",
+                    "description": "두 사람이 인사를 나눴습니다.",
+                    "evidenceSegmentIds": [1, 2]
+                  },
+                  "timeline": [
+                    {
+                      "title": "인사",
+                      "description": "두 사람이 서로 인사했습니다.",
+                      "evidenceSegmentIds": [1, 2]
+                    }
+                  ],
+                  "speakerInsights": [],
+                  "scenarioInsights": []
+                }
+                """;
     }
 }
