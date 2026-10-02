@@ -1,6 +1,7 @@
 package com.example.resay.domain.analysis.service;
 
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
+import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisSource;
@@ -8,7 +9,6 @@ import com.example.resay.domain.analysis.model.ConversationMetrics;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,12 +49,12 @@ class AnalysisReportAssemblerTest {
 
         AnalysisModelResult report = assembler.assemble(source, metrics, qualitative);
 
-        JsonNode json = objectMapper.readTree(report.resultJson());
-        assertThat(json.get("recordingInfo").get("recordingId").asLong()).isEqualTo(10L);
-        assertThat(json.get("quantitativeAnalysis").get("speakers")).hasSize(2);
-        JsonNode timeline = json.get("qualitativeAnalysis").get("timeline").get(0);
-        assertThat(timeline.get("startMs").asLong()).isEqualTo(100L);
-        assertThat(timeline.get("endMs").asLong()).isEqualTo(1_200L);
+        AnalysisReport json = objectMapper.readValue(report.resultJson(), AnalysisReport.class);
+        assertThat(json.recordingInfo().recordingId()).isEqualTo(10L);
+        assertThat(json.quantitativeAnalysis().speakers()).hasSize(2);
+        AnalysisReport.TimelineItem timeline = json.qualitativeAnalysis().timeline().get(0);
+        assertThat(timeline.startMs()).isEqualTo(100L);
+        assertThat(timeline.endMs()).isEqualTo(1_200L);
         assertThat(report.modelName()).isEqualTo("liner-mark-1.1");
         assertThat(report.schemaVersion()).isEqualTo("analysis-report-v1");
     }
