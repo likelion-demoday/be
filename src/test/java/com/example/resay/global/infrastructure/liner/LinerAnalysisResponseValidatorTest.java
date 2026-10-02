@@ -3,6 +3,7 @@ package com.example.resay.global.infrastructure.liner;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisSource;
+import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -20,8 +21,8 @@ class LinerAnalysisResponseValidatorTest {
 
     @Test
     void rejectsUnknownEvidenceSegmentId() {
-        LinerAnalysisResponse response = new LinerAnalysisResponse(
-                new LinerAnalysisResponse.Overview("요약", "대화 요약", List.of(999L)),
+        QualitativeAnalysis response = new QualitativeAnalysis(
+                new QualitativeAnalysis.Overview("요약", "대화 요약", List.of(999L)),
                 validResponse().timeline(),
                 validResponse().speakerInsights(),
                 validResponse().scenarioInsights()
@@ -36,12 +37,12 @@ class LinerAnalysisResponseValidatorTest {
 
     @Test
     void rejectsSpeakerRolesOutsideScenario() {
-        LinerAnalysisResponse response = new LinerAnalysisResponse(
+        QualitativeAnalysis response = new QualitativeAnalysis(
                 validResponse().overview(),
                 validResponse().timeline(),
                 List.of(
-                        new LinerAnalysisResponse.SpeakerInsight(SpeakerRole.SELF, List.of()),
-                        new LinerAnalysisResponse.SpeakerInsight(SpeakerRole.PARTNER, List.of())
+                        new QualitativeAnalysis.SpeakerInsight(SpeakerRole.SELF, List.of()),
+                        new QualitativeAnalysis.SpeakerInsight(SpeakerRole.PARTNER, List.of())
                 ),
                 validResponse().scenarioInsights()
         );
@@ -53,11 +54,11 @@ class LinerAnalysisResponseValidatorTest {
 
     @Test
     void rejectsTimelineOutsideChronologicalOrder() {
-        LinerAnalysisResponse response = new LinerAnalysisResponse(
+        QualitativeAnalysis response = new QualitativeAnalysis(
                 validResponse().overview(),
                 List.of(
-                        new LinerAnalysisResponse.TimelineItem("두 번째", "두 번째 주제", List.of(3L)),
-                        new LinerAnalysisResponse.TimelineItem("첫 번째", "첫 번째 주제", List.of(1L))
+                        new QualitativeAnalysis.TimelineItem("두 번째", "두 번째 주제", List.of(3L)),
+                        new QualitativeAnalysis.TimelineItem("첫 번째", "첫 번째 주제", List.of(1L))
                 ),
                 validResponse().speakerInsights(),
                 validResponse().scenarioInsights()
@@ -70,21 +71,21 @@ class LinerAnalysisResponseValidatorTest {
 
     @Test
     void rejectsPatternWithoutEvidenceFromAttributedSpeaker() {
-        LinerAnalysisResponse.SpeakerPattern invalidPattern = new LinerAnalysisResponse.SpeakerPattern(
-                LinerAnalysisResponse.SpeakerPatternCategory.FOLLOW_UP_QUESTION,
+        QualitativeAnalysis.SpeakerPattern invalidPattern = new QualitativeAnalysis.SpeakerPattern(
+                QualitativeAnalysis.SpeakerPatternCategory.FOLLOW_UP_QUESTION,
                 "후속 질문",
                 "질문으로 대화를 이어갔어요.",
                 List.of(2L)
         );
-        LinerAnalysisResponse response = new LinerAnalysisResponse(
+        QualitativeAnalysis response = new QualitativeAnalysis(
                 validResponse().overview(),
                 validResponse().timeline(),
                 List.of(
-                        new LinerAnalysisResponse.SpeakerInsight(
+                        new QualitativeAnalysis.SpeakerInsight(
                                 SpeakerRole.SELF,
                                 List.of(invalidPattern)
                         ),
-                        new LinerAnalysisResponse.SpeakerInsight(SpeakerRole.FRIEND, List.of())
+                        new QualitativeAnalysis.SpeakerInsight(SpeakerRole.FRIEND, List.of())
                 ),
                 validResponse().scenarioInsights()
         );
@@ -96,15 +97,15 @@ class LinerAnalysisResponseValidatorTest {
 
     @Test
     void rejectsScenarioInsightCategoryOutsideScenario() {
-        LinerAnalysisResponse.ScenarioInsight conflictInsight =
-                new LinerAnalysisResponse.ScenarioInsight(
-                        LinerAnalysisResponse.ScenarioInsightCategory.CONFLICT_TOPIC,
+        QualitativeAnalysis.ScenarioInsight conflictInsight =
+                new QualitativeAnalysis.ScenarioInsight(
+                        QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_TOPIC,
                         List.of(SpeakerRole.SELF, SpeakerRole.FRIEND),
                         "갈등 주제",
                         "의견 차이가 나타났어요.",
                         List.of(1L, 2L)
                 );
-        LinerAnalysisResponse response = new LinerAnalysisResponse(
+        QualitativeAnalysis response = new QualitativeAnalysis(
                 validResponse().overview(),
                 validResponse().timeline(),
                 validResponse().speakerInsights(),
@@ -129,47 +130,47 @@ class LinerAnalysisResponseValidatorTest {
         );
     }
 
-    private LinerAnalysisResponse validResponse() {
-        LinerAnalysisResponse.SpeakerPattern questionPattern =
-                new LinerAnalysisResponse.SpeakerPattern(
-                        LinerAnalysisResponse.SpeakerPatternCategory.FOLLOW_UP_QUESTION,
+    private QualitativeAnalysis validResponse() {
+        QualitativeAnalysis.SpeakerPattern questionPattern =
+                new QualitativeAnalysis.SpeakerPattern(
+                        QualitativeAnalysis.SpeakerPatternCategory.FOLLOW_UP_QUESTION,
                         "질문으로 이어가기",
                         "상대의 경험을 후속 질문으로 확인했어요.",
                         List.of(2L, 3L)
                 );
-        LinerAnalysisResponse.ScenarioInsight commonInterest =
-                new LinerAnalysisResponse.ScenarioInsight(
-                        LinerAnalysisResponse.ScenarioInsightCategory.COMMON_INTEREST,
+        QualitativeAnalysis.ScenarioInsight commonInterest =
+                new QualitativeAnalysis.ScenarioInsight(
+                        QualitativeAnalysis.ScenarioInsightCategory.COMMON_INTEREST,
                         List.of(SpeakerRole.SELF, SpeakerRole.FRIEND),
                         "학교 이야기",
                         "학교에서 있었던 일을 중심으로 대화했어요.",
                         List.of(1L, 2L, 3L)
                 );
 
-        return new LinerAnalysisResponse(
-                new LinerAnalysisResponse.Overview(
+        return new QualitativeAnalysis(
+                new QualitativeAnalysis.Overview(
                         "학교 근황 대화",
                         "학교에서 있었던 일을 묻고 답했어요.",
                         List.of(1L, 2L)
                 ),
                 List.of(
-                        new LinerAnalysisResponse.TimelineItem(
+                        new QualitativeAnalysis.TimelineItem(
                                 "근황 묻기",
                                 "오늘 한 일을 물었어요.",
                                 List.of(1L, 2L)
                         ),
-                        new LinerAnalysisResponse.TimelineItem(
+                        new QualitativeAnalysis.TimelineItem(
                                 "경험 확인",
                                 "경험에 관한 질문을 이어갔어요.",
                                 List.of(3L)
                         )
                 ),
                 List.of(
-                        new LinerAnalysisResponse.SpeakerInsight(
+                        new QualitativeAnalysis.SpeakerInsight(
                                 SpeakerRole.SELF,
                                 List.of(questionPattern)
                         ),
-                        new LinerAnalysisResponse.SpeakerInsight(SpeakerRole.FRIEND, List.of())
+                        new QualitativeAnalysis.SpeakerInsight(SpeakerRole.FRIEND, List.of())
                 ),
                 List.of(commonInterest)
         );

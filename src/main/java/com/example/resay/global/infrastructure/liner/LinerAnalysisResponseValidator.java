@@ -3,6 +3,7 @@ package com.example.resay.global.infrastructure.liner;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSource;
+import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -15,7 +16,7 @@ import org.springframework.util.StringUtils;
 @Component
 public class LinerAnalysisResponseValidator {
 
-    public void validate(AnalysisSource source, LinerAnalysisResponse response) {
+    public void validate(AnalysisSource source, QualitativeAnalysis response) {
         if (source == null || response == null) {
             throw invalidResponse("분석 입력 또는 응답이 비어 있습니다.");
         }
@@ -28,7 +29,7 @@ public class LinerAnalysisResponseValidator {
     }
 
     private void validateOverview(
-            LinerAnalysisResponse.Overview overview,
+            QualitativeAnalysis.Overview overview,
             Map<Long, AnalysisSegment> segmentsById
     ) {
         if (overview == null) {
@@ -40,7 +41,7 @@ public class LinerAnalysisResponseValidator {
     }
 
     private void validateTimeline(
-            List<LinerAnalysisResponse.TimelineItem> timeline,
+            List<QualitativeAnalysis.TimelineItem> timeline,
             Map<Long, AnalysisSegment> segmentsById
     ) {
         if (timeline == null || timeline.isEmpty() || timeline.size() > 6) {
@@ -48,7 +49,7 @@ public class LinerAnalysisResponseValidator {
         }
 
         long previousStartMs = -1;
-        for (LinerAnalysisResponse.TimelineItem item : timeline) {
+        for (QualitativeAnalysis.TimelineItem item : timeline) {
             if (item == null) {
                 throw invalidResponse("timeline 항목이 비어 있습니다.");
             }
@@ -70,7 +71,7 @@ public class LinerAnalysisResponseValidator {
 
     private void validateSpeakerInsights(
             AnalysisSource source,
-            List<LinerAnalysisResponse.SpeakerInsight> speakerInsights,
+            List<QualitativeAnalysis.SpeakerInsight> speakerInsights,
             Map<Long, AnalysisSegment> segmentsById
     ) {
         if (speakerInsights == null) {
@@ -78,7 +79,7 @@ public class LinerAnalysisResponseValidator {
         }
 
         Set<SpeakerRole> roles = new HashSet<>();
-        for (LinerAnalysisResponse.SpeakerInsight insight : speakerInsights) {
+        for (QualitativeAnalysis.SpeakerInsight insight : speakerInsights) {
             if (insight == null || insight.speakerRole() == null || insight.patterns() == null) {
                 throw invalidResponse("speakerInsights 항목이 올바르지 않습니다.");
             }
@@ -86,7 +87,7 @@ public class LinerAnalysisResponseValidator {
                 throw invalidResponse("speakerInsights의 화자 역할은 중복될 수 없습니다.");
             }
 
-            for (LinerAnalysisResponse.SpeakerPattern pattern : insight.patterns()) {
+            for (QualitativeAnalysis.SpeakerPattern pattern : insight.patterns()) {
                 validateSpeakerPattern(
                         pattern,
                         insight.speakerRole(),
@@ -102,7 +103,7 @@ public class LinerAnalysisResponseValidator {
     }
 
     private void validateSpeakerPattern(
-            LinerAnalysisResponse.SpeakerPattern pattern,
+            QualitativeAnalysis.SpeakerPattern pattern,
             SpeakerRole speakerRole,
             AnalysisScenario scenario,
             Map<Long, AnalysisSegment> segmentsById
@@ -127,14 +128,14 @@ public class LinerAnalysisResponseValidator {
 
     private void validateScenarioInsights(
             AnalysisSource source,
-            List<LinerAnalysisResponse.ScenarioInsight> scenarioInsights,
+            List<QualitativeAnalysis.ScenarioInsight> scenarioInsights,
             Map<Long, AnalysisSegment> segmentsById
     ) {
         if (scenarioInsights == null) {
             throw invalidResponse("scenarioInsights가 비어 있습니다.");
         }
 
-        for (LinerAnalysisResponse.ScenarioInsight insight : scenarioInsights) {
+        for (QualitativeAnalysis.ScenarioInsight insight : scenarioInsights) {
             if (insight == null || insight.category() == null || insight.speakerRoles() == null) {
                 throw invalidResponse("scenario insight가 올바르지 않습니다.");
             }

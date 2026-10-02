@@ -2,6 +2,7 @@ package com.example.resay.global.infrastructure.liner;
 
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
 import com.example.resay.domain.analysis.model.AnalysisSource;
+import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.port.AnalysisModelClient;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -32,7 +33,7 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
         LinerChatResult result = linerApiClient.chat(requestFactory.create(source));
         validateCompletion(result);
 
-        LinerAnalysisResponse response = parseResponse(result.content());
+        QualitativeAnalysis response = parseResponse(result.content());
         responseValidator.validate(source, response);
 
         return new AnalysisModelResult(
@@ -53,15 +54,15 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
         }
     }
 
-    private LinerAnalysisResponse parseResponse(String content) {
+    private QualitativeAnalysis parseResponse(String content) {
         try {
-            return objectMapper.readValue(content, LinerAnalysisResponse.class);
+            return objectMapper.readValue(content, QualitativeAnalysis.class);
         } catch (Exception exception) {
             throw invalidResponse("LINER 분석 응답을 해석할 수 없습니다.", exception);
         }
     }
 
-    private String serializeResponse(LinerAnalysisResponse response) {
+    private String serializeResponse(QualitativeAnalysis response) {
         try {
             return objectMapper.writeValueAsString(response);
         } catch (Exception exception) {

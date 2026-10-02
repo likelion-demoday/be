@@ -4,6 +4,7 @@ import com.example.resay.domain.analysis.model.AnalysisModelResult;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisSource;
+import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import java.util.List;
 import java.util.Map;
@@ -63,7 +64,7 @@ class LinerAnalysisModelClientTest {
                 .contains("\"evidenceSegmentIds\":[1,2]");
         then(responseValidator).should().validate(
                 org.mockito.ArgumentMatchers.eq(source),
-                org.mockito.ArgumentMatchers.any(LinerAnalysisResponse.class)
+                org.mockito.ArgumentMatchers.any(QualitativeAnalysis.class)
         );
     }
 
