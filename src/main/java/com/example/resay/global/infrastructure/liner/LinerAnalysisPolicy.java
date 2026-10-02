@@ -1,27 +1,28 @@
 package com.example.resay.global.infrastructure.liner;
 
 import com.example.resay.domain.analysis.model.AnalysisScenario;
+import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import java.util.HashSet;
 import java.util.Set;
 
 final class LinerAnalysisPolicy {
 
-    private static final Set<LinerAnalysisResponse.SpeakerPatternCategory> DAILY_PATTERNS = Set.of(
-            LinerAnalysisResponse.SpeakerPatternCategory.SHORT_RESPONSE,
-            LinerAnalysisResponse.SpeakerPatternCategory.REPEAT_OR_CONFIRM,
-            LinerAnalysisResponse.SpeakerPatternCategory.SITUATION_ACKNOWLEDGEMENT,
-            LinerAnalysisResponse.SpeakerPatternCategory.FOLLOW_UP_QUESTION,
-            LinerAnalysisResponse.SpeakerPatternCategory.EMOTION_QUESTION,
-            LinerAnalysisResponse.SpeakerPatternCategory.EXPRESSION_PATTERN
+    private static final Set<QualitativeAnalysis.SpeakerPatternCategory> DAILY_PATTERNS = Set.of(
+            QualitativeAnalysis.SpeakerPatternCategory.SHORT_RESPONSE,
+            QualitativeAnalysis.SpeakerPatternCategory.REPEAT_OR_CONFIRM,
+            QualitativeAnalysis.SpeakerPatternCategory.SITUATION_ACKNOWLEDGEMENT,
+            QualitativeAnalysis.SpeakerPatternCategory.FOLLOW_UP_QUESTION,
+            QualitativeAnalysis.SpeakerPatternCategory.EMOTION_QUESTION,
+            QualitativeAnalysis.SpeakerPatternCategory.EXPRESSION_PATTERN
     );
 
-    private static final Set<LinerAnalysisResponse.SpeakerPatternCategory> CONFLICT_PATTERNS =
+    private static final Set<QualitativeAnalysis.SpeakerPatternCategory> CONFLICT_PATTERNS =
             conflictPatterns();
 
     private LinerAnalysisPolicy() {
     }
 
-    static Set<LinerAnalysisResponse.SpeakerPatternCategory> speakerPatternCategories(
+    static Set<QualitativeAnalysis.SpeakerPatternCategory> speakerPatternCategories(
             AnalysisScenario scenario
     ) {
         return switch (scenario) {
@@ -30,45 +31,45 @@ final class LinerAnalysisPolicy {
         };
     }
 
-    static Set<LinerAnalysisResponse.ScenarioInsightCategory> scenarioInsightCategories(
+    static Set<QualitativeAnalysis.ScenarioInsightCategory> scenarioInsightCategories(
             AnalysisScenario scenario
     ) {
         return switch (scenario) {
             case FRIEND_DAILY -> Set.of(
-                    LinerAnalysisResponse.ScenarioInsightCategory.COMMON_INTEREST,
-                    LinerAnalysisResponse.ScenarioInsightCategory.PLAYFUL_EXCHANGE
+                    QualitativeAnalysis.ScenarioInsightCategory.COMMON_INTEREST,
+                    QualitativeAnalysis.ScenarioInsightCategory.PLAYFUL_EXCHANGE
             );
             case COUPLE_DAILY -> Set.of(
-                    LinerAnalysisResponse.ScenarioInsightCategory.COMMON_INTEREST,
-                    LinerAnalysisResponse.ScenarioInsightCategory.AFFECTION_EXPRESSION
+                    QualitativeAnalysis.ScenarioInsightCategory.COMMON_INTEREST,
+                    QualitativeAnalysis.ScenarioInsightCategory.AFFECTION_EXPRESSION
             );
             case COUPLE_CONFLICT -> Set.of(
-                    LinerAnalysisResponse.ScenarioInsightCategory.CONFLICT_TOPIC,
-                    LinerAnalysisResponse.ScenarioInsightCategory.CONFLICT_POSITION,
-                    LinerAnalysisResponse.ScenarioInsightCategory.TURNING_POINT,
-                    LinerAnalysisResponse.ScenarioInsightCategory.MISSED_SIGNAL,
-                    LinerAnalysisResponse.ScenarioInsightCategory.SOLUTION
+                    QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_TOPIC,
+                    QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_POSITION,
+                    QualitativeAnalysis.ScenarioInsightCategory.TURNING_POINT,
+                    QualitativeAnalysis.ScenarioInsightCategory.MISSED_SIGNAL,
+                    QualitativeAnalysis.ScenarioInsightCategory.SOLUTION
             );
             case PARENT_CHILD_CONFLICT -> Set.of(
-                    LinerAnalysisResponse.ScenarioInsightCategory.CONFLICT_TOPIC,
-                    LinerAnalysisResponse.ScenarioInsightCategory.CONFLICT_POSITION,
-                    LinerAnalysisResponse.ScenarioInsightCategory.TURNING_POINT,
-                    LinerAnalysisResponse.ScenarioInsightCategory.MISSED_SIGNAL,
-                    LinerAnalysisResponse.ScenarioInsightCategory.CONVERSATION_OPENNESS,
-                    LinerAnalysisResponse.ScenarioInsightCategory.CARE_EXPRESSION,
-                    LinerAnalysisResponse.ScenarioInsightCategory.QUESTION_RESPONSE_STYLE,
-                    LinerAnalysisResponse.ScenarioInsightCategory.SOLUTION
+                    QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_TOPIC,
+                    QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_POSITION,
+                    QualitativeAnalysis.ScenarioInsightCategory.TURNING_POINT,
+                    QualitativeAnalysis.ScenarioInsightCategory.MISSED_SIGNAL,
+                    QualitativeAnalysis.ScenarioInsightCategory.CONVERSATION_OPENNESS,
+                    QualitativeAnalysis.ScenarioInsightCategory.CARE_EXPRESSION,
+                    QualitativeAnalysis.ScenarioInsightCategory.QUESTION_RESPONSE_STYLE,
+                    QualitativeAnalysis.ScenarioInsightCategory.SOLUTION
             );
         };
     }
 
-    private static Set<LinerAnalysisResponse.SpeakerPatternCategory> conflictPatterns() {
-        Set<LinerAnalysisResponse.SpeakerPatternCategory> categories = new HashSet<>(DAILY_PATTERNS);
+    private static Set<QualitativeAnalysis.SpeakerPatternCategory> conflictPatterns() {
+        Set<QualitativeAnalysis.SpeakerPatternCategory> categories = new HashSet<>(DAILY_PATTERNS);
         categories.addAll(Set.of(
-                LinerAnalysisResponse.SpeakerPatternCategory.ATTACK,
-                LinerAnalysisResponse.SpeakerPatternCategory.DEFENSE,
-                LinerAnalysisResponse.SpeakerPatternCategory.AVOIDANCE,
-                LinerAnalysisResponse.SpeakerPatternCategory.RECOVERY_ATTEMPT
+                QualitativeAnalysis.SpeakerPatternCategory.ATTACK,
+                QualitativeAnalysis.SpeakerPatternCategory.DEFENSE,
+                QualitativeAnalysis.SpeakerPatternCategory.AVOIDANCE,
+                QualitativeAnalysis.SpeakerPatternCategory.RECOVERY_ATTEMPT
         ));
         return Set.copyOf(categories);
     }

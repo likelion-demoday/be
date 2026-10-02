@@ -5,6 +5,7 @@ import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.ConversationMetrics;
+import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerMetrics;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import java.util.LinkedHashSet;
@@ -68,12 +69,12 @@ public class AnalysisReportAssembler {
         );
     }
 
-    private AnalysisReport.QualitativeAnalysis qualitativeAnalysis(
+    private AnalysisReport.QualitativeReport qualitativeAnalysis(
             AnalysisSource source,
             String resultJson
     ) {
-        AnalysisReport.QualitativeAnalysis result = readQualitativeAnalysis(resultJson);
-        return new AnalysisReport.QualitativeAnalysis(
+        QualitativeAnalysis result = readQualitativeAnalysis(resultJson);
+        return new AnalysisReport.QualitativeReport(
                 result.overview(),
                 enrichTimeline(result.timeline(), source.segments()),
                 result.speakerInsights(),
@@ -82,7 +83,7 @@ public class AnalysisReportAssembler {
     }
 
     private List<AnalysisReport.TimelineItem> enrichTimeline(
-            List<AnalysisReport.TimelineItem> items,
+            List<QualitativeAnalysis.TimelineItem> items,
             List<AnalysisSegment> segments
     ) {
         java.util.Map<Long, AnalysisSegment> segmentsById = new java.util.LinkedHashMap<>();
@@ -94,7 +95,7 @@ public class AnalysisReportAssembler {
     }
 
     private AnalysisReport.TimelineItem enrichTimelineItem(
-            AnalysisReport.TimelineItem item,
+            QualitativeAnalysis.TimelineItem item,
             java.util.Map<Long, AnalysisSegment> segmentsById
     ) {
         List<Long> evidenceIds = item.evidenceSegmentIds();
@@ -120,9 +121,9 @@ public class AnalysisReportAssembler {
         );
     }
 
-    private AnalysisReport.QualitativeAnalysis readQualitativeAnalysis(String json) {
+    private QualitativeAnalysis readQualitativeAnalysis(String json) {
         try {
-            return objectMapper.readValue(json, AnalysisReport.QualitativeAnalysis.class);
+            return objectMapper.readValue(json, QualitativeAnalysis.class);
         } catch (Exception exception) {
             throw new IllegalStateException("정성 분석 결과를 보고서 형식으로 변환할 수 없습니다.", exception);
         }
