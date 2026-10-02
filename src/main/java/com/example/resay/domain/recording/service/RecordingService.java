@@ -6,30 +6,28 @@ import com.example.resay.domain.recording.entity.Recording;
 import com.example.resay.domain.recording.entity.RelationshipType;
 import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.global.exception.GeneralException;
+import com.example.resay.global.infrastructure.audio.AudioDurationReader;
 import com.example.resay.global.infrastructure.storage.LocalFileStorage;
 import lombok.RequiredArgsConstructor;
-import org.jaudiotagger.audio.AudioFile;
-import org.jaudiotagger.audio.AudioFileIO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class RecordingService {
 
-    private static final List<String> ALLOWED_EXTENSIONS = List.of("mp3", "wav", "m4a");
+    // 30분 wav는 약 300MB로 용량 제한을 넘으므로 압축 포맷만 받는다
+    private static final List<String> ALLOWED_EXTENSIONS = List.of("mp3", "m4a");
     private static final long MAX_FILE_SIZE = 200L * 1024 * 1024;
     private static final int MIN_DURATION_SECONDS = 5 * 60;
     private static final int MAX_DURATION_SECONDS = 30 * 60;
 
     private final RecordingRepository recordingRepository;
     private final LocalFileStorage localFileStorage;
+    private final AudioDurationReader audioDurationReader;
 
     @Transactional
     public RecordingUploadResponseDto upload(Long userId, MultipartFile audioFile) {
@@ -37,12 +35,18 @@ public class RecordingService {
         validateSize(audioFile);
 
         String filePath = localFileStorage.save(audioFile, extension);
-        validateDuration(filePath);
+        try {
+            validateDuration(filePath);
 
-        Recording recording = Recording.create(userId, filePath);
-        recordingRepository.save(recording);
+            Recording recording = Recording.create(userId, filePath);
+            recordingRepository.save(recording);
 
-        return new RecordingUploadResponseDto(recording.getId());
+            return new RecordingUploadResponseDto(recording.getId());
+        } catch (RuntimeException e) {
+            // DB에 기록이 없으면 보관기간 삭제 스케줄러도 찾지 못하므로 여기서 지운다
+            localFileStorage.delete(filePath);
+            throw e;
+        }
     }
 
     private String validateExtension(MultipartFile file) {
@@ -64,17 +68,9 @@ public class RecordingService {
     }
 
     private void validateDuration(String filePath) {
-        try {
-            AudioFile audioFile = AudioFileIO.read(new File(filePath));
-            int durationSeconds = audioFile.getAudioHeader().getTrackLength();
-            if (durationSeconds < MIN_DURATION_SECONDS || durationSeconds > MAX_DURATION_SECONDS) {
-                Files.deleteIfExists(Paths.get(filePath));
-                throw new GeneralException(RecordingErrorCode.INVALID_DURATION);
-            }
-        } catch (GeneralException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new GeneralException(RecordingErrorCode.UNSUPPORTED_MEDIA_TYPE);
+        int durationSeconds = audioDurationReader.readSeconds(filePath);
+        if (durationSeconds < MIN_DURATION_SECONDS || durationSeconds > MAX_DURATION_SECONDS) {
+            throw new GeneralException(RecordingErrorCode.INVALID_DURATION);
         }
     }
 
