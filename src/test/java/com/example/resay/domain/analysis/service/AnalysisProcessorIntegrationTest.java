@@ -19,6 +19,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -54,10 +55,12 @@ class AnalysisProcessorIntegrationTest {
         var result = analysisResultRepository.findByAnalysisId(analysis.getId()).orElseThrow();
 
         assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.COMPLETED);
-        assertThat(result.getResultJson()).isEqualTo("{\"summary\":\"대화 요약\"}");
+        assertThat(result.getResultJson())
+                .contains("\"quantitativeAnalysis\"")
+                .contains("\"qualitativeAnalysis\":{\"summary\":\"대화 요약\"}");
         assertThat(result.getModelName()).isEqualTo("fake-model");
         assertThat(result.getPromptVersion()).isEqualTo("test-v1");
-        assertThat(result.getSchemaVersion()).isEqualTo("test-v1");
+        assertThat(result.getSchemaVersion()).isEqualTo("analysis-report-v1");
         assertThat(analysisModelClient.wasTransactionActive()).isFalse();
     }
 
@@ -106,7 +109,10 @@ class AnalysisProcessorIntegrationTest {
             return new AnalysisProcessor(
                     analysisService,
                     analysisSourceReader,
-                    analysisModelClient
+                    analysisModelClient,
+                    new ConversationMetricsCalculator(),
+                    new AnalysisReportAssembler(new ObjectMapper()),
+                    Runnable::run
             );
         }
     }

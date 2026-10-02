@@ -25,7 +25,7 @@ class LinerAnalysisQualityTest {
     @Test
     void analyzesCorrectedFriendConversation() throws Exception {
         AnalysisSource source = readSource(
-                "/analysis/evaluation/friend-daily/corrected.json"
+                "/mock/analysis/friend-daily.json"
         );
 
         AnalysisModelResult result = modelClient.analyze(source);

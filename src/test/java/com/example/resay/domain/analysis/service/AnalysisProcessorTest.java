@@ -22,6 +22,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
+import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class AnalysisProcessorTest {
@@ -42,7 +43,10 @@ class AnalysisProcessorTest {
         analysisProcessor = new AnalysisProcessor(
                 analysisService,
                 analysisSourceReader,
-                analysisModelClient
+                analysisModelClient,
+                new ConversationMetricsCalculator(),
+                new AnalysisReportAssembler(new ObjectMapper()),
+                Runnable::run
         );
     }
 
@@ -58,7 +62,10 @@ class AnalysisProcessorTest {
         then(analysisModelClient).should().analyze(source);
         ArgumentCaptor<AnalysisResultCommand> captor = ArgumentCaptor.forClass(AnalysisResultCommand.class);
         then(analysisService).should().complete(org.mockito.ArgumentMatchers.eq(1L), captor.capture());
-        assertThat(captor.getValue().resultJson()).isEqualTo("{\"summary\":\"대화 요약\"}");
+        assertThat(captor.getValue().resultJson())
+                .contains("\"recordingInfo\"")
+                .contains("\"quantitativeAnalysis\"")
+                .contains("\"qualitativeAnalysis\":{\"summary\":\"대화 요약\"}");
         assertThat(captor.getValue().modelName()).isEqualTo("liner-mark-1.1");
         then(analysisService).should(never()).fail(1L);
     }
