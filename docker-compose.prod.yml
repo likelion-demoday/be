@@ -49,6 +49,7 @@ services:
       OPENAI_API_KEY:
       SPRING_JPA_HIBERNATE_DDL_AUTO:
       SWAGGER_ENABLED:
+      RATE_LIMIT_ENABLED:
     # 사용자가 올린 파일을 다루는 컨테이너라 권한을 최소로 둔다.
     # 이미 root가 아닌 사용자로 실행되고(Dockerfile), 리눅스 권한(capability)을 모두 떼고 권한 상승도 막는다.
     cap_drop:

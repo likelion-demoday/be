@@ -9,6 +9,7 @@ import com.example.resay.domain.auth.dto.SignupRequestDto;
 import com.example.resay.domain.auth.dto.TokenResponseDto;
 import com.example.resay.domain.auth.service.AuthService;
 import com.example.resay.global.apiPayload.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -26,18 +27,20 @@ public class AuthController {
 
     @PostMapping("/signup")
     public ResponseEntity<ApiResponse<TokenResponseDto>> signup(
-            @Valid @RequestBody SignupRequestDto request
+            @Valid @RequestBody SignupRequestDto request,
+            HttpServletRequest httpRequest
     ) {
-        TokenResponseDto response = authService.signup(request);
+        TokenResponseDto response = authService.signup(request, httpRequest.getRemoteAddr());
         return ResponseEntity.status(AuthSuccessCode.SIGNUP.getHttpStatus())
                 .body(ApiResponse.onSuccess(AuthSuccessCode.SIGNUP, response));
     }
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<TokenResponseDto>> login(
-            @Valid @RequestBody LoginRequestDto request
+            @Valid @RequestBody LoginRequestDto request,
+            HttpServletRequest httpRequest
     ) {
-        TokenResponseDto response = authService.login(request);
+        TokenResponseDto response = authService.login(request, httpRequest.getRemoteAddr());
         return ResponseEntity.status(AuthSuccessCode.LOGIN.getHttpStatus())
                 .body(ApiResponse.onSuccess(AuthSuccessCode.LOGIN, response));
     }

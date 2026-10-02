@@ -58,6 +58,22 @@ jwt:
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
 
+# 로그인 · 가입 시도 횟수 제한
+# 기록은 서버 메모리에 둔다 (서버 1대 기준. 재시작하면 초기화된다)
+rate-limit:
+  # 정상 사용자가 막히는 문제가 생겼을 때 급히 끄기 위한 스위치
+  enabled: ${RATE_LIMIT_ENABLED:true}
+  login:
+    # "실패"한 로그인만 센다. 한도를 넘으면 window가 지날 때까지 맞는 비밀번호도 429로 거부한다
+    # IP 한도가 더 큰 이유: 학교 · 회사 · 통신사망은 여러 사람이 IP 하나를 같이 쓴다
+    max-failures-per-ip: 20
+    max-failures-per-email: 5
+    window: 10m
+  signup:
+    # 성공 여부와 관계없이 가입 시도를 센다
+    max-attempts-per-ip: 30
+    window: 1h
+
 # 소셜 로그인
 # 키가 없어도 서버는 뜬다. 해당 소셜 로그인 API를 호출할 때만 설정을 확인한다.
 oauth:
