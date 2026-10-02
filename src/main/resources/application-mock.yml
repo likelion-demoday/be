@@ -1,0 +1,24 @@
+# B 전사 도메인과 로컬 MySQL 없이 분석 보고서 흐름을 확인하는 개발 전용 프로필
+spring:
+  datasource:
+    url: jdbc:h2:mem:resay-mock;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+
+# 개발용 고정 키이며 운영에서는 사용하지 않는다.
+jwt:
+  secret: mock-only-jwt-secret-key-for-local-analysis-0123456789
+
+analysis:
+  mock:
+    # true: 비용 없는 고정 응답, false: LINER_API_KEY로 실제 LINER 호출
+    model-enabled: ${ANALYSIS_MOCK_MODEL_ENABLED:true}
+
+logging:
+  level:
+    org.hibernate.SQL: info

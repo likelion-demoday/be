@@ -3,16 +3,37 @@ package com.example.resay.domain.analysis.service;
 import com.example.resay.domain.analysis.dto.AnalysisResultCommand;
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
 import com.example.resay.domain.analysis.model.AnalysisSource;
+import com.example.resay.domain.analysis.model.ConversationMetrics;
 import com.example.resay.domain.analysis.port.AnalysisModelClient;
 import com.example.resay.domain.analysis.port.AnalysisSourceReader;
-import lombok.RequiredArgsConstructor;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 
-@RequiredArgsConstructor
 public class AnalysisProcessor {
 
     private final AnalysisService analysisService;
     private final AnalysisSourceReader analysisSourceReader;
     private final AnalysisModelClient analysisModelClient;
+    private final ConversationMetricsCalculator metricsCalculator;
+    private final AnalysisReportAssembler reportAssembler;
+    private final Executor analysisTaskExecutor;
+
+    public AnalysisProcessor(
+            AnalysisService analysisService,
+            AnalysisSourceReader analysisSourceReader,
+            AnalysisModelClient analysisModelClient,
+            ConversationMetricsCalculator metricsCalculator,
+            AnalysisReportAssembler reportAssembler,
+            Executor analysisTaskExecutor
+    ) {
+        this.analysisService = analysisService;
+        this.analysisSourceReader = analysisSourceReader;
+        this.analysisModelClient = analysisModelClient;
+        this.metricsCalculator = metricsCalculator;
+        this.reportAssembler = reportAssembler;
+        this.analysisTaskExecutor = analysisTaskExecutor;
+    }
 
     public void process(Long recordingId) {
         analysisService.start(recordingId);
@@ -20,10 +41,36 @@ public class AnalysisProcessor {
         try {
             AnalysisSource source = analysisSourceReader.read(recordingId);
             requireMatchingRecording(recordingId, source);
-            AnalysisModelResult result = analysisModelClient.analyze(source);
-            analysisService.complete(recordingId, toCommand(result));
+
+            CompletableFuture<ConversationMetrics> metricsFuture = CompletableFuture.supplyAsync(
+                    () -> metricsCalculator.calculate(source),
+                    analysisTaskExecutor
+            );
+            CompletableFuture<AnalysisModelResult> qualitativeFuture = CompletableFuture.supplyAsync(
+                    () -> analysisModelClient.analyze(source),
+                    analysisTaskExecutor
+            );
+
+            awaitBoth(metricsFuture, qualitativeFuture);
+            AnalysisModelResult report = reportAssembler.assemble(
+                    source,
+                    metricsFuture.join(),
+                    qualitativeFuture.join()
+            );
+            analysisService.complete(recordingId, toCommand(report));
         } catch (RuntimeException exception) {
             markFailed(recordingId, exception);
+            throw exception;
+        }
+    }
+
+    private void awaitBoth(CompletableFuture<?> first, CompletableFuture<?> second) {
+        try {
+            CompletableFuture.allOf(first, second).join();
+        } catch (CompletionException exception) {
+            if (exception.getCause() instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
             throw exception;
         }
     }
