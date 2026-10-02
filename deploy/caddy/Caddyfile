@@ -13,6 +13,11 @@
 {$API_DOMAIN} {
 	encode gzip
 
+	# 클라이언트가 보낸 Forwarded 헤더는 버린다.
+	# 앱은 프록시가 넘겨준 헤더로 접속 IP · https 여부를 판단하는데, X-Forwarded-* 는 Caddy가 덮어쓰지만 Forwarded 는 그대로 통과시킨다.
+	# 남겨 두면 "Forwarded: for=아무IP" 한 줄로 IP를 속여 로그인 시도 횟수 제한을 피할 수 있다
+	request_header -Forwarded
+
 	# 요청 본문 크기 제한
 	# 음성 업로드만 큰 본문을 허용하고 나머지 API는 1MB로 제한한다.
 	# 전체를 크게 열어두면 로그인 같은 공개 API에 수백 MB 본문을 동시에 보내 서버 메모리(2GB)를 고갈시킬 수 있다.
