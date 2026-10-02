@@ -31,6 +31,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .body(ApiResponse.onFailure(errorCode, null));
     }
 
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleRateLimitExceededException(RateLimitExceededException exception) {
+        BaseErrorCode errorCode = exception.getErrorCode();
+        long retryAfterSeconds = exception.getRetryAfterSeconds();
+
+        return ResponseEntity.status(errorCode.getHttpStatus())
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterSeconds))
+                .body(ApiResponse.onFailure(errorCode, Map.of("retryAfterSeconds", retryAfterSeconds)));
+    }
+
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiResponse<Void>> handleAuthenticationException() {
         return createFailureResponse(GeneralErrorCode.UNAUTHORIZED, null);

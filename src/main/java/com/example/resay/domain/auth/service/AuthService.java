@@ -37,10 +37,13 @@ public class AuthService {
     private final KakaoClient kakaoClient;
     private final KakaoProperties kakaoProperties;
     private final GoogleIdTokenVerifier googleIdTokenVerifier;
+    private final AuthRateLimiter authRateLimiter;
 
     // 가입 직후 바로 서비스를 이용할 수 있도록 로그인과 같은 토큰을 발급한다
     @Transactional
-    public TokenResponseDto signup(SignupRequestDto request) {
+    public TokenResponseDto signup(SignupRequestDto request, String clientIp) {
+        authRateLimiter.checkSignup(clientIp);
+
         String email = normalizeEmail(request.email());
         if (userRepository.existsByEmail(email)) {
             throw new GeneralException(AuthErrorCode.DUPLICATE_EMAIL);
@@ -60,13 +63,25 @@ public class AuthService {
         return issueToken(user);
     }
 
+    // 시도 횟수 제한에 걸린 동안에는 맞는 비밀번호도 통과시키지 않는다 (비밀번호를 확인하기 전에 막는다)
     @Transactional
-    public TokenResponseDto login(LoginRequestDto request) {
-        User user = userRepository.findByEmail(normalizeEmail(request.email()))
-                .filter(found -> found.getProvider() == Provider.LOCAL)
-                .filter(found -> passwordEncoder.matches(request.password(), found.getPassword()))
-                .orElseThrow(() -> new GeneralException(AuthErrorCode.INVALID_CREDENTIALS));
-        return issueToken(user);
+    public TokenResponseDto login(LoginRequestDto request, String clientIp) {
+        String email = normalizeEmail(request.email());
+        AuthRateLimiter.LoginAttempt attempt = authRateLimiter.beginLogin(clientIp, email);
+        try {
+            User user = userRepository.findByEmail(email)
+                    .filter(found -> found.getProvider() == Provider.LOCAL)
+                    .filter(found -> passwordEncoder.matches(request.password(), found.getPassword()))
+                    .orElseThrow(() -> new GeneralException(AuthErrorCode.INVALID_CREDENTIALS));
+            TokenResponseDto token = issueToken(user);
+            attempt.succeeded();
+            return token;
+        } catch (RuntimeException exception) {
+            if (!isInvalidCredentials(exception)) {
+                attempt.cancelled();
+            }
+            throw exception;
+        }
     }
 
     // 프론트가 카카오에서 받은 인가 코드로 로그인하거나 자동 가입한다
@@ -115,6 +130,11 @@ public class AuthService {
     @Transactional
     public void logout(RefreshTokenRequestDto request) {
         refreshTokenService.revoke(request.refreshToken());
+    }
+
+    private boolean isInvalidCredentials(RuntimeException exception) {
+        return exception instanceof GeneralException generalException
+                && generalException.getErrorCode() == AuthErrorCode.INVALID_CREDENTIALS;
     }
 
     private TokenResponseDto issueToken(User user) {

@@ -169,6 +169,7 @@ Lightsail **자동 스냅샷**도 켠다 (인스턴스 → 스냅샷 → 자동 
 | 인스턴스 메타데이터 | IMDSv2 강제 + 홉 제한 1 (컨테이너에서 접근 불가 확인) |
 | Docker | 공식 저장소에서 서명 키 지문을 확인하고 설치. 외부 TCP 소켓 없음. 컨테이너 로그 상한 설정 |
 | 앱 컨테이너 | root가 아닌 사용자, 리눅스 권한 전부 제거(`cap_drop: ALL`), 권한 상승 차단 |
+| 로그인 시도 제한 | 로그인 실패 IP당 10분 20회 · 이메일당 10분 5회, 가입 시도 IP당 1시간 30회. 넘으면 `429` |
 | 요청 크기 | 음성 업로드(`POST /api/v1/recordings`)만 210MB, 나머지 API는 1MB (Caddy) |
 | HTTPS | Caddy가 인증서 자동 발급 · 갱신, HTTP는 HTTPS로 리다이렉트. TLS 1.2 이상만 허용 |
 | 비밀값 | `deploy/.env.prod`(권한 600)에만 두고 저장소에 올리지 않음 |
@@ -186,7 +187,7 @@ apt list --upgradable 2>/dev/null | wc -l       # 1이면 대기 중인 업데�
 
 - Docker는 OS 자동 업데이트 대상이 아니다(공식 저장소라서). 필요할 때 `sudo apt-get update && sudo apt-get install --only-upgrade docker-ce docker-ce-cli containerd.io`로 올린다. 올리면 컨테이너가 잠깐 재시작된다
 - SSH(22)는 전체에 열려 있다. 키 인증만 받으므로 무차별 대입은 통하지 않지만, 더 조이려면 Lightsail 방화벽에서 22번의 허용 IP를 제한한다
-- 로그인 시도 횟수 제한(rate limit)은 아직 없다. 런칭 전에 추가를 검토한다
+- 로그인 · 가입 시도 횟수 제한은 앱이 서버 메모리에 기록한다(`application.yml`의 `rate-limit`). 앱을 재시작하면 기록이 초기화된다. 서버를 여러 대로 늘리면 서버마다 따로 세게 되므로 그때는 공용 저장소로 바꿔야 한다
 
 ## 평소 작업
 
@@ -238,4 +239,5 @@ git log --oneline -10 origin/develop     # 되돌릴 커밋 확인
 | `push.sh`가 접속에서 멈춤 | 서버 호스트 키가 `known_hosts`에 없거나 SSH 키 경로가 다름 (5단계) |
 | 프론트에서 CORS 오류 | `CORS_ALLOWED_ORIGINS`에 프론트 주소가 **프로토콜까지 정확히** 들어갔는지 (`https://resay.site`) |
 | 카카오 로그인 `AUTH400_1` | `KAKAO_ALLOWED_REDIRECT_URIS`와 카카오 콘솔·프론트가 쓰는 주소가 글자 하나까지 같은지 |
+| 정상 사용자가 로그인 · 가입에서 `429` | 같은 IP를 여러 사람이 쓰는 곳(학교 · 행사장)에서 한도에 걸린 경우. 급하면 `.env.prod`에 `RATE_LIMIT_ENABLED=false`를 넣고 `./deploy/deploy.sh`로 끈 뒤, `application.yml`의 한도를 조정해 다시 배포하고 그 줄을 지운다. 앱만 재시작해도 기록은 초기화된다 |
 | 업로드가 413 | `deploy/caddy/Caddyfile`의 `max_size`와 스프링 multipart 설정(파일 200MB) 확인. 업로드 경로(`POST /api/v1/recordings`) 외에는 1MB 제한 |

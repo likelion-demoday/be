@@ -31,6 +31,18 @@ jwt:
 cors:
   allowed-origins: http://localhost:3000
 
+# 테스트들은 같은 IP(127.0.0.1) · 같은 이메일로 요청을 반복하므로 기본은 꺼 둔다.
+# 시도 횟수 제한 자체는 AuthRateLimitTest가 켜서 확인한다
+rate-limit:
+  enabled: false
+  login:
+    max-failures-per-ip: 20
+    max-failures-per-email: 5
+    window: 10m
+  signup:
+    max-attempts-per-ip: 30
+    window: 1h
+
 oauth:
   kakao:
     client-id: test-kakao-client-id
