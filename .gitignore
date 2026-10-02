@@ -61,3 +61,4 @@ application-local.yaml
 # OS
 .DS_Store
 Thumbs.db
+storage/
