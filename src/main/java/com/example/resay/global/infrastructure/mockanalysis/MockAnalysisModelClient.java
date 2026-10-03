@@ -71,7 +71,7 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
                     objectMapper.writeValueAsString(response),
                     "mock-analysis-model",
                     "mock-prompt-v2",
-                    "analysis-result-v2"
+                    "analysis-result-v3"
             );
         } catch (Exception exception) {
             throw new IllegalStateException("목업 정성 분석 결과를 만들 수 없습니다.", exception);

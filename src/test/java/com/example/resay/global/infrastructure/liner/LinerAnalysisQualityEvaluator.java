@@ -48,8 +48,7 @@ class LinerAnalysisQualityEvaluator {
     ) {
         List<ActualObservation> matched = actualObservations.stream()
                 .filter(actual -> actual.category().equals(expected.category()))
-                .filter(actual -> expected.speakerRole() == null
-                        || actual.speakerRoles().contains(expected.speakerRole()))
+                .filter(actual -> matchesSpeakerRole(expected, actual))
                 .toList();
         List<Long> actualEvidence = matched.stream()
                 .flatMap(actual -> actual.evidenceSegmentIds().stream())
@@ -65,6 +64,19 @@ class LinerAnalysisQualityEvaluator {
                 actualEvidence,
                 intersection(actualEvidence, expected.evidenceSegmentIds())
         );
+    }
+
+    private boolean matchesSpeakerRole(
+            LinerAnalysisEvaluationSpec.ExpectedObservation expected,
+            ActualObservation actual
+    ) {
+        if (expected.speakerRole() == null) {
+            return true;
+        }
+        if ("CONFLICT_POSITION".equals(expected.category())) {
+            return actual.speakerRoles().equals(Set.of(expected.speakerRole()));
+        }
+        return actual.speakerRoles().contains(expected.speakerRole());
     }
 
     private List<ActualObservation> actualObservations(QualitativeAnalysis analysis) {

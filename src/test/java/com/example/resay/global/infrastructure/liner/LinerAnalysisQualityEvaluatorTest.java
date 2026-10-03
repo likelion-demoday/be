@@ -43,6 +43,92 @@ class LinerAnalysisQualityEvaluatorTest {
         assertThat(result.referencedMeaningRiskSegmentIds()).isEmpty();
     }
 
+    @Test
+    void doesNotTreatCombinedConflictPositionAsSeparateSpeakerPosition() {
+        LinerAnalysisEvaluationSpec spec = new LinerAnalysisEvaluationSpec(
+                AnalysisScenario.FRIEND_DAILY,
+                "NONE",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(new LinerAnalysisEvaluationSpec.ExpectedObservation(
+                        "CONFLICT_POSITION",
+                        SpeakerRole.SELF,
+                        List.of(1L)
+                )),
+                List.of()
+        );
+        QualitativeAnalysis base = analysis();
+        QualitativeAnalysis combinedPosition = new QualitativeAnalysis(
+                base.overview(),
+                base.timeline(),
+                base.topics(),
+                base.characterInsights(),
+                base.speakerInsights(),
+                base.interestInsights(),
+                base.spicinessInsights(),
+                base.reactionStyleInsights(),
+                List.of(new QualitativeAnalysis.ScenarioInsight(
+                        QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_POSITION,
+                        List.of(SpeakerRole.SELF, SpeakerRole.FRIEND),
+                        "합쳐진 입장",
+                        "두 사람의 입장을 한 항목에 합쳤습니다.",
+                        List.of(1L, 3L)
+                ))
+        );
+
+        LinerAnalysisQualityEvaluation result = evaluator.evaluate(
+                spec,
+                combinedPosition,
+                LinerAnalysisQualityEvaluation.TranscriptVariant.CORRECTED
+        );
+
+        assertThat(result.observations().get(0).found()).isFalse();
+    }
+
+    @Test
+    void recognizesExpectedSpeakerInsideCombinedNonPositionInsight() {
+        LinerAnalysisEvaluationSpec spec = new LinerAnalysisEvaluationSpec(
+                AnalysisScenario.PARENT_CHILD_CONFLICT,
+                "NONE",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(new LinerAnalysisEvaluationSpec.ExpectedObservation(
+                        "CARE_EXPRESSION",
+                        SpeakerRole.PARENT,
+                        List.of(1L)
+                )),
+                List.of()
+        );
+        QualitativeAnalysis base = analysis();
+        QualitativeAnalysis combinedCare = new QualitativeAnalysis(
+                base.overview(),
+                base.timeline(),
+                base.topics(),
+                base.characterInsights(),
+                base.speakerInsights(),
+                base.interestInsights(),
+                base.spicinessInsights(),
+                base.reactionStyleInsights(),
+                List.of(new QualitativeAnalysis.ScenarioInsight(
+                        QualitativeAnalysis.ScenarioInsightCategory.CARE_EXPRESSION,
+                        List.of(SpeakerRole.PARENT, SpeakerRole.CHILD),
+                        "안전 걱정",
+                        "안전을 걱정하는 표현이 나타났습니다.",
+                        List.of(1L)
+                ))
+        );
+
+        LinerAnalysisQualityEvaluation result = evaluator.evaluate(
+                spec,
+                combinedCare,
+                LinerAnalysisQualityEvaluation.TranscriptVariant.CORRECTED
+        );
+
+        assertThat(result.observations().get(0).found()).isTrue();
+    }
+
     private LinerAnalysisEvaluationSpec spec() {
         return new LinerAnalysisEvaluationSpec(
                 AnalysisScenario.FRIEND_DAILY,

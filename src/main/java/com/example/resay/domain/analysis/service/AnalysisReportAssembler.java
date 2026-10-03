@@ -18,7 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class AnalysisReportAssembler {
 
-    private static final String REPORT_SCHEMA_VERSION = "analysis-report-v2";
+    private static final String REPORT_SCHEMA_VERSION = "analysis-report-v3";
 
     private final ObjectMapper objectMapper;
 
@@ -81,7 +81,7 @@ public class AnalysisReportAssembler {
                 enrichTimeline(result.timeline(), source.segments()),
                 enrichTopics(result.topics(), source.segments()),
                 result.characterInsights(),
-                enrichSpeakerInsights(result.speakerInsights(), source.segments()),
+                result.speakerInsights(),
                 result.interestInsights(),
                 result.spicinessInsights(),
                 result.reactionStyleInsights(),
@@ -148,8 +148,7 @@ public class AnalysisReportAssembler {
                         topic.title(),
                         topic.description(),
                         topic.segmentIds(),
-                        topic.startMs(),
-                        topic.endMs(),
+                        topic.timeRanges(),
                         topic.turnCount(),
                         topic.speakingDurationMs(),
                         topic.speakingDurationMs() == longestDuration
@@ -161,6 +160,11 @@ public class AnalysisReportAssembler {
             QualitativeAnalysis.Topic topic,
             Map<Long, AnalysisSegment> segmentsById
     ) {
+        Map<Long, Integer> positionsById = new java.util.HashMap<>();
+        int position = 0;
+        for (Long segmentId : segmentsById.keySet()) {
+            positionsById.put(segmentId, position++);
+        }
         List<AnalysisSegment> resolvedSegments = topic.segmentIds().stream()
                 .map(segmentsById::get)
                 .toList();
@@ -168,82 +172,62 @@ public class AnalysisReportAssembler {
             throw new IllegalStateException("주제에 존재하지 않는 발화가 포함되어 있습니다.");
         }
         List<AnalysisSegment> topicSegments = resolvedSegments.stream()
-                .sorted(Comparator.comparingLong(AnalysisSegment::startMs))
+                .sorted(Comparator.comparingInt(segment -> positionsById.get(segment.segmentId())))
                 .toList();
 
-        long startMs = topicSegments.stream().mapToLong(AnalysisSegment::startMs).min().orElseThrow();
-        long endMs = topicSegments.stream().mapToLong(AnalysisSegment::endMs).max().orElseThrow();
         long speakingDurationMs = topicSegments.stream()
                 .mapToLong(segment -> segment.endMs() - segment.startMs())
                 .sum();
 
         int turnCount = 0;
         SpeakerRole previousRole = null;
+        Integer previousPosition = null;
         for (AnalysisSegment segment : topicSegments) {
-            if (segment.speakerRole() != previousRole) {
+            int currentPosition = positionsById.get(segment.segmentId());
+            if (previousPosition == null
+                    || currentPosition != previousPosition + 1
+                    || segment.speakerRole() != previousRole) {
                 turnCount++;
-                previousRole = segment.speakerRole();
             }
+            previousRole = segment.speakerRole();
+            previousPosition = currentPosition;
         }
 
         return new AnalysisReport.TopicItem(
                 topic.title(),
                 topic.description(),
                 topic.segmentIds(),
-                startMs,
-                endMs,
+                topicTimeRanges(topicSegments, positionsById),
                 turnCount,
                 speakingDurationMs,
                 false
         );
     }
 
-    private List<QualitativeAnalysis.SpeakerInsight> enrichSpeakerInsights(
-            List<QualitativeAnalysis.SpeakerInsight> insights,
-            List<AnalysisSegment> segments
+    private List<AnalysisReport.TopicTimeRange> topicTimeRanges(
+            List<AnalysisSegment> topicSegments,
+            Map<Long, Integer> positionsById
     ) {
-        return insights.stream()
-                .map(insight -> new QualitativeAnalysis.SpeakerInsight(
-                        insight.speakerRole(),
-                        insight.patterns(),
-                        insight.sentenceStyle(),
-                        insight.frequentExpressions().stream()
-                                .map(expression -> new QualitativeAnalysis.FrequentExpression(
-                                        expression.expression(),
-                                        countOccurrences(
-                                                expression.expression(),
-                                                insight.speakerRole(),
-                                                segments
-                                        ),
-                                        expression.description(),
-                                        expression.evidenceSegmentIds()
-                                ))
-                                .toList()
-                ))
-                .toList();
-    }
+        List<AnalysisReport.TopicTimeRange> result = new java.util.ArrayList<>();
+        Long rangeStartMs = null;
+        Long rangeEndMs = null;
+        Integer previousPosition = null;
 
-    private int countOccurrences(
-            String expression,
-            SpeakerRole speakerRole,
-            List<AnalysisSegment> segments
-    ) {
-        if (expression == null || expression.isBlank()) {
-            throw new IllegalStateException("반복 표현은 비어 있을 수 없습니다.");
-        }
-        int count = 0;
-        for (AnalysisSegment segment : segments) {
-            if (segment.speakerRole() != speakerRole) {
-                continue;
+        for (AnalysisSegment segment : topicSegments) {
+            int currentPosition = positionsById.get(segment.segmentId());
+            if (previousPosition == null || currentPosition != previousPosition + 1) {
+                if (rangeStartMs != null) {
+                    result.add(new AnalysisReport.TopicTimeRange(rangeStartMs, rangeEndMs));
+                }
+                rangeStartMs = segment.startMs();
             }
-            String content = segment.content();
-            int index = 0;
-            while ((index = content.indexOf(expression, index)) >= 0) {
-                count++;
-                index += expression.length();
-            }
+            rangeEndMs = segment.endMs();
+            previousPosition = currentPosition;
         }
-        return count;
+        if (rangeStartMs != null) {
+            result.add(new AnalysisReport.TopicTimeRange(rangeStartMs, rangeEndMs));
+        }
+        return List.copyOf(result);
     }
 
     private QualitativeAnalysis readQualitativeAnalysis(String json) {

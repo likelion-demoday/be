@@ -40,6 +40,7 @@ class LinerAnalysisModelClientTest {
         modelClient = new LinerAnalysisModelClient(
                 linerApiClient,
                 requestFactory,
+                new LinerAnalysisResponseGrounder(),
                 responseValidator,
                 new ObjectMapper()
         );
@@ -93,7 +94,9 @@ class LinerAnalysisModelClientTest {
 
         assertThatThrownBy(() -> modelClient.analyze(source))
                 .isInstanceOf(LinerAnalysisException.class)
-                .hasMessageContaining("정상적으로 완료되지 않았습니다");
+                .hasMessageContaining("정상적으로 완료되지 않았습니다")
+                .hasMessageContaining("finishReason=length")
+                .hasMessageContaining("completionTokens=20");
 
         then(responseValidator).should(never()).validate(
                 org.mockito.ArgumentMatchers.any(),

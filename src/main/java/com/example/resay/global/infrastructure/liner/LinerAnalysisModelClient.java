@@ -13,17 +13,20 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
 
     private final LinerApiClient linerApiClient;
     private final LinerAnalysisRequestFactory requestFactory;
+    private final LinerAnalysisResponseGrounder responseGrounder;
     private final LinerAnalysisResponseValidator responseValidator;
     private final ObjectMapper objectMapper;
 
     public LinerAnalysisModelClient(
             LinerApiClient linerApiClient,
             LinerAnalysisRequestFactory requestFactory,
+            LinerAnalysisResponseGrounder responseGrounder,
             LinerAnalysisResponseValidator responseValidator,
             ObjectMapper objectMapper
     ) {
         this.linerApiClient = linerApiClient;
         this.requestFactory = requestFactory;
+        this.responseGrounder = responseGrounder;
         this.responseValidator = responseValidator;
         this.objectMapper = objectMapper;
     }
@@ -34,10 +37,11 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
         validateCompletion(result);
 
         QualitativeAnalysis response = parseResponse(result.content());
-        responseValidator.validate(source, response);
+        QualitativeAnalysis groundedResponse = responseGrounder.ground(source, response);
+        responseValidator.validate(source, groundedResponse);
 
         return new AnalysisModelResult(
-                serializeResponse(response),
+                serializeResponse(groundedResponse),
                 result.response().model(),
                 requestFactory.promptVersion(),
                 requestFactory.schemaVersion()
@@ -47,7 +51,14 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
     private void validateCompletion(LinerChatResult result) {
         String finishReason = result.response().choices().get(0).finishReason();
         if (!"stop".equals(finishReason)) {
-            throw invalidResponse("LINER 분석 응답이 정상적으로 완료되지 않았습니다.", null);
+            LinerChatResponse.Usage usage = result.response().usage();
+            long completionTokens = usage != null ? usage.completionTokens() : 0;
+            throw invalidResponse(
+                    "LINER 분석 응답이 정상적으로 완료되지 않았습니다. "
+                            + "finishReason=" + finishReason
+                            + ", completionTokens=" + completionTokens,
+                    null
+            );
         }
         if (!StringUtils.hasText(result.response().model())) {
             throw invalidResponse("LINER 분석 응답에 모델 정보가 없습니다.", null);
