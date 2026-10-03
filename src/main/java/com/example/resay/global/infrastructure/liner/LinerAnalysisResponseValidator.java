@@ -1,7 +1,6 @@
 package com.example.resay.global.infrastructure.liner;
 
 import com.example.resay.domain.analysis.model.AnalysisSegment;
-import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
@@ -10,6 +9,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -24,7 +24,12 @@ public class LinerAnalysisResponseValidator {
         Map<Long, AnalysisSegment> segmentsById = segmentsById(source.segments());
         validateOverview(response.overview(), segmentsById);
         validateTimeline(response.timeline(), segmentsById);
+        validateTopics(response.topics(), segmentsById);
+        validateCharacterInsights(source, response.characterInsights(), segmentsById);
         validateSpeakerInsights(source, response.speakerInsights(), segmentsById);
+        validateInterestInsights(source, response.interestInsights(), segmentsById);
+        validateSpicinessInsights(source, response.spicinessInsights(), segmentsById);
+        validateReactionStyleInsights(source, response.reactionStyleInsights(), segmentsById);
         validateScenarioInsights(source, response.scenarioInsights(), segmentsById);
     }
 
@@ -69,73 +74,248 @@ public class LinerAnalysisResponseValidator {
         }
     }
 
-    private void validateSpeakerInsights(
-            AnalysisSource source,
-            List<QualitativeAnalysis.SpeakerInsight> speakerInsights,
+    private void validateTopics(
+            List<QualitativeAnalysis.Topic> topics,
             Map<Long, AnalysisSegment> segmentsById
     ) {
-        if (speakerInsights == null) {
-            throw invalidResponse("speakerInsights가 비어 있습니다.");
+        if (topics == null || topics.isEmpty() || topics.size() > 5) {
+            throw invalidResponse("topics는 1개 이상 5개 이하여야 합니다.");
         }
+        for (QualitativeAnalysis.Topic topic : topics) {
+            if (topic == null) {
+                throw invalidResponse("topic 항목이 비어 있습니다.");
+            }
+            requireText(topic.title(), "topic.title");
+            requireText(topic.description(), "topic.description");
+            validateEvidence(topic.segmentIds(), segmentsById, "topic");
+        }
+    }
 
-        Set<SpeakerRole> roles = new HashSet<>();
-        for (QualitativeAnalysis.SpeakerInsight insight : speakerInsights) {
-            if (insight == null || insight.speakerRole() == null || insight.patterns() == null) {
+    private void validateCharacterInsights(
+            AnalysisSource source,
+            List<QualitativeAnalysis.CharacterInsight> insights,
+            Map<Long, AnalysisSegment> segmentsById
+    ) {
+        validateRoles(source, insights, QualitativeAnalysis.CharacterInsight::speakerRole,
+                "characterInsights");
+        for (QualitativeAnalysis.CharacterInsight insight : insights) {
+            requireText(insight.name(), "characterInsight.name");
+            requireText(insight.description(), "characterInsight.description");
+            validateSpeakerEvidence(
+                    insight.evidenceSegmentIds(),
+                    insight.speakerRole(),
+                    segmentsById,
+                    "characterInsight"
+            );
+        }
+    }
+
+    private void validateSpeakerInsights(
+            AnalysisSource source,
+            List<QualitativeAnalysis.SpeakerInsight> insights,
+            Map<Long, AnalysisSegment> segmentsById
+    ) {
+        validateRoles(source, insights, QualitativeAnalysis.SpeakerInsight::speakerRole,
+                "speakerInsights");
+        for (QualitativeAnalysis.SpeakerInsight insight : insights) {
+            if (insight.patterns() == null || insight.sentenceStyle() == null
+                    || insight.frequentExpressions() == null) {
                 throw invalidResponse("speakerInsights 항목이 올바르지 않습니다.");
             }
-            if (!roles.add(insight.speakerRole())) {
-                throw invalidResponse("speakerInsights의 화자 역할은 중복될 수 없습니다.");
-            }
-
             for (QualitativeAnalysis.SpeakerPattern pattern : insight.patterns()) {
-                validateSpeakerPattern(
-                        pattern,
-                        insight.speakerRole(),
-                        source.scenario(),
-                        segmentsById
-                );
+                validateSpeakerPattern(pattern, insight.speakerRole(), source, segmentsById);
             }
-        }
-
-        if (!roles.equals(source.scenario().requiredRoles())) {
-            throw invalidResponse("speakerInsights의 화자 역할이 분석 시나리오와 일치하지 않습니다.");
+            validateSentenceStyle(insight.sentenceStyle(), insight.speakerRole(), segmentsById);
+            validateFrequentExpressions(
+                    insight.frequentExpressions(),
+                    insight.speakerRole(),
+                    segmentsById
+            );
         }
     }
 
     private void validateSpeakerPattern(
             QualitativeAnalysis.SpeakerPattern pattern,
             SpeakerRole speakerRole,
-            AnalysisScenario scenario,
+            AnalysisSource source,
             Map<Long, AnalysisSegment> segmentsById
     ) {
         if (pattern == null || pattern.category() == null) {
             throw invalidResponse("speaker pattern이 올바르지 않습니다.");
         }
-        if (!LinerAnalysisPolicy.speakerPatternCategories(scenario).contains(pattern.category())) {
+        if (!LinerAnalysisPolicy.speakerPatternCategories(source.scenario())
+                .contains(pattern.category())) {
             throw invalidResponse("분석 시나리오에 맞지 않는 화자 패턴입니다.");
         }
         requireText(pattern.title(), "speakerPattern.title");
         requireText(pattern.description(), "speakerPattern.description");
-        validateEvidence(pattern.evidenceSegmentIds(), segmentsById, "speakerPattern");
+        validateSpeakerEvidence(
+                pattern.evidenceSegmentIds(),
+                speakerRole,
+                segmentsById,
+                "speakerPattern"
+        );
+    }
 
-        boolean containsSpeakerEvidence = pattern.evidenceSegmentIds().stream()
-                .map(segmentsById::get)
-                .anyMatch(segment -> segment.speakerRole() == speakerRole);
-        if (!containsSpeakerEvidence) {
-            throw invalidResponse("화자별 관찰에는 해당 화자의 근거 발화가 필요합니다.");
+    private void validateSentenceStyle(
+            QualitativeAnalysis.SentenceStyle style,
+            SpeakerRole speakerRole,
+            Map<Long, AnalysisSegment> segmentsById
+    ) {
+        requireText(style.title(), "sentenceStyle.title");
+        requireText(style.description(), "sentenceStyle.description");
+        validateSpeakerEvidence(
+                style.evidenceSegmentIds(),
+                speakerRole,
+                segmentsById,
+                "sentenceStyle"
+        );
+    }
+
+    private void validateFrequentExpressions(
+            List<QualitativeAnalysis.FrequentExpression> expressions,
+            SpeakerRole speakerRole,
+            Map<Long, AnalysisSegment> segmentsById
+    ) {
+        if (expressions.size() > 5) {
+            throw invalidResponse("frequentExpressions는 5개 이하여야 합니다.");
         }
+        for (QualitativeAnalysis.FrequentExpression expression : expressions) {
+            if (expression == null || expression.count() <= 0) {
+                throw invalidResponse("frequentExpression 항목이 올바르지 않습니다.");
+            }
+            requireText(expression.expression(), "frequentExpression.expression");
+            requireText(expression.description(), "frequentExpression.description");
+            validateSpeakerEvidence(
+                    expression.evidenceSegmentIds(),
+                    speakerRole,
+                    segmentsById,
+                    "frequentExpression"
+            );
+            boolean appearsInEvidence = expression.evidenceSegmentIds().stream()
+                    .map(segmentsById::get)
+                    .filter(segment -> segment.speakerRole() == speakerRole)
+                    .anyMatch(segment -> segment.content().contains(expression.expression()));
+            if (!appearsInEvidence) {
+                throw invalidResponse("반복 표현이 근거 발화에 실제로 존재하지 않습니다.");
+            }
+        }
+    }
+
+    private void validateInterestInsights(
+            AnalysisSource source,
+            List<QualitativeAnalysis.InterestInsight> insights,
+            Map<Long, AnalysisSegment> segmentsById
+    ) {
+        validateRoles(source, insights, QualitativeAnalysis.InterestInsight::speakerRole,
+                "interestInsights");
+        for (QualitativeAnalysis.InterestInsight insight : insights) {
+            requireScore(insight.score(), "interestInsight.score");
+            requireText(insight.description(), "interestInsight.description");
+            if (insight.observations() == null) {
+                throw invalidResponse("interestInsight.observations가 비어 있습니다.");
+            }
+            for (QualitativeAnalysis.InterestObservation observation : insight.observations()) {
+                if (observation == null || observation.category() == null) {
+                    throw invalidResponse("interestObservation 항목이 올바르지 않습니다.");
+                }
+                validateCategorizedEvidence(
+                        observation.title(),
+                        observation.description(),
+                        observation.evidenceSegmentIds(),
+                        insight.speakerRole(),
+                        segmentsById,
+                        "interestObservation"
+                );
+            }
+        }
+    }
+
+    private void validateSpicinessInsights(
+            AnalysisSource source,
+            List<QualitativeAnalysis.SpicinessInsight> insights,
+            Map<Long, AnalysisSegment> segmentsById
+    ) {
+        validateRoles(source, insights, QualitativeAnalysis.SpicinessInsight::speakerRole,
+                "spicinessInsights");
+        for (QualitativeAnalysis.SpicinessInsight insight : insights) {
+            requireScore(insight.score(), "spicinessInsight.score");
+            requireText(insight.description(), "spicinessInsight.description");
+            if (insight.observations() == null) {
+                throw invalidResponse("spicinessInsight.observations가 비어 있습니다.");
+            }
+            for (QualitativeAnalysis.SpicinessObservation observation : insight.observations()) {
+                if (observation == null || observation.category() == null) {
+                    throw invalidResponse("spicinessObservation 항목이 올바르지 않습니다.");
+                }
+                validateCategorizedEvidence(
+                        observation.title(),
+                        observation.description(),
+                        observation.evidenceSegmentIds(),
+                        insight.speakerRole(),
+                        segmentsById,
+                        "spicinessObservation"
+                );
+            }
+        }
+    }
+
+    private void validateReactionStyleInsights(
+            AnalysisSource source,
+            List<QualitativeAnalysis.ReactionStyleInsight> insights,
+            Map<Long, AnalysisSegment> segmentsById
+    ) {
+        validateRoles(source, insights, QualitativeAnalysis.ReactionStyleInsight::speakerRole,
+                "reactionStyleInsights");
+        for (QualitativeAnalysis.ReactionStyleInsight insight : insights) {
+            requireScore(insight.thinkingPercent(), "reactionStyleInsight.thinkingPercent");
+            requireScore(insight.feelingPercent(), "reactionStyleInsight.feelingPercent");
+            if (insight.thinkingPercent() + insight.feelingPercent() != 100) {
+                throw invalidResponse("T/F 반응 비율의 합은 100이어야 합니다.");
+            }
+            requireText(insight.description(), "reactionStyleInsight.description");
+            if (insight.examples() == null || insight.examples().isEmpty()) {
+                throw invalidResponse("reactionStyleInsight.examples는 비어 있을 수 없습니다.");
+            }
+            for (QualitativeAnalysis.ReactionExample example : insight.examples()) {
+                if (example == null || example.category() == null) {
+                    throw invalidResponse("reactionExample 항목이 올바르지 않습니다.");
+                }
+                validateCategorizedEvidence(
+                        example.title(),
+                        example.description(),
+                        example.evidenceSegmentIds(),
+                        insight.speakerRole(),
+                        segmentsById,
+                        "reactionExample"
+                );
+            }
+        }
+    }
+
+    private void validateCategorizedEvidence(
+            String title,
+            String description,
+            List<Long> evidenceSegmentIds,
+            SpeakerRole speakerRole,
+            Map<Long, AnalysisSegment> segmentsById,
+            String fieldName
+    ) {
+        requireText(title, fieldName + ".title");
+        requireText(description, fieldName + ".description");
+        validateSpeakerEvidence(evidenceSegmentIds, speakerRole, segmentsById, fieldName);
     }
 
     private void validateScenarioInsights(
             AnalysisSource source,
-            List<QualitativeAnalysis.ScenarioInsight> scenarioInsights,
+            List<QualitativeAnalysis.ScenarioInsight> insights,
             Map<Long, AnalysisSegment> segmentsById
     ) {
-        if (scenarioInsights == null) {
+        if (insights == null) {
             throw invalidResponse("scenarioInsights가 비어 있습니다.");
         }
 
-        for (QualitativeAnalysis.ScenarioInsight insight : scenarioInsights) {
+        for (QualitativeAnalysis.ScenarioInsight insight : insights) {
             if (insight == null || insight.category() == null || insight.speakerRoles() == null) {
                 throw invalidResponse("scenario insight가 올바르지 않습니다.");
             }
@@ -154,13 +334,34 @@ public class LinerAnalysisResponseValidator {
             validateEvidence(insight.evidenceSegmentIds(), segmentsById, "scenarioInsight");
 
             for (SpeakerRole speakerRole : insight.speakerRoles()) {
-                boolean containsSpeakerEvidence = insight.evidenceSegmentIds().stream()
-                        .map(segmentsById::get)
-                        .anyMatch(segment -> segment.speakerRole() == speakerRole);
-                if (!containsSpeakerEvidence) {
-                    throw invalidResponse("상황별 관찰에는 관련 화자의 근거 발화가 필요합니다.");
-                }
+                requireSpeakerEvidence(
+                        insight.evidenceSegmentIds(),
+                        speakerRole,
+                        segmentsById,
+                        "상황별 관찰"
+                );
             }
+        }
+    }
+
+    private <T> void validateRoles(
+            AnalysisSource source,
+            List<T> insights,
+            Function<T, SpeakerRole> roleExtractor,
+            String fieldName
+    ) {
+        if (insights == null) {
+            throw invalidResponse(fieldName + "가 비어 있습니다.");
+        }
+        Set<SpeakerRole> roles = new HashSet<>();
+        for (T insight : insights) {
+            if (insight == null || roleExtractor.apply(insight) == null
+                    || !roles.add(roleExtractor.apply(insight))) {
+                throw invalidResponse(fieldName + "의 화자 역할이 올바르지 않습니다.");
+            }
+        }
+        if (!roles.equals(source.scenario().requiredRoles())) {
+            throw invalidResponse(fieldName + "의 화자 역할이 분석 시나리오와 일치하지 않습니다.");
         }
     }
 
@@ -170,6 +371,30 @@ public class LinerAnalysisResponseValidator {
             result.put(segment.segmentId(), segment);
         }
         return result;
+    }
+
+    private void validateSpeakerEvidence(
+            List<Long> evidenceSegmentIds,
+            SpeakerRole speakerRole,
+            Map<Long, AnalysisSegment> segmentsById,
+            String fieldName
+    ) {
+        validateEvidence(evidenceSegmentIds, segmentsById, fieldName);
+        requireSpeakerEvidence(evidenceSegmentIds, speakerRole, segmentsById, fieldName);
+    }
+
+    private void requireSpeakerEvidence(
+            List<Long> evidenceSegmentIds,
+            SpeakerRole speakerRole,
+            Map<Long, AnalysisSegment> segmentsById,
+            String fieldName
+    ) {
+        boolean containsSpeakerEvidence = evidenceSegmentIds.stream()
+                .map(segmentsById::get)
+                .anyMatch(segment -> segment.speakerRole() == speakerRole);
+        if (!containsSpeakerEvidence) {
+            throw invalidResponse(fieldName + "에는 해당 화자의 근거 발화가 필요합니다.");
+        }
     }
 
     private void validateEvidence(
@@ -183,8 +408,15 @@ public class LinerAnalysisResponseValidator {
         if (new HashSet<>(evidenceSegmentIds).size() != evidenceSegmentIds.size()) {
             throw invalidResponse(fieldName + "의 근거 발화는 중복될 수 없습니다.");
         }
-        if (evidenceSegmentIds.stream().anyMatch(id -> id == null || !segmentsById.containsKey(id))) {
+        if (evidenceSegmentIds.stream().anyMatch(id ->
+                id == null || !segmentsById.containsKey(id))) {
             throw invalidResponse(fieldName + "에 존재하지 않는 근거 발화가 포함되어 있습니다.");
+        }
+    }
+
+    private void requireScore(int value, String fieldName) {
+        if (value < 0 || value > 100) {
+            throw invalidResponse(fieldName + "은(는) 0 이상 100 이하여야 합니다.");
         }
     }
 

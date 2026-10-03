@@ -71,6 +71,6 @@ class MockAnalysisControllerIntegrationTest {
                 .andExpect(jsonPath("$.result.recordingId").value(recordingId))
                 .andExpect(jsonPath("$.result.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.result.modelName").value("mock-analysis-model"))
-                .andExpect(jsonPath("$.result.schemaVersion").value("analysis-report-v1"));
+                .andExpect(jsonPath("$.result.schemaVersion").value("analysis-report-v2"));
     }
 }

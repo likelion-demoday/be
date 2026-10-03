@@ -88,6 +88,36 @@ class LinerAnalysisQualityEvaluator {
             ));
         }
 
+        for (QualitativeAnalysis.InterestInsight insight : analysis.interestInsights()) {
+            for (QualitativeAnalysis.InterestObservation observation : insight.observations()) {
+                result.add(new ActualObservation(
+                        observation.category().name(),
+                        Set.of(insight.speakerRole()),
+                        observation.evidenceSegmentIds()
+                ));
+            }
+        }
+
+        for (QualitativeAnalysis.SpicinessInsight insight : analysis.spicinessInsights()) {
+            for (QualitativeAnalysis.SpicinessObservation observation : insight.observations()) {
+                result.add(new ActualObservation(
+                        observation.category().name(),
+                        Set.of(insight.speakerRole()),
+                        observation.evidenceSegmentIds()
+                ));
+            }
+        }
+
+        for (QualitativeAnalysis.ReactionStyleInsight insight : analysis.reactionStyleInsights()) {
+            for (QualitativeAnalysis.ReactionExample example : insight.examples()) {
+                result.add(new ActualObservation(
+                        example.category().name(),
+                        Set.of(insight.speakerRole()),
+                        example.evidenceSegmentIds()
+                ));
+            }
+        }
+
         return List.copyOf(result);
     }
 
@@ -110,10 +140,47 @@ class LinerAnalysisQualityEvaluator {
             values.add(item.title());
             values.add(item.description());
         }
+        for (QualitativeAnalysis.Topic topic : analysis.topics()) {
+            values.add(topic.title());
+            values.add(topic.description());
+        }
+        for (QualitativeAnalysis.CharacterInsight insight : analysis.characterInsights()) {
+            values.add(insight.name());
+            values.add(insight.description());
+        }
         for (QualitativeAnalysis.SpeakerInsight insight : analysis.speakerInsights()) {
             for (QualitativeAnalysis.SpeakerPattern pattern : insight.patterns()) {
                 values.add(pattern.title());
                 values.add(pattern.description());
+            }
+            values.add(insight.sentenceStyle().title());
+            values.add(insight.sentenceStyle().description());
+            for (QualitativeAnalysis.FrequentExpression expression :
+                    insight.frequentExpressions()) {
+                values.add(expression.expression());
+                values.add(expression.description());
+            }
+        }
+        for (QualitativeAnalysis.InterestInsight insight : analysis.interestInsights()) {
+            values.add(insight.description());
+            for (QualitativeAnalysis.InterestObservation observation : insight.observations()) {
+                values.add(observation.title());
+                values.add(observation.description());
+            }
+        }
+        for (QualitativeAnalysis.SpicinessInsight insight : analysis.spicinessInsights()) {
+            values.add(insight.description());
+            for (QualitativeAnalysis.SpicinessObservation observation : insight.observations()) {
+                values.add(observation.title());
+                values.add(observation.description());
+            }
+        }
+        for (QualitativeAnalysis.ReactionStyleInsight insight :
+                analysis.reactionStyleInsights()) {
+            values.add(insight.description());
+            for (QualitativeAnalysis.ReactionExample example : insight.examples()) {
+                values.add(example.title());
+                values.add(example.description());
             }
         }
         for (QualitativeAnalysis.ScenarioInsight insight : analysis.scenarioInsights()) {
@@ -128,8 +195,22 @@ class LinerAnalysisQualityEvaluator {
         Set<Long> result = new HashSet<>(analysis.overview().evidenceSegmentIds());
 
         analysis.timeline().forEach(item -> result.addAll(item.evidenceSegmentIds()));
+        analysis.topics().forEach(item -> result.addAll(item.segmentIds()));
+        analysis.characterInsights().forEach(item ->
+                result.addAll(item.evidenceSegmentIds()));
         analysis.speakerInsights().forEach(insight -> insight.patterns()
                 .forEach(pattern -> result.addAll(pattern.evidenceSegmentIds())));
+        analysis.speakerInsights().forEach(insight -> {
+            result.addAll(insight.sentenceStyle().evidenceSegmentIds());
+            insight.frequentExpressions().forEach(expression ->
+                    result.addAll(expression.evidenceSegmentIds()));
+        });
+        analysis.interestInsights().forEach(insight -> insight.observations()
+                .forEach(observation -> result.addAll(observation.evidenceSegmentIds())));
+        analysis.spicinessInsights().forEach(insight -> insight.observations()
+                .forEach(observation -> result.addAll(observation.evidenceSegmentIds())));
+        analysis.reactionStyleInsights().forEach(insight -> insight.examples()
+                .forEach(example -> result.addAll(example.evidenceSegmentIds())));
         analysis.scenarioInsights().forEach(insight ->
                 result.addAll(insight.evidenceSegmentIds()));
 

@@ -61,7 +61,7 @@ class AnalysisProcessorIntegrationTest {
                 .contains("\"title\":\"대화 요약\"");
         assertThat(result.getModelName()).isEqualTo("fake-model");
         assertThat(result.getPromptVersion()).isEqualTo("test-v1");
-        assertThat(result.getSchemaVersion()).isEqualTo("analysis-report-v1");
+        assertThat(result.getSchemaVersion()).isEqualTo("analysis-report-v2");
         assertThat(analysisModelClient.wasTransactionActive()).isFalse();
     }
 
@@ -144,7 +144,18 @@ class AnalysisProcessorIntegrationTest {
                                   "evidenceSegmentIds": [1, 2]
                                 }
                               ],
+                              "topics": [
+                                {
+                                  "title": "인사",
+                                  "description": "두 사람이 서로 인사했습니다.",
+                                  "segmentIds": [1, 2]
+                                }
+                              ],
+                              "characterInsights": [],
                               "speakerInsights": [],
+                              "interestInsights": [],
+                              "spicinessInsights": [],
+                              "reactionStyleInsights": [],
                               "scenarioInsights": []
                             }
                             """,

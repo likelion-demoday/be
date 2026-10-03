@@ -38,7 +38,36 @@ class AnalysisReportAssemblerTest {
                               "evidenceSegmentIds": [1, 2]
                             }
                           ],
-                          "speakerInsights": [],
+                          "topics": [
+                            {
+                              "title": "주말 계획",
+                              "description": "주말 약속을 정했습니다.",
+                              "segmentIds": [1, 2]
+                            }
+                          ],
+                          "characterInsights": [],
+                          "speakerInsights": [
+                            {
+                              "speakerRole": "SELF",
+                              "patterns": [],
+                              "sentenceStyle": {
+                                "title": "질문형 문장",
+                                "description": "질문으로 대화를 시작했습니다.",
+                                "evidenceSegmentIds": [1]
+                              },
+                              "frequentExpressions": [
+                                {
+                                  "expression": "주말",
+                                  "count": 99,
+                                  "description": "주말이라는 표현을 반복했습니다.",
+                                  "evidenceSegmentIds": [1]
+                                }
+                              ]
+                            }
+                          ],
+                          "interestInsights": [],
+                          "spicinessInsights": [],
+                          "reactionStyleInsights": [],
                           "scenarioInsights": []
                         }
                         """,
@@ -55,8 +84,14 @@ class AnalysisReportAssemblerTest {
         AnalysisReport.TimelineItem timeline = json.qualitativeAnalysis().timeline().get(0);
         assertThat(timeline.startMs()).isEqualTo(100L);
         assertThat(timeline.endMs()).isEqualTo(1_200L);
+        AnalysisReport.TopicItem topic = json.qualitativeAnalysis().topics().get(0);
+        assertThat(topic.turnCount()).isEqualTo(2);
+        assertThat(topic.speakingDurationMs()).isEqualTo(900L);
+        assertThat(topic.longest()).isTrue();
+        assertThat(json.qualitativeAnalysis().speakerInsights().get(0)
+                .frequentExpressions().get(0).count()).isEqualTo(1);
         assertThat(report.modelName()).isEqualTo("liner-mark-1.1");
-        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v1");
+        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v2");
     }
 
     private AnalysisSource source() {

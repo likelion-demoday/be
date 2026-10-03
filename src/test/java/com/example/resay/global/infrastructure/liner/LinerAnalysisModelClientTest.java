@@ -50,17 +50,18 @@ class LinerAnalysisModelClientTest {
         AnalysisSource source = source();
         LinerChatRequest request = request();
         given(requestFactory.create(source)).willReturn(request);
-        given(requestFactory.promptVersion()).willReturn("analysis-prompt-v1");
-        given(requestFactory.schemaVersion()).willReturn("analysis-result-v1");
+        given(requestFactory.promptVersion()).willReturn("analysis-prompt-v2");
+        given(requestFactory.schemaVersion()).willReturn("analysis-result-v2");
         given(linerApiClient.chat(request)).willReturn(result(validContent(), "stop"));
 
         AnalysisModelResult result = modelClient.analyze(source);
 
         assertThat(result.modelName()).isEqualTo("liner-mark-1.1");
-        assertThat(result.promptVersion()).isEqualTo("analysis-prompt-v1");
-        assertThat(result.schemaVersion()).isEqualTo("analysis-result-v1");
+        assertThat(result.promptVersion()).isEqualTo("analysis-prompt-v2");
+        assertThat(result.schemaVersion()).isEqualTo("analysis-result-v2");
         assertThat(result.resultJson())
                 .contains("\"overview\"")
+                .contains("\"interestInsights\"")
                 .contains("\"evidenceSegmentIds\":[1,2]");
         then(responseValidator).should().validate(
                 org.mockito.ArgumentMatchers.eq(source),
@@ -154,10 +155,39 @@ class LinerAnalysisModelClientTest {
                       "evidenceSegmentIds": [1, 2]
                     }
                   ],
-                  "speakerInsights": [
-                    {"speakerRole": "SELF", "patterns": []},
-                    {"speakerRole": "FRIEND", "patterns": []}
+                  "topics": [
+                    {
+                      "title": "학교 이야기",
+                      "description": "학교에서 있었던 일을 이야기했어요.",
+                      "segmentIds": [1, 2]
+                    }
                   ],
+                  "characterInsights": [],
+                  "speakerInsights": [
+                    {
+                      "speakerRole": "SELF",
+                      "patterns": [],
+                      "sentenceStyle": {
+                        "title": "질문형 문장",
+                        "description": "질문으로 대화를 시작했어요.",
+                        "evidenceSegmentIds": [1]
+                      },
+                      "frequentExpressions": []
+                    },
+                    {
+                      "speakerRole": "FRIEND",
+                      "patterns": [],
+                      "sentenceStyle": {
+                        "title": "설명형 문장",
+                        "description": "경험을 간단히 설명했어요.",
+                        "evidenceSegmentIds": [2]
+                      },
+                      "frequentExpressions": []
+                    }
+                  ],
+                  "interestInsights": [],
+                  "spicinessInsights": [],
+                  "reactionStyleInsights": [],
                   "scenarioInsights": []
                 }
                 """;

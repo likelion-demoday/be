@@ -8,15 +8,17 @@ import com.example.resay.domain.analysis.model.ConversationMetrics;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerMetrics;
 import com.example.resay.domain.analysis.model.SpeakerRole;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 // 정량적 분석과 정성적 분석을 합침
 @Component
 public class AnalysisReportAssembler {
 
-    private static final String REPORT_SCHEMA_VERSION = "analysis-report-v1";
+    private static final String REPORT_SCHEMA_VERSION = "analysis-report-v2";
 
     private final ObjectMapper objectMapper;
 
@@ -77,7 +79,12 @@ public class AnalysisReportAssembler {
         return new AnalysisReport.QualitativeReport(
                 result.overview(),
                 enrichTimeline(result.timeline(), source.segments()),
-                result.speakerInsights(),
+                enrichTopics(result.topics(), source.segments()),
+                result.characterInsights(),
+                enrichSpeakerInsights(result.speakerInsights(), source.segments()),
+                result.interestInsights(),
+                result.spicinessInsights(),
+                result.reactionStyleInsights(),
                 result.scenarioInsights()
         );
     }
@@ -86,7 +93,7 @@ public class AnalysisReportAssembler {
             List<QualitativeAnalysis.TimelineItem> items,
             List<AnalysisSegment> segments
     ) {
-        java.util.Map<Long, AnalysisSegment> segmentsById = new java.util.LinkedHashMap<>();
+        Map<Long, AnalysisSegment> segmentsById = new java.util.LinkedHashMap<>();
         segments.forEach(segment -> segmentsById.put(segment.segmentId(), segment));
 
         return items.stream()
@@ -96,7 +103,7 @@ public class AnalysisReportAssembler {
 
     private AnalysisReport.TimelineItem enrichTimelineItem(
             QualitativeAnalysis.TimelineItem item,
-            java.util.Map<Long, AnalysisSegment> segmentsById
+            Map<Long, AnalysisSegment> segmentsById
     ) {
         List<Long> evidenceIds = item.evidenceSegmentIds();
         if (evidenceIds.isEmpty()) {
@@ -119,6 +126,124 @@ public class AnalysisReportAssembler {
                 startMs,
                 endMs
         );
+    }
+
+    private List<AnalysisReport.TopicItem> enrichTopics(
+            List<QualitativeAnalysis.Topic> topics,
+            List<AnalysisSegment> segments
+    ) {
+        Map<Long, AnalysisSegment> segmentsById = new java.util.LinkedHashMap<>();
+        segments.forEach(segment -> segmentsById.put(segment.segmentId(), segment));
+
+        List<AnalysisReport.TopicItem> enriched = topics.stream()
+                .map(topic -> enrichTopic(topic, segmentsById))
+                .toList();
+        long longestDuration = enriched.stream()
+                .mapToLong(AnalysisReport.TopicItem::speakingDurationMs)
+                .max()
+                .orElseThrow();
+
+        return enriched.stream()
+                .map(topic -> new AnalysisReport.TopicItem(
+                        topic.title(),
+                        topic.description(),
+                        topic.segmentIds(),
+                        topic.startMs(),
+                        topic.endMs(),
+                        topic.turnCount(),
+                        topic.speakingDurationMs(),
+                        topic.speakingDurationMs() == longestDuration
+                ))
+                .toList();
+    }
+
+    private AnalysisReport.TopicItem enrichTopic(
+            QualitativeAnalysis.Topic topic,
+            Map<Long, AnalysisSegment> segmentsById
+    ) {
+        List<AnalysisSegment> resolvedSegments = topic.segmentIds().stream()
+                .map(segmentsById::get)
+                .toList();
+        if (resolvedSegments.stream().anyMatch(java.util.Objects::isNull)) {
+            throw new IllegalStateException("주제에 존재하지 않는 발화가 포함되어 있습니다.");
+        }
+        List<AnalysisSegment> topicSegments = resolvedSegments.stream()
+                .sorted(Comparator.comparingLong(AnalysisSegment::startMs))
+                .toList();
+
+        long startMs = topicSegments.stream().mapToLong(AnalysisSegment::startMs).min().orElseThrow();
+        long endMs = topicSegments.stream().mapToLong(AnalysisSegment::endMs).max().orElseThrow();
+        long speakingDurationMs = topicSegments.stream()
+                .mapToLong(segment -> segment.endMs() - segment.startMs())
+                .sum();
+
+        int turnCount = 0;
+        SpeakerRole previousRole = null;
+        for (AnalysisSegment segment : topicSegments) {
+            if (segment.speakerRole() != previousRole) {
+                turnCount++;
+                previousRole = segment.speakerRole();
+            }
+        }
+
+        return new AnalysisReport.TopicItem(
+                topic.title(),
+                topic.description(),
+                topic.segmentIds(),
+                startMs,
+                endMs,
+                turnCount,
+                speakingDurationMs,
+                false
+        );
+    }
+
+    private List<QualitativeAnalysis.SpeakerInsight> enrichSpeakerInsights(
+            List<QualitativeAnalysis.SpeakerInsight> insights,
+            List<AnalysisSegment> segments
+    ) {
+        return insights.stream()
+                .map(insight -> new QualitativeAnalysis.SpeakerInsight(
+                        insight.speakerRole(),
+                        insight.patterns(),
+                        insight.sentenceStyle(),
+                        insight.frequentExpressions().stream()
+                                .map(expression -> new QualitativeAnalysis.FrequentExpression(
+                                        expression.expression(),
+                                        countOccurrences(
+                                                expression.expression(),
+                                                insight.speakerRole(),
+                                                segments
+                                        ),
+                                        expression.description(),
+                                        expression.evidenceSegmentIds()
+                                ))
+                                .toList()
+                ))
+                .toList();
+    }
+
+    private int countOccurrences(
+            String expression,
+            SpeakerRole speakerRole,
+            List<AnalysisSegment> segments
+    ) {
+        if (expression == null || expression.isBlank()) {
+            throw new IllegalStateException("반복 표현은 비어 있을 수 없습니다.");
+        }
+        int count = 0;
+        for (AnalysisSegment segment : segments) {
+            if (segment.speakerRole() != speakerRole) {
+                continue;
+            }
+            String content = segment.content();
+            int index = 0;
+            while ((index = content.indexOf(expression, index)) >= 0) {
+                count++;
+                index += expression.length();
+            }
+        }
+        return count;
     }
 
     private QualitativeAnalysis readQualitativeAnalysis(String json) {

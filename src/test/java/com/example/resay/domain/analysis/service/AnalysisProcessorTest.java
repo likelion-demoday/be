@@ -164,7 +164,18 @@ class AnalysisProcessorTest {
                       "evidenceSegmentIds": [1, 2]
                     }
                   ],
+                  "topics": [
+                    {
+                      "title": "인사",
+                      "description": "두 사람이 서로 인사했습니다.",
+                      "segmentIds": [1, 2]
+                    }
+                  ],
+                  "characterInsights": [],
                   "speakerInsights": [],
+                  "interestInsights": [],
+                  "spicinessInsights": [],
+                  "reactionStyleInsights": [],
                   "scenarioInsights": []
                 }
                 """;

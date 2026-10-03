@@ -78,6 +78,12 @@ class LinerAnalysisQualityEvaluatorTest {
                         "새 회사 적응에 관해 이야기했습니다.",
                         List.of(1L, 7L)
                 )),
+                List.of(new QualitativeAnalysis.Topic(
+                        "회사 적응",
+                        "새 회사 적응을 중심으로 대화했습니다.",
+                        List.of(1L, 3L, 7L)
+                )),
+                List.of(),
                 List.of(
                         new QualitativeAnalysis.SpeakerInsight(
                                 SpeakerRole.SELF,
@@ -86,10 +92,28 @@ class LinerAnalysisQualityEvaluatorTest {
                                         "후속 질문",
                                         "상대의 설명을 듣고 질문했습니다.",
                                         List.of(3L)
-                                ))
+                                )),
+                                new QualitativeAnalysis.SentenceStyle(
+                                        "짧은 질문",
+                                        "짧은 질문으로 대화를 이어갔습니다.",
+                                        List.of(3L)
+                                ),
+                                List.of()
                         ),
-                        new QualitativeAnalysis.SpeakerInsight(SpeakerRole.FRIEND, List.of())
+                        new QualitativeAnalysis.SpeakerInsight(
+                                SpeakerRole.FRIEND,
+                                List.of(),
+                                new QualitativeAnalysis.SentenceStyle(
+                                        "설명형 문장",
+                                        "경험을 설명했습니다.",
+                                        List.of(7L)
+                                ),
+                                List.of()
+                        )
                 ),
+                List.of(),
+                List.of(),
+                List.of(),
                 List.of()
         );
     }
