@@ -4,9 +4,11 @@ import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.util.List;
 
+@Schema(description = "근거 발화 정보가 제거된 공개 분석 보고서")
 public record AnalysisReportDto(
         RecordingInfo recordingInfo,
         QuantitativeAnalysis quantitativeAnalysis,

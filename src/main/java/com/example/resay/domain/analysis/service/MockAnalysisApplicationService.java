@@ -20,6 +20,11 @@ public class MockAnalysisApplicationService {
     public AnalysisReportResponseDto create(AnalysisScenario scenario) {
         AnalysisSource source = mockAnalysisSourceReader.create(scenario);
         analysisProcessor.process(source.recordingId());
-        return analysisReportQueryService.getByRecordingId(source.recordingId());
+        return analysisReportQueryService.getByRecordingIdForInternalUse(source.recordingId());
+    }
+
+    public AnalysisReportResponseDto get(Long recordingId) {
+        mockAnalysisSourceReader.read(recordingId);
+        return analysisReportQueryService.getByRecordingIdForInternalUse(recordingId);
     }
 }
