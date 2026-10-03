@@ -19,9 +19,9 @@ class LinerAnalysisResponseGrounderTest {
     void recalculatesFrequentExpressionCountAndEvidenceFromTranscript() {
         QualitativeAnalysis response = responseWithExpression(
                 new QualitativeAnalysis.FrequentExpression(
+                        QualitativeAnalysis.FrequentExpressionCategory.WORD,
                         "먼저",
                         99,
-                        "먼저 하겠다는 표현을 반복했어요.",
                         List.of(1L)
                 )
         );
@@ -40,9 +40,9 @@ class LinerAnalysisResponseGrounderTest {
     void removesCandidateThatDoesNotActuallyRepeat() {
         QualitativeAnalysis response = responseWithExpression(
                 new QualitativeAnalysis.FrequentExpression(
+                        QualitativeAnalysis.FrequentExpressionCategory.WORD,
                         "연락",
                         2,
-                        "연락을 언급했어요.",
                         List.of(1L)
                 )
         );
@@ -50,15 +50,33 @@ class LinerAnalysisResponseGrounderTest {
         QualitativeAnalysis grounded = grounder.ground(source(), response);
 
         assertThat(grounded.speakerInsights().get(0).frequentExpressions()).isEmpty();
+        assertThat(grounded.speakerInsights().get(0).frequentExpressionSummary()).isNull();
+    }
+
+    @Test
+    void removesSentenceLikeExpressionFromPublicCandidates() {
+        QualitativeAnalysis response = responseWithExpression(
+                new QualitativeAnalysis.FrequentExpression(
+                        QualitativeAnalysis.FrequentExpressionCategory.SPEECH_HABIT,
+                        "아 스타벅스 갔구나",
+                        2,
+                        List.of(1L, 3L)
+                )
+        );
+
+        QualitativeAnalysis grounded = grounder.ground(source(), response);
+
+        assertThat(grounded.speakerInsights().get(0).frequentExpressions()).isEmpty();
+        assertThat(grounded.speakerInsights().get(0).frequentExpressionSummary()).isNull();
     }
 
     @Test
     void removesSegmentAssignmentsDuplicatedAcrossTopics() {
         QualitativeAnalysis base = responseWithExpression(
                 new QualitativeAnalysis.FrequentExpression(
+                        QualitativeAnalysis.FrequentExpressionCategory.WORD,
                         "먼저",
                         3,
-                        "먼저 하겠다는 표현을 반복했어요.",
                         List.of(1L, 3L)
                 )
         );
@@ -121,7 +139,11 @@ class LinerAnalysisResponseGrounderTest {
                 new QualitativeAnalysis.SpeakerInsight(
                         SpeakerRole.PARENT,
                         List.of(),
-                        null,
+                        new QualitativeAnalysis.FrequentExpressionSummary(
+                                "반복 표현을 사용해요",
+                                "먼저라는 표현을 반복해서 사용했어요.",
+                                List.of(1L, 3L)
+                        ),
                         List.of(expression)
                 );
         return new QualitativeAnalysis(

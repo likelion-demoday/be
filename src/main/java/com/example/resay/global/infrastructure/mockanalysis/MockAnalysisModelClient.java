@@ -71,7 +71,7 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
                     objectMapper.writeValueAsString(response),
                     "mock-analysis-model",
                     "mock-prompt-v2",
-                    "analysis-result-v3"
+                    "analysis-result-v4"
             );
         } catch (Exception exception) {
             throw new IllegalStateException("목업 정성 분석 결과를 만들 수 없습니다.", exception);
@@ -95,11 +95,7 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
                     Map<String, Object> insight = new LinkedHashMap<>();
                     insight.put("speakerRole", role);
                     insight.put("patterns", List.of(pattern));
-                    insight.put("sentenceStyle", evidenceItem(
-                            "간결한 문장",
-                            "목업 발화에서 확인한 문장 사용 방식을 정리했습니다.",
-                            List.of(evidence.segmentId())
-                    ));
+                    insight.put("frequentExpressionSummary", null);
                     insight.put("frequentExpressions", List.of());
                     return insight;
                 })

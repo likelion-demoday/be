@@ -69,7 +69,7 @@ public record QualitativeAnalysis(
     public record SpeakerInsight(
             SpeakerRole speakerRole,
             List<SpeakerPattern> patterns,
-            SentenceStyle sentenceStyle,
+            FrequentExpressionSummary frequentExpressionSummary,
             List<FrequentExpression> frequentExpressions
     ) {
         public SpeakerInsight {
@@ -89,20 +89,20 @@ public record QualitativeAnalysis(
         }
     }
 
-    public record SentenceStyle(
+    public record FrequentExpressionSummary(
             String title,
             String description,
             List<Long> evidenceSegmentIds
     ) {
-        public SentenceStyle {
+        public FrequentExpressionSummary {
             evidenceSegmentIds = copy(evidenceSegmentIds);
         }
     }
 
     public record FrequentExpression(
+            FrequentExpressionCategory category,
             String expression,
             int count,
-            String description,
             List<Long> evidenceSegmentIds
     ) {
         public FrequentExpression {
@@ -201,6 +201,12 @@ public record QualitativeAnalysis(
         DEFENSE,
         AVOIDANCE,
         RECOVERY_ATTEMPT
+    }
+
+    public enum FrequentExpressionCategory {
+        SPEECH_HABIT,
+        EMPHASIS,
+        WORD
     }
 
     public enum InterestCategory {

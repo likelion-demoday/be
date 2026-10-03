@@ -1,5 +1,8 @@
 package com.example.resay.global.infrastructure.liner;
 
+import com.example.resay.domain.analysis.dto.AnalysisReportDto;
+import com.example.resay.domain.analysis.dto.AnalysisReportResponseDto;
+import com.example.resay.domain.analysis.entity.AnalysisStatus;
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
 import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
@@ -85,16 +88,54 @@ class LinerAnalysisQualityTest {
         );
         objectMapper.writerWithDefaultPrettyPrinter().writeValue(outputPath.toFile(), output);
 
+        AnalysisReportResponseDto frontendResult = new AnalysisReportResponseDto(
+                source.recordingId(),
+                AnalysisStatus.COMPLETED,
+                AnalysisReportDto.from(report),
+                reportResult.modelName(),
+                reportResult.promptVersion(),
+                reportResult.schemaVersion()
+        );
+        FrontendApiResponse frontendOutput = new FrontendApiResponse(
+                true,
+                "ANALYSIS200_1",
+                "분석 보고서를 조회했습니다.",
+                frontendResult,
+                null
+        );
+        Path frontendDirectory = outputDirectory.resolve("frontend");
+        Files.createDirectories(frontendDirectory);
+        Path frontendOutputPath = frontendDirectory.resolve(
+                scenario.name().toLowerCase() + "-"
+                        + transcriptVariant.name().toLowerCase() + "-response.json"
+        );
+        objectMapper.writerWithDefaultPrettyPrinter()
+                .writeValue(frontendOutputPath.toFile(), frontendOutput);
+
         System.out.println(outputPath.toAbsolutePath());
+        System.out.println(frontendOutputPath.toAbsolutePath());
 
         assertThat(evaluation.scenario()).isEqualTo(scenario);
         assertThat(report.recordingInfo().scenario()).isEqualTo(scenario);
         assertThat(report.qualitativeAnalysis().timeline()).isNotEmpty();
+        String frontendJson = objectMapper.writeValueAsString(frontendOutput);
+        assertThat(frontendJson)
+                .doesNotContain("\"evidenceSegmentIds\"")
+                .doesNotContain("\"segmentIds\"");
     }
 
     private record QualityTestOutput(
             LinerAnalysisQualityEvaluation evaluation,
             AnalysisReport report
+    ) {
+    }
+
+    private record FrontendApiResponse(
+            boolean isSuccess,
+            String code,
+            String message,
+            AnalysisReportResponseDto result,
+            Object error
     ) {
     }
 }

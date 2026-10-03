@@ -124,14 +124,18 @@ public class LinerAnalysisResponseValidator {
         validateRoles(source, insights, QualitativeAnalysis.SpeakerInsight::speakerRole,
                 "speakerInsights");
         for (QualitativeAnalysis.SpeakerInsight insight : insights) {
-            if (insight.patterns() == null || insight.sentenceStyle() == null
-                    || insight.frequentExpressions() == null) {
+            if (insight.patterns() == null || insight.frequentExpressions() == null) {
                 throw invalidResponse("speakerInsights 항목이 올바르지 않습니다.");
             }
             for (QualitativeAnalysis.SpeakerPattern pattern : insight.patterns()) {
                 validateSpeakerPattern(pattern, insight.speakerRole(), source, segmentsById);
             }
-            validateSentenceStyle(insight.sentenceStyle(), insight.speakerRole(), segmentsById);
+            validateFrequentExpressionSummary(
+                    insight.frequentExpressionSummary(),
+                    insight.frequentExpressions(),
+                    insight.speakerRole(),
+                    segmentsById
+            );
             validateFrequentExpressions(
                     insight.frequentExpressions(),
                     insight.speakerRole(),
@@ -163,19 +167,35 @@ public class LinerAnalysisResponseValidator {
         );
     }
 
-    private void validateSentenceStyle(
-            QualitativeAnalysis.SentenceStyle style,
+    private void validateFrequentExpressionSummary(
+            QualitativeAnalysis.FrequentExpressionSummary summary,
+            List<QualitativeAnalysis.FrequentExpression> expressions,
             SpeakerRole speakerRole,
             Map<Long, AnalysisSegment> segmentsById
     ) {
-        requireText(style.title(), "sentenceStyle.title");
-        requireText(style.description(), "sentenceStyle.description");
+        if (expressions.isEmpty()) {
+            if (summary != null) {
+                throw invalidResponse("반복 표현이 없으면 frequentExpressionSummary는 비어 있어야 합니다.");
+            }
+            return;
+        }
+        if (summary == null) {
+            throw invalidResponse("반복 표현이 있으면 frequentExpressionSummary가 필요합니다.");
+        }
+        requireText(summary.title(), "frequentExpressionSummary.title");
+        requireText(summary.description(), "frequentExpressionSummary.description");
         validateSpeakerEvidence(
-                style.evidenceSegmentIds(),
+                summary.evidenceSegmentIds(),
                 speakerRole,
                 segmentsById,
-                "sentenceStyle"
+                "frequentExpressionSummary"
         );
+        Set<Long> expressionEvidenceIds = expressions.stream()
+                .flatMap(expression -> expression.evidenceSegmentIds().stream())
+                .collect(Collectors.toSet());
+        if (!expressionEvidenceIds.containsAll(summary.evidenceSegmentIds())) {
+            throw invalidResponse("반복 표현 요약은 실제 반복 표현의 근거만 사용해야 합니다.");
+        }
     }
 
     private void validateFrequentExpressions(
@@ -187,11 +207,11 @@ public class LinerAnalysisResponseValidator {
             throw invalidResponse("frequentExpressions는 5개 이하여야 합니다.");
         }
         for (QualitativeAnalysis.FrequentExpression expression : expressions) {
-            if (expression == null || expression.count() <= 0) {
+            if (expression == null || expression.category() == null
+                    || expression.count() <= 0) {
                 throw invalidResponse("frequentExpression 항목이 올바르지 않습니다.");
             }
             requireText(expression.expression(), "frequentExpression.expression");
-            requireText(expression.description(), "frequentExpression.description");
             validateSpeakerEvidence(
                     expression.evidenceSegmentIds(),
                     speakerRole,

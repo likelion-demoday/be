@@ -15,6 +15,9 @@ import org.springframework.util.StringUtils;
 @Component
 public class LinerAnalysisResponseGrounder {
 
+    private static final int MAX_PUBLIC_EXPRESSION_WORDS = 2;
+    private static final int MAX_PUBLIC_EXPRESSION_LENGTH = 10;
+
     public QualitativeAnalysis ground(
             AnalysisSource source,
             QualitativeAnalysis response
@@ -106,7 +109,7 @@ public class LinerAnalysisResponseGrounder {
         return new QualitativeAnalysis.SpeakerInsight(
                 insight.speakerRole(),
                 insight.patterns(),
-                insight.sentenceStyle(),
+                groundedExpressions.isEmpty() ? null : insight.frequentExpressionSummary(),
                 groundedExpressions
         );
     }
@@ -118,6 +121,9 @@ public class LinerAnalysisResponseGrounder {
     ) {
         if (expression == null || !StringUtils.hasText(expression.expression())) {
             return expression;
+        }
+        if (expression.category() != null && !isPublicExpressionCandidate(expression)) {
+            return null;
         }
 
         List<AnalysisSegment> matchingSegments = segments.stream()
@@ -136,9 +142,9 @@ public class LinerAnalysisResponseGrounder {
         }
 
         return new QualitativeAnalysis.FrequentExpression(
+                expression.category(),
                 expression.expression(),
                 occurrenceCount,
-                expression.description(),
                 matchingSegments.stream().map(AnalysisSegment::segmentId).toList()
         );
     }
@@ -151,5 +157,21 @@ public class LinerAnalysisResponseGrounder {
             index += expression.length();
         }
         return count;
+    }
+
+    private boolean isPublicExpressionCandidate(
+            QualitativeAnalysis.FrequentExpression expression
+    ) {
+        String value = expression.expression().trim();
+        int wordCount = value.split("\\s+").length;
+        int maxWords = expression.category()
+                == QualitativeAnalysis.FrequentExpressionCategory.WORD
+                ? 1
+                : MAX_PUBLIC_EXPRESSION_WORDS;
+        String comparableValue = value.replaceAll("[\\p{P}\\p{S}\\s]", "");
+        int characterCount = comparableValue.codePointCount(0, comparableValue.length());
+        return wordCount <= maxWords
+                && characterCount > 0
+                && characterCount <= MAX_PUBLIC_EXPRESSION_LENGTH;
     }
 }

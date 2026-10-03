@@ -187,15 +187,15 @@ class LinerAnalysisResponseValidatorTest {
         QualitativeAnalysis.SpeakerInsight invalidSelf = new QualitativeAnalysis.SpeakerInsight(
                 SpeakerRole.SELF,
                 List.of(),
-                new QualitativeAnalysis.SentenceStyle(
-                        "짧은 문장",
-                        "짧은 문장으로 질문했어요.",
+                new QualitativeAnalysis.FrequentExpressionSummary(
+                        "반복 표현을 사용해요",
+                        "같은 표현을 반복해서 사용했어요.",
                         List.of(1L)
                 ),
                 List.of(new QualitativeAnalysis.FrequentExpression(
+                        QualitativeAnalysis.FrequentExpressionCategory.WORD,
                         "없는 표현",
                         3,
-                        "반복해서 사용했어요.",
                         List.of(1L)
                 ))
         );
@@ -218,15 +218,15 @@ class LinerAnalysisResponseValidatorTest {
         QualitativeAnalysis.SpeakerInsight invalidSelf = new QualitativeAnalysis.SpeakerInsight(
                 SpeakerRole.SELF,
                 List.of(),
-                new QualitativeAnalysis.SentenceStyle(
-                        "짧은 문장",
-                        "짧은 문장으로 질문했어요.",
+                new QualitativeAnalysis.FrequentExpressionSummary(
+                        "반복 표현을 사용해요",
+                        "같은 표현을 반복해서 사용했어요.",
                         List.of(1L)
                 ),
                 List.of(new QualitativeAnalysis.FrequentExpression(
+                        QualitativeAnalysis.FrequentExpressionCategory.WORD,
                         "오늘",
                         1,
-                        "한 번만 등장한 표현입니다.",
                         List.of(1L)
                 ))
         );
@@ -465,11 +465,7 @@ class LinerAnalysisResponseValidatorTest {
         return new QualitativeAnalysis.SpeakerInsight(
                 role,
                 patterns,
-                new QualitativeAnalysis.SentenceStyle(
-                        "짧고 명확한 문장",
-                        "짧은 문장으로 내용을 전달했어요.",
-                        List.of(evidenceId)
-                ),
+                null,
                 List.of()
         );
     }
