@@ -203,7 +203,7 @@ public record AnalysisReportDto(
     public record SpeakerInsight(
             SpeakerRole speakerRole,
             List<SpeakerPattern> patterns,
-            SentenceStyle sentenceStyle,
+            FrequentExpressionSummary frequentExpressionSummary,
             List<FrequentExpression> frequentExpressions
     ) {
 
@@ -211,7 +211,7 @@ public record AnalysisReportDto(
             return new SpeakerInsight(
                     source.speakerRole(),
                     source.patterns().stream().map(SpeakerPattern::from).toList(),
-                    SentenceStyle.from(source.sentenceStyle()),
+                    FrequentExpressionSummary.from(source.frequentExpressionSummary()),
                     source.frequentExpressions().stream().map(FrequentExpression::from).toList()
             );
         }
@@ -220,39 +220,46 @@ public record AnalysisReportDto(
     public record SpeakerPattern(
             QualitativeAnalysis.SpeakerPatternCategory category,
             String title,
-            String description
+            String description,
+            int count
     ) {
 
         private static SpeakerPattern from(QualitativeAnalysis.SpeakerPattern source) {
             return new SpeakerPattern(
                     source.category(),
                     source.title(),
-                    source.description()
+                    source.description(),
+                    (int) source.evidenceSegmentIds().stream().distinct().count()
             );
         }
     }
 
-    public record SentenceStyle(
+    public record FrequentExpressionSummary(
             String title,
             String description
     ) {
 
-        private static SentenceStyle from(QualitativeAnalysis.SentenceStyle source) {
-            return new SentenceStyle(source.title(), source.description());
+        private static FrequentExpressionSummary from(
+                QualitativeAnalysis.FrequentExpressionSummary source
+        ) {
+            if (source == null) {
+                return null;
+            }
+            return new FrequentExpressionSummary(source.title(), source.description());
         }
     }
 
     public record FrequentExpression(
+            QualitativeAnalysis.FrequentExpressionCategory category,
             String expression,
-            int count,
-            String description
+            int count
     ) {
 
         private static FrequentExpression from(QualitativeAnalysis.FrequentExpression source) {
             return new FrequentExpression(
+                    source.category(),
                     source.expression(),
-                    source.count(),
-                    source.description()
+                    source.count()
             );
         }
     }

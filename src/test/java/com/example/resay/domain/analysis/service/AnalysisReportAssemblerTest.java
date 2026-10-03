@@ -1,5 +1,6 @@
 package com.example.resay.domain.analysis.service;
 
+import com.example.resay.domain.analysis.dto.AnalysisReportDto;
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
 import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
@@ -49,17 +50,24 @@ class AnalysisReportAssemblerTest {
                           "speakerInsights": [
                             {
                               "speakerRole": "SELF",
-                              "patterns": [],
-                              "sentenceStyle": {
-                                "title": "질문형 문장",
-                                "description": "질문으로 대화를 시작했습니다.",
+                              "patterns": [
+                                {
+                                  "category": "EXPRESSION_PATTERN",
+                                  "title": "확인 표현",
+                                  "description": "상대의 말을 확인하며 반응했어요.",
+                                  "evidenceSegmentIds": [1, 3]
+                                }
+                              ],
+                              "frequentExpressionSummary": {
+                                "title": "주말 표현을 자주 사용해요",
+                                "description": "대화 계획을 말할 때 주말이라는 단어를 반복했습니다.",
                                 "evidenceSegmentIds": [1]
                               },
                               "frequentExpressions": [
                                 {
+                                  "category": "WORD",
                                   "expression": "주말",
                                   "count": 2,
-                                  "description": "주말이라는 표현을 반복했습니다.",
                                   "evidenceSegmentIds": [1, 3]
                                 }
                               ]
@@ -94,8 +102,10 @@ class AnalysisReportAssemblerTest {
         );
         assertThat(json.qualitativeAnalysis().speakerInsights().get(0)
                 .frequentExpressions().get(0).count()).isEqualTo(2);
+        assertThat(AnalysisReportDto.from(json).qualitativeAnalysis()
+                .speakerInsights().get(0).patterns().get(0).count()).isEqualTo(2);
         assertThat(report.modelName()).isEqualTo("liner-mark-1.1");
-        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v3");
+        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v4");
     }
 
     private AnalysisSource source() {

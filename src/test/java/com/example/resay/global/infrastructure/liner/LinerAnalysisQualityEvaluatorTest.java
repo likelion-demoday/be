@@ -179,21 +179,13 @@ class LinerAnalysisQualityEvaluatorTest {
                                         "상대의 설명을 듣고 질문했습니다.",
                                         List.of(3L)
                                 )),
-                                new QualitativeAnalysis.SentenceStyle(
-                                        "짧은 질문",
-                                        "짧은 질문으로 대화를 이어갔습니다.",
-                                        List.of(3L)
-                                ),
+                                null,
                                 List.of()
                         ),
                         new QualitativeAnalysis.SpeakerInsight(
                                 SpeakerRole.FRIEND,
                                 List.of(),
-                                new QualitativeAnalysis.SentenceStyle(
-                                        "설명형 문장",
-                                        "경험을 설명했습니다.",
-                                        List.of(7L)
-                                ),
+                                null,
                                 List.of()
                         )
                 ),

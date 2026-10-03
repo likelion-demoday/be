@@ -15,9 +15,9 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class LinerAnalysisRequestFactory {
 
-    private static final String PROMPT_VERSION = "analysis-prompt-v3";
-    private static final String SCHEMA_VERSION = "analysis-result-v3";
-    private static final int MAX_COMPLETION_TOKENS = 16384;
+    private static final String PROMPT_VERSION = "analysis-prompt-v4";
+    private static final String SCHEMA_VERSION = "analysis-result-v4";
+    private static final int MAX_COMPLETION_TOKENS = 32768;
     private static final String REASONING_EFFORT = "high";
 
     private static final String BASE_INSTRUCTION = """
@@ -36,16 +36,27 @@ public class LinerAnalysisRequestFactory {
             T/F 비율은 성격 유형 검사가 아니라 이번 대화의 반응을 정보·해결 중심과 감정·공감 중심으로 나눈 비율입니다.
             characterInsights.name은 역할명이나 본인, 상대방 같은 일반 명칭이 아니라 이번 대화의 특징을 담은 짧고 재미있는 한국어 별칭으로 작성하세요.
             자주 등장한 표현은 해당 화자의 전사문에 실제로 두 번 이상 등장한 표현 중 빈도가 높은 순서로 최대 5개를 선택하고 count와 모든 근거 발화를 작성하세요.
+            자주 등장한 표현의 category는 말버릇이나 담화 표지는 SPEECH_HABIT, 의미를 강조하는 표현은 EMPHASIS, 그 외 반복되는 내용 단어는 WORD로 분류하세요.
+            SPEECH_HABIT과 EMPHASIS 표현은 공백 기준 최대 2어절, WORD 표현은 정확히 1어절로 작성하고 공백과 문장부호를 제외한 길이는 10자 이하여야 합니다.
+            완성된 문장이나 발화 전체를 frequentExpressions에 넣지 마세요.
+            같은 표현을 여러 category에 중복해서 작성하지 마세요.
             단순히 눈에 띄는 표현보다 실제 반복 횟수가 많은 표현을 우선하고, 같은 횟수라면 대화 습관을 더 잘 보여주는 표현을 우선하세요.
+            frequentExpressions가 하나 이상이면 frequentExpressionSummary에 표현 사용 경향을 평가 없이 중립적으로 요약하세요. 표현이 없으면 frequentExpressionSummary는 null로 작성하세요.
+            frequentExpressionSummary의 evidenceSegmentIds에는 frequentExpressions의 근거 발화 중 요약을 뒷받침하는 발화만 작성하세요.
+            frequentExpressionSummary에는 발화 속도, 발화 길이 또는 문장 구사 능력에 대한 평가를 포함하지 마세요.
+            frequentExpressionSummary에는 정확한 등장 횟수를 직접 쓰지 말고 표현들의 상대적인 사용 경향만 간단히 설명하세요.
+            frequentExpressions의 각 항목에는 별도 설명을 작성하지 말고 category, expression, count와 근거 발화만 작성하세요.
+            speakerInsights.patterns의 evidenceSegmentIds에는 해당 패턴이 나타난 모든 발화를 넣으세요.
             topics의 segmentIds에는 대표 근거만 넣지 말고 해당 주제에 속한다고 판단한 발화를 모두 넣으세요.
             하나의 발화는 가장 관련이 큰 주제 하나에만 포함하고 topics 사이에 segmentIds를 중복해서 넣지 마세요.
-            모든 분석 항목은 입력에 실제로 존재하는 evidenceSegmentIds를 하나 이상 포함해야 합니다.
+            null인 frequentExpressionSummary를 제외한 모든 분석 항목은 입력에 실제로 존재하는 evidenceSegmentIds를 하나 이상 포함해야 합니다.
             title과 description에는 segmentId나 근거 발화 번호를 직접 작성하지 마세요.
+            모든 name, title, description에는 전사 문장을 그대로 인용하거나 따옴표로 제시하지 말고 관찰 내용을 요약해서 작성하세요.
             근거가 부족한 세부 관찰은 만들지 말고 배열에서 제외하세요.
             overview와 timeline은 반드시 작성하고 timeline은 시간순으로 1개 이상 6개 이하로 작성하세요.
             topics는 1개 이상 5개 이하로 작성하세요.
             characterInsights, speakerInsights, interestInsights, spicinessInsights, reactionStyleInsights에는 입력 시나리오의 두 화자를 각각 한 번씩 포함하세요.
-            reactionStyleInsights의 examples에는 해당 화자의 실제 반응 사례를 하나 이상 작성하세요.
+            reactionStyleInsights의 examples에는 해당 화자의 반응 사례를 원문 인용 없이 요약해서 하나 이상 작성하세요.
             결과의 제목과 설명은 한국어로 작성하고 JSON Schema와 일치하는 JSON만 반환하세요.
             """;
 
@@ -221,22 +232,34 @@ public class LinerAnalysisRequestFactory {
                 Map.of(
                         "speakerRole", enumSchema(scenario.requiredRoles()),
                         "patterns", arraySchema(speakerPatternSchema(scenario)),
-                        "sentenceStyle", evidenceObjectSchema(),
+                        "frequentExpressionSummary", nullableSchema(evidenceObjectSchema()),
                         "frequentExpressions", arraySchema(frequentExpressionSchema())
                 ),
-                List.of("speakerRole", "patterns", "sentenceStyle", "frequentExpressions")
+                List.of(
+                        "speakerRole",
+                        "patterns",
+                        "frequentExpressionSummary",
+                        "frequentExpressions"
+                )
         );
     }
 
     private Map<String, Object> frequentExpressionSchema() {
         return objectSchema(
                 Map.of(
+                        "category", enumSchema(
+                                List.of(QualitativeAnalysis.FrequentExpressionCategory.values())
+                        ),
                         "expression", stringSchema(),
                         "count", integerSchema(1, 1000),
-                        "description", stringSchema(),
                         "evidenceSegmentIds", evidenceIdsSchema()
                 ),
-                List.of("expression", "count", "description", "evidenceSegmentIds")
+                List.of(
+                        "category",
+                        "expression",
+                        "count",
+                        "evidenceSegmentIds"
+                )
         );
     }
 
@@ -358,6 +381,12 @@ public class LinerAnalysisRequestFactory {
         return Map.of(
                 "type", "array",
                 "items", items
+        );
+    }
+
+    private Map<String, Object> nullableSchema(Map<String, Object> schema) {
+        return Map.of(
+                "anyOf", List.of(schema, Map.of("type", "null"))
         );
     }
 
