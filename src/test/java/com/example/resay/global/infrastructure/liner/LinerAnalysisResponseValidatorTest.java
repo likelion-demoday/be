@@ -21,11 +21,13 @@ class LinerAnalysisResponseValidatorTest {
 
     @Test
     void rejectsUnknownEvidenceSegmentId() {
-        QualitativeAnalysis response = new QualitativeAnalysis(
+        QualitativeAnalysis valid = validResponse();
+        QualitativeAnalysis response = copy(
+                valid,
                 new QualitativeAnalysis.Overview("요약", "대화 요약", List.of(999L)),
-                validResponse().timeline(),
-                validResponse().speakerInsights(),
-                validResponse().scenarioInsights()
+                valid.timeline(),
+                valid.speakerInsights(),
+                valid.scenarioInsights()
         );
 
         assertThatThrownBy(() -> validator.validate(source(), response))
@@ -37,14 +39,17 @@ class LinerAnalysisResponseValidatorTest {
 
     @Test
     void rejectsSpeakerRolesOutsideScenario() {
-        QualitativeAnalysis response = new QualitativeAnalysis(
-                validResponse().overview(),
-                validResponse().timeline(),
-                List.of(
-                        new QualitativeAnalysis.SpeakerInsight(SpeakerRole.SELF, List.of()),
-                        new QualitativeAnalysis.SpeakerInsight(SpeakerRole.PARTNER, List.of())
-                ),
-                validResponse().scenarioInsights()
+        QualitativeAnalysis valid = validResponse();
+        List<QualitativeAnalysis.SpeakerInsight> invalidSpeakers = List.of(
+                speakerInsight(SpeakerRole.SELF, 1L, List.of()),
+                speakerInsight(SpeakerRole.PARTNER, 2L, List.of())
+        );
+        QualitativeAnalysis response = copy(
+                valid,
+                valid.overview(),
+                valid.timeline(),
+                invalidSpeakers,
+                valid.scenarioInsights()
         );
 
         assertThatThrownBy(() -> validator.validate(source(), response))
@@ -54,14 +59,16 @@ class LinerAnalysisResponseValidatorTest {
 
     @Test
     void rejectsTimelineOutsideChronologicalOrder() {
-        QualitativeAnalysis response = new QualitativeAnalysis(
-                validResponse().overview(),
+        QualitativeAnalysis valid = validResponse();
+        QualitativeAnalysis response = copy(
+                valid,
+                valid.overview(),
                 List.of(
                         new QualitativeAnalysis.TimelineItem("두 번째", "두 번째 주제", List.of(3L)),
                         new QualitativeAnalysis.TimelineItem("첫 번째", "첫 번째 주제", List.of(1L))
                 ),
-                validResponse().speakerInsights(),
-                validResponse().scenarioInsights()
+                valid.speakerInsights(),
+                valid.scenarioInsights()
         );
 
         assertThatThrownBy(() -> validator.validate(source(), response))
@@ -71,23 +78,24 @@ class LinerAnalysisResponseValidatorTest {
 
     @Test
     void rejectsPatternWithoutEvidenceFromAttributedSpeaker() {
-        QualitativeAnalysis.SpeakerPattern invalidPattern = new QualitativeAnalysis.SpeakerPattern(
-                QualitativeAnalysis.SpeakerPatternCategory.FOLLOW_UP_QUESTION,
-                "후속 질문",
-                "질문으로 대화를 이어갔어요.",
-                List.of(2L)
+        QualitativeAnalysis valid = validResponse();
+        QualitativeAnalysis.SpeakerPattern invalidPattern =
+                new QualitativeAnalysis.SpeakerPattern(
+                        QualitativeAnalysis.SpeakerPatternCategory.FOLLOW_UP_QUESTION,
+                        "후속 질문",
+                        "질문으로 대화를 이어갔어요.",
+                        List.of(2L)
+                );
+        List<QualitativeAnalysis.SpeakerInsight> invalidSpeakers = List.of(
+                speakerInsight(SpeakerRole.SELF, 1L, List.of(invalidPattern)),
+                speakerInsight(SpeakerRole.FRIEND, 2L, List.of())
         );
-        QualitativeAnalysis response = new QualitativeAnalysis(
-                validResponse().overview(),
-                validResponse().timeline(),
-                List.of(
-                        new QualitativeAnalysis.SpeakerInsight(
-                                SpeakerRole.SELF,
-                                List.of(invalidPattern)
-                        ),
-                        new QualitativeAnalysis.SpeakerInsight(SpeakerRole.FRIEND, List.of())
-                ),
-                validResponse().scenarioInsights()
+        QualitativeAnalysis response = copy(
+                valid,
+                valid.overview(),
+                valid.timeline(),
+                invalidSpeakers,
+                valid.scenarioInsights()
         );
 
         assertThatThrownBy(() -> validator.validate(source(), response))
@@ -97,6 +105,7 @@ class LinerAnalysisResponseValidatorTest {
 
     @Test
     void rejectsScenarioInsightCategoryOutsideScenario() {
+        QualitativeAnalysis valid = validResponse();
         QualitativeAnalysis.ScenarioInsight conflictInsight =
                 new QualitativeAnalysis.ScenarioInsight(
                         QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_TOPIC,
@@ -105,16 +114,71 @@ class LinerAnalysisResponseValidatorTest {
                         "의견 차이가 나타났어요.",
                         List.of(1L, 2L)
                 );
-        QualitativeAnalysis response = new QualitativeAnalysis(
-                validResponse().overview(),
-                validResponse().timeline(),
-                validResponse().speakerInsights(),
+        QualitativeAnalysis response = copy(
+                valid,
+                valid.overview(),
+                valid.timeline(),
+                valid.speakerInsights(),
                 List.of(conflictInsight)
         );
 
         assertThatThrownBy(() -> validator.validate(source(), response))
                 .isInstanceOf(LinerAnalysisException.class)
                 .hasMessageContaining("시나리오에 맞지 않는 상황별 관찰");
+    }
+
+    @Test
+    void rejectsReactionPercentagesThatDoNotSumToOneHundred() {
+        QualitativeAnalysis valid = validResponse();
+        QualitativeAnalysis response = new QualitativeAnalysis(
+                valid.overview(),
+                valid.timeline(),
+                valid.topics(),
+                valid.characterInsights(),
+                valid.speakerInsights(),
+                valid.interestInsights(),
+                valid.spicinessInsights(),
+                List.of(
+                        reaction(SpeakerRole.SELF, 1L, 60, 60),
+                        reaction(SpeakerRole.FRIEND, 2L, 50, 50)
+                ),
+                valid.scenarioInsights()
+        );
+
+        assertThatThrownBy(() -> validator.validate(source(), response))
+                .isInstanceOf(LinerAnalysisException.class)
+                .hasMessageContaining("합은 100");
+    }
+
+    @Test
+    void rejectsFrequentExpressionMissingFromEvidence() {
+        QualitativeAnalysis valid = validResponse();
+        QualitativeAnalysis.SpeakerInsight invalidSelf = new QualitativeAnalysis.SpeakerInsight(
+                SpeakerRole.SELF,
+                List.of(),
+                new QualitativeAnalysis.SentenceStyle(
+                        "짧은 문장",
+                        "짧은 문장으로 질문했어요.",
+                        List.of(1L)
+                ),
+                List.of(new QualitativeAnalysis.FrequentExpression(
+                        "없는 표현",
+                        3,
+                        "반복해서 사용했어요.",
+                        List.of(1L)
+                ))
+        );
+        QualitativeAnalysis response = copy(
+                valid,
+                valid.overview(),
+                valid.timeline(),
+                List.of(invalidSelf, speakerInsight(SpeakerRole.FRIEND, 2L, List.of())),
+                valid.scenarioInsights()
+        );
+
+        assertThatThrownBy(() -> validator.validate(source(), response))
+                .isInstanceOf(LinerAnalysisException.class)
+                .hasMessageContaining("실제로 존재하지 않습니다");
     }
 
     private AnalysisSource source() {
@@ -136,7 +200,7 @@ class LinerAnalysisResponseValidatorTest {
                         QualitativeAnalysis.SpeakerPatternCategory.FOLLOW_UP_QUESTION,
                         "질문으로 이어가기",
                         "상대의 경험을 후속 질문으로 확인했어요.",
-                        List.of(2L, 3L)
+                        List.of(1L, 3L)
                 );
         QualitativeAnalysis.ScenarioInsight commonInterest =
                 new QualitativeAnalysis.ScenarioInsight(
@@ -165,14 +229,121 @@ class LinerAnalysisResponseValidatorTest {
                                 List.of(3L)
                         )
                 ),
+                List.of(new QualitativeAnalysis.Topic(
+                        "학교 근황",
+                        "학교에서 있었던 일을 이야기했어요.",
+                        List.of(1L, 2L, 3L)
+                )),
                 List.of(
-                        new QualitativeAnalysis.SpeakerInsight(
-                                SpeakerRole.SELF,
-                                List.of(questionPattern)
-                        ),
-                        new QualitativeAnalysis.SpeakerInsight(SpeakerRole.FRIEND, List.of())
+                        character(SpeakerRole.SELF, 1L),
+                        character(SpeakerRole.FRIEND, 2L)
+                ),
+                List.of(
+                        speakerInsight(SpeakerRole.SELF, 1L, List.of(questionPattern)),
+                        speakerInsight(SpeakerRole.FRIEND, 2L, List.of())
+                ),
+                List.of(
+                        interest(SpeakerRole.SELF, 1L),
+                        interest(SpeakerRole.FRIEND, 2L)
+                ),
+                List.of(
+                        spiciness(SpeakerRole.SELF),
+                        spiciness(SpeakerRole.FRIEND)
+                ),
+                List.of(
+                        reaction(SpeakerRole.SELF, 1L, 50, 50),
+                        reaction(SpeakerRole.FRIEND, 2L, 50, 50)
                 ),
                 List.of(commonInterest)
+        );
+    }
+
+    private QualitativeAnalysis.CharacterInsight character(SpeakerRole role, Long evidenceId) {
+        return new QualitativeAnalysis.CharacterInsight(
+                role,
+                "대화 참여형",
+                "이번 대화에서 상대의 말에 반응했어요.",
+                List.of(evidenceId)
+        );
+    }
+
+    private QualitativeAnalysis.SpeakerInsight speakerInsight(
+            SpeakerRole role,
+            Long evidenceId,
+            List<QualitativeAnalysis.SpeakerPattern> patterns
+    ) {
+        return new QualitativeAnalysis.SpeakerInsight(
+                role,
+                patterns,
+                new QualitativeAnalysis.SentenceStyle(
+                        "짧고 명확한 문장",
+                        "짧은 문장으로 내용을 전달했어요.",
+                        List.of(evidenceId)
+                ),
+                List.of()
+        );
+    }
+
+    private QualitativeAnalysis.InterestInsight interest(SpeakerRole role, Long evidenceId) {
+        return new QualitativeAnalysis.InterestInsight(
+                role,
+                50,
+                "이번 대화에서 질문으로 관심을 표현했어요.",
+                List.of(new QualitativeAnalysis.InterestObservation(
+                        QualitativeAnalysis.InterestCategory.QUESTION,
+                        "질문하기",
+                        "상대에게 질문했어요.",
+                        List.of(evidenceId)
+                ))
+        );
+    }
+
+    private QualitativeAnalysis.SpicinessInsight spiciness(SpeakerRole role) {
+        return new QualitativeAnalysis.SpicinessInsight(
+                role,
+                0,
+                "강한 표현이 관찰되지 않았어요.",
+                List.of()
+        );
+    }
+
+    private QualitativeAnalysis.ReactionStyleInsight reaction(
+            SpeakerRole role,
+            Long evidenceId,
+            int thinkingPercent,
+            int feelingPercent
+    ) {
+        return new QualitativeAnalysis.ReactionStyleInsight(
+                role,
+                thinkingPercent,
+                feelingPercent,
+                "정보와 감정에 함께 반응했어요.",
+                List.of(new QualitativeAnalysis.ReactionExample(
+                        QualitativeAnalysis.ReactionCategory.MIXED,
+                        "혼합 반응",
+                        "정보와 감정에 함께 반응했어요.",
+                        List.of(evidenceId)
+                ))
+        );
+    }
+
+    private QualitativeAnalysis copy(
+            QualitativeAnalysis valid,
+            QualitativeAnalysis.Overview overview,
+            List<QualitativeAnalysis.TimelineItem> timeline,
+            List<QualitativeAnalysis.SpeakerInsight> speakerInsights,
+            List<QualitativeAnalysis.ScenarioInsight> scenarioInsights
+    ) {
+        return new QualitativeAnalysis(
+                overview,
+                timeline,
+                valid.topics(),
+                valid.characterInsights(),
+                speakerInsights,
+                valid.interestInsights(),
+                valid.spicinessInsights(),
+                valid.reactionStyleInsights(),
+                scenarioInsights
         );
     }
 }

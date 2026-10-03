@@ -3,6 +3,7 @@ package com.example.resay.global.infrastructure.liner;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisSource;
+import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import java.util.Collection;
 import java.util.List;
@@ -14,8 +15,8 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class LinerAnalysisRequestFactory {
 
-    private static final String PROMPT_VERSION = "analysis-prompt-v1";
-    private static final String SCHEMA_VERSION = "analysis-result-v1";
+    private static final String PROMPT_VERSION = "analysis-prompt-v2";
+    private static final String SCHEMA_VERSION = "analysis-result-v2";
     private static final int MAX_COMPLETION_TOKENS = 8192;
     private static final String REASONING_EFFORT = "high";
 
@@ -26,11 +27,16 @@ public class LinerAnalysisRequestFactory {
             제공된 발화 내용과 시간 정보만 사용하고, 입력에 없는 사실을 만들지 마세요.
             음성의 억양, 웃음, 침묵의 원인, 동시 발화, 실제 감정이나 의도를 단정하지 마세요.
             사람의 성격이나 관계 전체를 진단하지 말고 이번 대화에서 관찰되는 표현과 행동만 설명하세요.
-            발화 비중, 말하기 속도, 단어 횟수 같은 정량 지표는 계산하지 마세요.
+            발화 비중, 말하기 속도처럼 서버가 계산하는 정량 지표는 계산하지 마세요.
+            관심도와 표독력 점수는 성격이나 관계의 점수가 아니라 이번 대화에서 관련 표현이 나타난 정도를 0부터 100까지 추정한 값입니다.
+            T/F 비율은 성격 유형 검사가 아니라 이번 대화의 반응을 정보·해결 중심과 감정·공감 중심으로 나눈 비율입니다.
+            자주 등장한 표현은 해당 화자의 전사문에 실제로 반복된 표현만 선택하고 count와 모든 근거 발화를 작성하세요.
+            topics의 segmentIds에는 대표 근거만 넣지 말고 해당 주제에 속한다고 판단한 발화를 모두 넣으세요.
             모든 분석 항목은 입력에 실제로 존재하는 evidenceSegmentIds를 하나 이상 포함해야 합니다.
-            근거가 부족한 화자 패턴과 상황별 관찰은 만들지 말고 배열에서 제외하세요.
+            근거가 부족한 세부 관찰은 만들지 말고 배열에서 제외하세요.
             overview와 timeline은 반드시 작성하고 timeline은 시간순으로 1개 이상 6개 이하로 작성하세요.
-            speakerInsights에는 입력 시나리오의 두 화자를 각각 한 번씩 포함하세요.
+            topics는 1개 이상 5개 이하로 작성하세요.
+            characterInsights, speakerInsights, interestInsights, spicinessInsights, reactionStyleInsights에는 입력 시나리오의 두 화자를 각각 한 번씩 포함하세요.
             결과의 제목과 설명은 한국어로 작성하고 JSON Schema와 일치하는 JSON만 반환하세요.
             """;
 
@@ -132,10 +138,25 @@ public class LinerAnalysisRequestFactory {
                 Map.of(
                         "overview", overviewSchema(),
                         "timeline", arraySchema(timelineItemSchema()),
+                        "topics", arraySchema(topicSchema()),
+                        "characterInsights", arraySchema(characterInsightSchema(scenario)),
                         "speakerInsights", arraySchema(speakerInsightSchema(scenario)),
+                        "interestInsights", arraySchema(interestInsightSchema(scenario)),
+                        "spicinessInsights", arraySchema(spicinessInsightSchema(scenario)),
+                        "reactionStyleInsights", arraySchema(reactionStyleInsightSchema(scenario)),
                         "scenarioInsights", arraySchema(scenarioInsightSchema(scenario))
                 ),
-                List.of("overview", "timeline", "speakerInsights", "scenarioInsights")
+                List.of(
+                        "overview",
+                        "timeline",
+                        "topics",
+                        "characterInsights",
+                        "speakerInsights",
+                        "interestInsights",
+                        "spicinessInsights",
+                        "reactionStyleInsights",
+                        "scenarioInsights"
+                )
         );
     }
 
@@ -158,13 +179,50 @@ public class LinerAnalysisRequestFactory {
         );
     }
 
+    private Map<String, Object> topicSchema() {
+        return objectSchema(
+                Map.of(
+                        "title", stringSchema(),
+                        "description", stringSchema(),
+                        "segmentIds", evidenceIdsSchema()
+                ),
+                List.of("title", "description", "segmentIds")
+        );
+    }
+
+    private Map<String, Object> characterInsightSchema(AnalysisScenario scenario) {
+        return objectSchema(
+                Map.of(
+                        "speakerRole", enumSchema(scenario.requiredRoles()),
+                        "name", stringSchema(),
+                        "description", stringSchema(),
+                        "evidenceSegmentIds", evidenceIdsSchema()
+                ),
+                List.of("speakerRole", "name", "description", "evidenceSegmentIds")
+        );
+    }
+
     private Map<String, Object> speakerInsightSchema(AnalysisScenario scenario) {
         return objectSchema(
                 Map.of(
                         "speakerRole", enumSchema(scenario.requiredRoles()),
-                        "patterns", arraySchema(speakerPatternSchema(scenario))
+                        "patterns", arraySchema(speakerPatternSchema(scenario)),
+                        "sentenceStyle", evidenceObjectSchema(),
+                        "frequentExpressions", arraySchema(frequentExpressionSchema())
                 ),
-                List.of("speakerRole", "patterns")
+                List.of("speakerRole", "patterns", "sentenceStyle", "frequentExpressions")
+        );
+    }
+
+    private Map<String, Object> frequentExpressionSchema() {
+        return objectSchema(
+                Map.of(
+                        "expression", stringSchema(),
+                        "count", integerSchema(1, 1000),
+                        "description", stringSchema(),
+                        "evidenceSegmentIds", evidenceIdsSchema()
+                ),
+                List.of("expression", "count", "description", "evidenceSegmentIds")
         );
     }
 
@@ -203,6 +261,73 @@ public class LinerAnalysisRequestFactory {
         );
     }
 
+    private Map<String, Object> interestInsightSchema(AnalysisScenario scenario) {
+        return objectSchema(
+                Map.of(
+                        "speakerRole", enumSchema(scenario.requiredRoles()),
+                        "score", integerSchema(0, 100),
+                        "description", stringSchema(),
+                        "observations", arraySchema(interestObservationSchema())
+                ),
+                List.of("speakerRole", "score", "description", "observations")
+        );
+    }
+
+    private Map<String, Object> interestObservationSchema() {
+        return categorizedEvidenceSchema(QualitativeAnalysis.InterestCategory.values());
+    }
+
+    private Map<String, Object> spicinessInsightSchema(AnalysisScenario scenario) {
+        return objectSchema(
+                Map.of(
+                        "speakerRole", enumSchema(scenario.requiredRoles()),
+                        "score", integerSchema(0, 100),
+                        "description", stringSchema(),
+                        "observations", arraySchema(spicinessObservationSchema())
+                ),
+                List.of("speakerRole", "score", "description", "observations")
+        );
+    }
+
+    private Map<String, Object> spicinessObservationSchema() {
+        return categorizedEvidenceSchema(QualitativeAnalysis.SpicinessCategory.values());
+    }
+
+    private Map<String, Object> reactionStyleInsightSchema(AnalysisScenario scenario) {
+        return objectSchema(
+                Map.of(
+                        "speakerRole", enumSchema(scenario.requiredRoles()),
+                        "thinkingPercent", integerSchema(0, 100),
+                        "feelingPercent", integerSchema(0, 100),
+                        "description", stringSchema(),
+                        "examples", arraySchema(reactionExampleSchema())
+                ),
+                List.of(
+                        "speakerRole",
+                        "thinkingPercent",
+                        "feelingPercent",
+                        "description",
+                        "examples"
+                )
+        );
+    }
+
+    private Map<String, Object> reactionExampleSchema() {
+        return categorizedEvidenceSchema(QualitativeAnalysis.ReactionCategory.values());
+    }
+
+    private Map<String, Object> categorizedEvidenceSchema(Enum<?>[] categories) {
+        return objectSchema(
+                Map.of(
+                        "category", enumSchema(List.of(categories)),
+                        "title", stringSchema(),
+                        "description", stringSchema(),
+                        "evidenceSegmentIds", evidenceIdsSchema()
+                ),
+                List.of("category", "title", "description", "evidenceSegmentIds")
+        );
+    }
+
     private Map<String, Object> objectSchema(
             Map<String, Object> properties,
             List<String> required
@@ -228,6 +353,14 @@ public class LinerAnalysisRequestFactory {
 
     private Map<String, Object> stringSchema() {
         return Map.of("type", "string");
+    }
+
+    private Map<String, Object> integerSchema(int minimum, int maximum) {
+        return Map.of(
+                "type", "integer",
+                "minimum", minimum,
+                "maximum", maximum
+        );
     }
 
     private Map<String, Object> enumSchema(Collection<? extends Enum<?>> values) {
