@@ -77,6 +77,37 @@ class LinerAnalysisResponseValidatorTest {
     }
 
     @Test
+    void rejectsSegmentAssignedToMultipleTopics() {
+        QualitativeAnalysis valid = validResponse();
+        QualitativeAnalysis response = new QualitativeAnalysis(
+                valid.overview(),
+                valid.timeline(),
+                List.of(
+                        new QualitativeAnalysis.Topic(
+                                "학교 근황",
+                                "학교에서 있었던 일을 이야기했어요.",
+                                List.of(1L, 2L)
+                        ),
+                        new QualitativeAnalysis.Topic(
+                                "질문과 응답",
+                                "질문을 주고받았어요.",
+                                List.of(2L, 3L)
+                        )
+                ),
+                valid.characterInsights(),
+                valid.speakerInsights(),
+                valid.interestInsights(),
+                valid.spicinessInsights(),
+                valid.reactionStyleInsights(),
+                valid.scenarioInsights()
+        );
+
+        assertThatThrownBy(() -> validator.validate(source(), response))
+                .isInstanceOf(LinerAnalysisException.class)
+                .hasMessageContaining("하나의 주제에만");
+    }
+
+    @Test
     void rejectsPatternWithoutEvidenceFromAttributedSpeaker() {
         QualitativeAnalysis valid = validResponse();
         QualitativeAnalysis.SpeakerPattern invalidPattern =
@@ -181,6 +212,80 @@ class LinerAnalysisResponseValidatorTest {
                 .hasMessageContaining("실제로 존재하지 않습니다");
     }
 
+    @Test
+    void rejectsFrequentExpressionThatAppearsOnlyOnce() {
+        QualitativeAnalysis valid = validResponse();
+        QualitativeAnalysis.SpeakerInsight invalidSelf = new QualitativeAnalysis.SpeakerInsight(
+                SpeakerRole.SELF,
+                List.of(),
+                new QualitativeAnalysis.SentenceStyle(
+                        "짧은 문장",
+                        "짧은 문장으로 질문했어요.",
+                        List.of(1L)
+                ),
+                List.of(new QualitativeAnalysis.FrequentExpression(
+                        "오늘",
+                        1,
+                        "한 번만 등장한 표현입니다.",
+                        List.of(1L)
+                ))
+        );
+        QualitativeAnalysis response = copy(
+                valid,
+                valid.overview(),
+                valid.timeline(),
+                List.of(invalidSelf, speakerInsight(SpeakerRole.FRIEND, 2L, List.of())),
+                valid.scenarioInsights()
+        );
+
+        assertThatThrownBy(() -> validator.validate(source(), response))
+                .isInstanceOf(LinerAnalysisException.class)
+                .hasMessageContaining("두 번 이상");
+    }
+
+    @Test
+    void acceptsConflictPositionsSeparatedBySpeaker() {
+        validator.validate(conflictSource(), conflictResponse(validConflictInsights()));
+    }
+
+    @Test
+    void rejectsConflictPositionsCombinedIntoOneInsight() {
+        List<QualitativeAnalysis.ScenarioInsight> insights = List.of(
+                scenarioInsight(
+                        QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_TOPIC,
+                        List.of(SpeakerRole.SELF, SpeakerRole.PARTNER),
+                        List.of(1L, 2L)
+                ),
+                scenarioInsight(
+                        QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_POSITION,
+                        List.of(SpeakerRole.SELF, SpeakerRole.PARTNER),
+                        List.of(1L, 2L)
+                )
+        );
+
+        assertThatThrownBy(() -> validator.validate(
+                conflictSource(),
+                conflictResponse(insights)
+        ))
+                .isInstanceOf(LinerAnalysisException.class)
+                .hasMessageContaining("화자별로 분리");
+    }
+
+    @Test
+    void rejectsConflictAnalysisWithoutConflictTopic() {
+        List<QualitativeAnalysis.ScenarioInsight> positions = validConflictInsights().stream()
+                .filter(insight -> insight.category()
+                        == QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_POSITION)
+                .toList();
+
+        assertThatThrownBy(() -> validator.validate(
+                conflictSource(),
+                conflictResponse(positions)
+        ))
+                .isInstanceOf(LinerAnalysisException.class)
+                .hasMessageContaining("CONFLICT_TOPIC");
+    }
+
     private AnalysisSource source() {
         return new AnalysisSource(
                 1L,
@@ -191,6 +296,91 @@ class LinerAnalysisResponseValidatorTest {
                         new AnalysisSegment(2L, SpeakerRole.FRIEND, 600L, 900L, "학교 갔다 왔어"),
                         new AnalysisSegment(3L, SpeakerRole.SELF, 1_000L, 1_400L, "재밌었어?")
                 )
+        );
+    }
+
+    private AnalysisSource conflictSource() {
+        return new AnalysisSource(
+                2L,
+                AnalysisScenario.COUPLE_CONFLICT,
+                10_000L,
+                List.of(
+                        new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "왜 연락 안 했어?"),
+                        new AnalysisSegment(2L, SpeakerRole.PARTNER, 600L, 900L, "회의 중이었어")
+                )
+        );
+    }
+
+    private QualitativeAnalysis conflictResponse(
+            List<QualitativeAnalysis.ScenarioInsight> scenarioInsights
+    ) {
+        return new QualitativeAnalysis(
+                new QualitativeAnalysis.Overview("연락 갈등", "연락 문제를 이야기했어요.", List.of(1L, 2L)),
+                List.of(new QualitativeAnalysis.TimelineItem(
+                        "갈등 확인",
+                        "서로의 입장을 설명했어요.",
+                        List.of(1L, 2L)
+                )),
+                List.of(new QualitativeAnalysis.Topic(
+                        "연락 문제",
+                        "연락 여부를 이야기했어요.",
+                        List.of(1L, 2L)
+                )),
+                List.of(
+                        character(SpeakerRole.SELF, 1L),
+                        character(SpeakerRole.PARTNER, 2L)
+                ),
+                List.of(
+                        speakerInsight(SpeakerRole.SELF, 1L, List.of()),
+                        speakerInsight(SpeakerRole.PARTNER, 2L, List.of())
+                ),
+                List.of(
+                        interest(SpeakerRole.SELF, 1L),
+                        interest(SpeakerRole.PARTNER, 2L)
+                ),
+                List.of(
+                        spiciness(SpeakerRole.SELF),
+                        spiciness(SpeakerRole.PARTNER)
+                ),
+                List.of(
+                        reaction(SpeakerRole.SELF, 1L, 50, 50),
+                        reaction(SpeakerRole.PARTNER, 2L, 50, 50)
+                ),
+                scenarioInsights
+        );
+    }
+
+    private List<QualitativeAnalysis.ScenarioInsight> validConflictInsights() {
+        return List.of(
+                scenarioInsight(
+                        QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_TOPIC,
+                        List.of(SpeakerRole.SELF, SpeakerRole.PARTNER),
+                        List.of(1L, 2L)
+                ),
+                scenarioInsight(
+                        QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_POSITION,
+                        List.of(SpeakerRole.SELF),
+                        List.of(1L)
+                ),
+                scenarioInsight(
+                        QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_POSITION,
+                        List.of(SpeakerRole.PARTNER),
+                        List.of(2L)
+                )
+        );
+    }
+
+    private QualitativeAnalysis.ScenarioInsight scenarioInsight(
+            QualitativeAnalysis.ScenarioInsightCategory category,
+            List<SpeakerRole> roles,
+            List<Long> evidenceIds
+    ) {
+        return new QualitativeAnalysis.ScenarioInsight(
+                category,
+                roles,
+                "갈등 분석",
+                "대화에서 관찰된 갈등 내용입니다.",
+                evidenceIds
         );
     }
 

@@ -1,6 +1,7 @@
 package com.example.resay.global.infrastructure.liner;
 
 import com.example.resay.domain.analysis.model.AnalysisSegment;
+import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
@@ -10,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -81,6 +83,7 @@ public class LinerAnalysisResponseValidator {
         if (topics == null || topics.isEmpty() || topics.size() > 5) {
             throw invalidResponse("topics는 1개 이상 5개 이하여야 합니다.");
         }
+        Set<Long> assignedSegmentIds = new HashSet<>();
         for (QualitativeAnalysis.Topic topic : topics) {
             if (topic == null) {
                 throw invalidResponse("topic 항목이 비어 있습니다.");
@@ -88,6 +91,9 @@ public class LinerAnalysisResponseValidator {
             requireText(topic.title(), "topic.title");
             requireText(topic.description(), "topic.description");
             validateEvidence(topic.segmentIds(), segmentsById, "topic");
+            if (!topic.segmentIds().stream().allMatch(assignedSegmentIds::add)) {
+                throw invalidResponse("하나의 발화는 하나의 주제에만 포함되어야 합니다.");
+            }
         }
     }
 
@@ -199,7 +205,37 @@ public class LinerAnalysisResponseValidator {
             if (!appearsInEvidence) {
                 throw invalidResponse("반복 표현이 근거 발화에 실제로 존재하지 않습니다.");
             }
+
+            List<AnalysisSegment> matchingSegments = segmentsById.values().stream()
+                    .filter(segment -> segment.speakerRole() == speakerRole)
+                    .filter(segment -> segment.content().contains(expression.expression()))
+                    .toList();
+            int occurrenceCount = matchingSegments.stream()
+                    .mapToInt(segment -> countOccurrences(
+                            segment.content(),
+                            expression.expression()
+                    ))
+                    .sum();
+            if (occurrenceCount < 2) {
+                throw invalidResponse("반복 표현은 해당 화자의 발화에 두 번 이상 존재해야 합니다.");
+            }
+            Set<Long> matchingSegmentIds = matchingSegments.stream()
+                    .map(AnalysisSegment::segmentId)
+                    .collect(Collectors.toSet());
+            if (!Set.copyOf(expression.evidenceSegmentIds()).containsAll(matchingSegmentIds)) {
+                throw invalidResponse("반복 표현의 모든 근거 발화가 포함되어야 합니다.");
+            }
         }
+    }
+
+    private int countOccurrences(String content, String expression) {
+        int count = 0;
+        int index = 0;
+        while ((index = content.indexOf(expression, index)) >= 0) {
+            count++;
+            index += expression.length();
+        }
+        return count;
     }
 
     private void validateInterestInsights(
@@ -319,6 +355,9 @@ public class LinerAnalysisResponseValidator {
             if (insight == null || insight.category() == null || insight.speakerRoles() == null) {
                 throw invalidResponse("scenario insight가 올바르지 않습니다.");
             }
+            if (insight.speakerRoles().isEmpty()) {
+                throw invalidResponse("scenario insight에는 화자 역할이 하나 이상 필요합니다.");
+            }
             if (new HashSet<>(insight.speakerRoles()).size() != insight.speakerRoles().size()) {
                 throw invalidResponse("scenario insight의 화자 역할은 중복될 수 없습니다.");
             }
@@ -341,6 +380,45 @@ public class LinerAnalysisResponseValidator {
                         "상황별 관찰"
                 );
             }
+        }
+
+        validateConflictInsightStructure(source, insights);
+    }
+
+    private void validateConflictInsightStructure(
+            AnalysisSource source,
+            List<QualitativeAnalysis.ScenarioInsight> insights
+    ) {
+        if (source.scenario() != AnalysisScenario.COUPLE_CONFLICT
+                && source.scenario() != AnalysisScenario.PARENT_CHILD_CONFLICT) {
+            return;
+        }
+
+        List<QualitativeAnalysis.ScenarioInsight> conflictTopics = insights.stream()
+                .filter(insight -> insight.category()
+                        == QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_TOPIC)
+                .toList();
+        if (conflictTopics.size() != 1) {
+            throw invalidResponse("갈등 분석에는 CONFLICT_TOPIC이 정확히 한 개 필요합니다.");
+        }
+        if (!Set.copyOf(conflictTopics.get(0).speakerRoles())
+                .equals(source.scenario().requiredRoles())) {
+            throw invalidResponse("CONFLICT_TOPIC에는 두 화자의 역할이 모두 필요합니다.");
+        }
+
+        List<QualitativeAnalysis.ScenarioInsight> positions = insights.stream()
+                .filter(insight -> insight.category()
+                        == QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_POSITION)
+                .toList();
+        if (positions.stream().anyMatch(insight -> insight.speakerRoles().size() != 1)) {
+            throw invalidResponse("CONFLICT_POSITION은 화자별로 분리해야 합니다.");
+        }
+        Set<SpeakerRole> positionRoles = positions.stream()
+                .map(insight -> insight.speakerRoles().get(0))
+                .collect(Collectors.toSet());
+        if (positions.size() != source.scenario().requiredRoles().size()
+                || !positionRoles.equals(source.scenario().requiredRoles())) {
+            throw invalidResponse("CONFLICT_POSITION은 각 화자에 대해 정확히 한 개씩 필요합니다.");
         }
     }
 

@@ -98,6 +98,7 @@ public class LinerApiClient {
                 error != null && Boolean.TRUE.equals(error.retryable()),
                 parseRetryAfter(headers),
                 headers != null ? headers.getFirst(REQUEST_ID_HEADER) : null,
+                error != null ? error.message() : null,
                 null
         );
     }

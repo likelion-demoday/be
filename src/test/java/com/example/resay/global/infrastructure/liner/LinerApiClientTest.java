@@ -152,6 +152,12 @@ class LinerApiClientTest {
                     assertThat(exception.isRetryable()).isTrue();
                     assertThat(exception.getRetryAfter()).isEqualTo(Duration.ofSeconds(1));
                     assertThat(exception.getRequestId()).isEqualTo("liner-request-429");
+                    assertThat(exception.getProviderMessage()).isEqualTo("요청 한도 초과");
+                    assertThat(exception.getMessage())
+                            .contains("statusCode=429")
+                            .contains("errorCode=RATE_LIMITED")
+                            .contains("requestId=liner-request-429")
+                            .contains("providerMessage=요청 한도 초과");
                     assertThat(exception.getCause()).isNull();
                 });
     }

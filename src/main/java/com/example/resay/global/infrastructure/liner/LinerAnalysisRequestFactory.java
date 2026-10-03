@@ -15,9 +15,9 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class LinerAnalysisRequestFactory {
 
-    private static final String PROMPT_VERSION = "analysis-prompt-v2";
-    private static final String SCHEMA_VERSION = "analysis-result-v2";
-    private static final int MAX_COMPLETION_TOKENS = 8192;
+    private static final String PROMPT_VERSION = "analysis-prompt-v3";
+    private static final String SCHEMA_VERSION = "analysis-result-v3";
+    private static final int MAX_COMPLETION_TOKENS = 16384;
     private static final String REASONING_EFFORT = "high";
 
     private static final String BASE_INSTRUCTION = """
@@ -29,14 +29,23 @@ public class LinerAnalysisRequestFactory {
             사람의 성격이나 관계 전체를 진단하지 말고 이번 대화에서 관찰되는 표현과 행동만 설명하세요.
             발화 비중, 말하기 속도처럼 서버가 계산하는 정량 지표는 계산하지 마세요.
             관심도와 표독력 점수는 성격이나 관계의 점수가 아니라 이번 대화에서 관련 표현이 나타난 정도를 0부터 100까지 추정한 값입니다.
+            관심도는 0~20 거의 관찰되지 않음, 21~40 제한적으로 나타남, 41~60 보통, 61~80 지속적으로 나타남, 81~100 여러 종류의 관심 표현이 대화 전반에 반복됨을 기준으로 평가하세요.
+            관심도 90점 이상은 질문, 공감, 맞장구, 호감 표현 중 세 종류 이상이 대화 전반에 반복된 경우에만 사용하세요.
+            표독력은 0~10 강한 표현 없음, 11~30 가벼운 장난이나 단발성 직설 표현, 31~50 반복되는 직설·강한 표현, 51~70 공격·비하·비속어가 뚜렷함, 71~100 심한 공격 표현이 지속됨을 기준으로 평가하세요.
+            장난 맥락이나 완충·회복 표현이 함께 나타나면 이를 반영해 표독력 점수를 낮추세요.
             T/F 비율은 성격 유형 검사가 아니라 이번 대화의 반응을 정보·해결 중심과 감정·공감 중심으로 나눈 비율입니다.
-            자주 등장한 표현은 해당 화자의 전사문에 실제로 반복된 표현만 선택하고 count와 모든 근거 발화를 작성하세요.
+            characterInsights.name은 역할명이나 본인, 상대방 같은 일반 명칭이 아니라 이번 대화의 특징을 담은 짧고 재미있는 한국어 별칭으로 작성하세요.
+            자주 등장한 표현은 해당 화자의 전사문에 실제로 두 번 이상 등장한 표현 중 빈도가 높은 순서로 최대 5개를 선택하고 count와 모든 근거 발화를 작성하세요.
+            단순히 눈에 띄는 표현보다 실제 반복 횟수가 많은 표현을 우선하고, 같은 횟수라면 대화 습관을 더 잘 보여주는 표현을 우선하세요.
             topics의 segmentIds에는 대표 근거만 넣지 말고 해당 주제에 속한다고 판단한 발화를 모두 넣으세요.
+            하나의 발화는 가장 관련이 큰 주제 하나에만 포함하고 topics 사이에 segmentIds를 중복해서 넣지 마세요.
             모든 분석 항목은 입력에 실제로 존재하는 evidenceSegmentIds를 하나 이상 포함해야 합니다.
+            title과 description에는 segmentId나 근거 발화 번호를 직접 작성하지 마세요.
             근거가 부족한 세부 관찰은 만들지 말고 배열에서 제외하세요.
             overview와 timeline은 반드시 작성하고 timeline은 시간순으로 1개 이상 6개 이하로 작성하세요.
             topics는 1개 이상 5개 이하로 작성하세요.
             characterInsights, speakerInsights, interestInsights, spicinessInsights, reactionStyleInsights에는 입력 시나리오의 두 화자를 각각 한 번씩 포함하세요.
+            reactionStyleInsights의 examples에는 해당 화자의 실제 반응 사례를 하나 이상 작성하세요.
             결과의 제목과 설명은 한국어로 작성하고 JSON Schema와 일치하는 JSON만 반환하세요.
             """;
 
@@ -111,12 +120,17 @@ public class LinerAnalysisRequestFactory {
             case COUPLE_CONFLICT -> """
                     연인 사이의 갈등 대화입니다.
                     갈등 주제, 각 화자가 명시적으로 말한 입장, 전환점, 놓친 신호, 회복 시도와 해결 방향을 관찰하세요.
+                    scenarioInsights에는 핵심 CONFLICT_TOPIC을 정확히 한 개 작성하고 speakerRoles에는 SELF와 PARTNER를 모두 포함하세요.
+                    CONFLICT_POSITION은 SELF와 PARTNER에 대해 각각 한 개씩 작성하고, 각 항목의 speakerRoles에는 해당 화자 한 명만 포함하세요. 두 사람의 입장을 한 항목에 합치지 마세요.
                     공격, 방어, 회피는 사람의 성향이 아니라 근거 발화에서 나타난 대화 행동으로만 분류하세요.
                     애착 유형이나 정신 상태를 진단하지 마세요.
                     """;
             case PARENT_CHILD_CONFLICT -> """
                     부모와 사춘기 자녀 사이의 갈등 대화입니다.
                     갈등 주제, 각 화자가 명시적으로 말한 입장, 대화 개방성, 돌봄 표현, 질문과 응답 방식, 전환점, 놓친 신호와 해결 방향을 관찰하세요.
+                    scenarioInsights에는 핵심 CONFLICT_TOPIC을 정확히 한 개 작성하고 speakerRoles에는 PARENT와 CHILD를 모두 포함하세요.
+                    CONFLICT_POSITION은 PARENT와 CHILD에 대해 각각 한 개씩 작성하고, 각 항목의 speakerRoles에는 해당 화자 한 명만 포함하세요. 두 사람의 입장을 한 항목에 합치지 마세요.
+                    안전 걱정, 돌봄, 보호 의도가 발화에 명시되면 CARE_EXPRESSION으로 분류하세요.
                     양육 능력, 성격, 정신 상태를 진단하지 마세요.
                     """;
         };

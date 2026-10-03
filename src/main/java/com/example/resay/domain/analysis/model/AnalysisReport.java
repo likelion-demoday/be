@@ -66,8 +66,7 @@ public record AnalysisReport(
             String title,
             String description,
             List<Long> segmentIds,
-            Long startMs,
-            Long endMs,
+            List<TopicTimeRange> timeRanges,
             Integer turnCount,
             Long speakingDurationMs,
             boolean longest
@@ -75,7 +74,14 @@ public record AnalysisReport(
 
         public TopicItem {
             segmentIds = List.copyOf(segmentIds);
+            timeRanges = List.copyOf(timeRanges);
         }
+    }
+
+    public record TopicTimeRange(
+            Long startMs,
+            Long endMs
+    ) {
     }
 
 }

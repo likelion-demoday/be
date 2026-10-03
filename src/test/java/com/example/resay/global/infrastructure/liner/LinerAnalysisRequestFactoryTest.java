@@ -37,7 +37,7 @@ class LinerAnalysisRequestFactoryTest {
 
         assertThat(request.model()).isEqualTo("liner-mark-1.1");
         assertThat(request.stream()).isFalse();
-        assertThat(request.maxCompletionTokens()).isEqualTo(8192);
+        assertThat(request.maxCompletionTokens()).isEqualTo(16384);
         assertThat(request.reasoningEffort()).isEqualTo("high");
         assertThat(request.messages()).hasSize(2);
         assertThat(request.messages().get(0).role()).isEqualTo("system");
@@ -46,7 +46,16 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("친구 사이의 일상 대화입니다")
                 .contains("정량 지표는 계산하지 마세요")
                 .contains("T/F 비율은 성격 유형 검사가 아니라")
-                .contains("topics의 segmentIds에는 대표 근거만 넣지 말고");
+                .contains("관심도 90점 이상은")
+                .contains("짧고 재미있는 한국어 별칭")
+                .contains("실제로 두 번 이상 등장한 표현")
+                .contains("topics의 segmentIds에는 대표 근거만 넣지 말고")
+                .contains("topics 사이에 segmentIds를 중복해서 넣지 마세요")
+                .contains("title과 description에는 segmentId나 근거 발화 번호를 직접 작성하지 마세요")
+                .contains("reactionStyleInsights의 examples에는 해당 화자의 실제 반응 사례를 하나 이상");
+
+        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v3");
+        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v3");
 
         Map<?, ?> input = objectMapper.readValue(request.messages().get(1).content(), Map.class);
         assertThat(input.get("recordingId")).isEqualTo(1);
@@ -70,11 +79,29 @@ class LinerAnalysisRequestFactoryTest {
                 "reactionStyleInsights"
         );
         Map<?, ?> speakerInsights = (Map<?, ?>) rootProperties.get("speakerInsights");
+        assertThat(speakerInsights.keySet().stream().map(Object::toString).toList())
+                .containsExactlyInAnyOrder("type", "items");
         Map<?, ?> speakerInsightItems = (Map<?, ?>) speakerInsights.get("items");
         Map<?, ?> speakerInsightProperties = (Map<?, ?>) speakerInsightItems.get("properties");
         Map<?, ?> speakerRole = (Map<?, ?>) speakerInsightProperties.get("speakerRole");
         assertThat(speakerRole.get("enum"))
                 .isEqualTo(List.of("FRIEND", "SELF"));
+
+        Map<?, ?> reactionStyleInsights =
+                (Map<?, ?>) rootProperties.get("reactionStyleInsights");
+        Map<?, ?> reactionStyleItems = (Map<?, ?>) reactionStyleInsights.get("items");
+        Map<?, ?> reactionStyleProperties =
+                (Map<?, ?>) reactionStyleItems.get("properties");
+        Map<?, ?> reactionExamples = (Map<?, ?>) reactionStyleProperties.get("examples");
+        assertThat(reactionExamples.keySet().stream().map(Object::toString).toList())
+                .containsExactlyInAnyOrder("type", "items");
+
+        Map<?, ?> overview = (Map<?, ?>) rootProperties.get("overview");
+        Map<?, ?> overviewProperties = (Map<?, ?>) overview.get("properties");
+        Map<?, ?> overviewEvidence =
+                (Map<?, ?>) overviewProperties.get("evidenceSegmentIds");
+        assertThat(overviewEvidence.keySet().stream().map(Object::toString).toList())
+                .containsExactlyInAnyOrder("type", "items");
 
         Map<?, ?> scenarioInsights = (Map<?, ?>) rootProperties.get("scenarioInsights");
         Map<?, ?> scenarioInsightItems = (Map<?, ?>) scenarioInsights.get("items");
@@ -127,6 +154,8 @@ class LinerAnalysisRequestFactoryTest {
 
         assertThat(request.messages().get(0).content())
                 .contains("연인 사이의 갈등 대화입니다")
+                .contains("SELF와 PARTNER에 대해 각각 한 개씩")
+                .contains("두 사람의 입장을 한 항목에 합치지 마세요")
                 .contains("공격, 방어, 회피는 사람의 성향이 아니라")
                 .contains("애착 유형이나 정신 상태를 진단하지 마세요");
     }
