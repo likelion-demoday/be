@@ -209,8 +209,8 @@ class AnalysisControllerIntegrationTest {
         return new AnalysisResultCommand(
                 objectMapper.writeValueAsString(report),
                 "liner-mark-1.1",
-                "analysis-prompt-v3",
-                "analysis-report-v3"
+                "analysis-prompt-v4",
+                "analysis-report-v4"
         );
     }
 }

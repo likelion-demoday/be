@@ -165,12 +165,13 @@ class LinerAnalysisQualityEvaluator {
                 values.add(pattern.title());
                 values.add(pattern.description());
             }
-            values.add(insight.sentenceStyle().title());
-            values.add(insight.sentenceStyle().description());
+            if (insight.frequentExpressionSummary() != null) {
+                values.add(insight.frequentExpressionSummary().title());
+                values.add(insight.frequentExpressionSummary().description());
+            }
             for (QualitativeAnalysis.FrequentExpression expression :
                     insight.frequentExpressions()) {
                 values.add(expression.expression());
-                values.add(expression.description());
             }
         }
         for (QualitativeAnalysis.InterestInsight insight : analysis.interestInsights()) {
@@ -213,7 +214,9 @@ class LinerAnalysisQualityEvaluator {
         analysis.speakerInsights().forEach(insight -> insight.patterns()
                 .forEach(pattern -> result.addAll(pattern.evidenceSegmentIds())));
         analysis.speakerInsights().forEach(insight -> {
-            result.addAll(insight.sentenceStyle().evidenceSegmentIds());
+            if (insight.frequentExpressionSummary() != null) {
+                result.addAll(insight.frequentExpressionSummary().evidenceSegmentIds());
+            }
             insight.frequentExpressions().forEach(expression ->
                     result.addAll(expression.evidenceSegmentIds()));
         });

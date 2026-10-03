@@ -170,21 +170,13 @@ class LinerAnalysisModelClientTest {
                     {
                       "speakerRole": "SELF",
                       "patterns": [],
-                      "sentenceStyle": {
-                        "title": "질문형 문장",
-                        "description": "질문으로 대화를 시작했어요.",
-                        "evidenceSegmentIds": [1]
-                      },
+                      "frequentExpressionSummary": null,
                       "frequentExpressions": []
                     },
                     {
                       "speakerRole": "FRIEND",
                       "patterns": [],
-                      "sentenceStyle": {
-                        "title": "설명형 문장",
-                        "description": "경험을 간단히 설명했어요.",
-                        "evidenceSegmentIds": [2]
-                      },
+                      "frequentExpressionSummary": null,
                       "frequentExpressions": []
                     }
                   ],
