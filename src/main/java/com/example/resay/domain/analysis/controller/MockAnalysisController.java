@@ -2,7 +2,6 @@ package com.example.resay.domain.analysis.controller;
 
 import com.example.resay.domain.analysis.dto.AnalysisReportResponseDto;
 import com.example.resay.domain.analysis.dto.MockAnalysisRequestDto;
-import com.example.resay.domain.analysis.service.AnalysisReportQueryService;
 import com.example.resay.domain.analysis.service.MockAnalysisApplicationService;
 import com.example.resay.global.apiPayload.ApiResponse;
 import jakarta.validation.Valid;
@@ -22,7 +21,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class MockAnalysisController {
 
     private final MockAnalysisApplicationService mockAnalysisApplicationService;
-    private final AnalysisReportQueryService analysisReportQueryService;
 
     @PostMapping
     public ApiResponse<AnalysisReportResponseDto> create(
@@ -34,7 +32,7 @@ public class MockAnalysisController {
 
     @GetMapping("/{recordingId}")
     public ApiResponse<AnalysisReportResponseDto> get(@PathVariable Long recordingId) {
-        AnalysisReportResponseDto response = analysisReportQueryService.getByRecordingId(recordingId);
+        AnalysisReportResponseDto response = mockAnalysisApplicationService.get(recordingId);
         return ApiResponse.onSuccess("목업 분석 보고서를 조회했습니다.", response);
     }
 }

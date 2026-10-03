@@ -9,6 +9,8 @@ import com.example.resay.domain.analysis.entity.ConversationAnalysis;
 import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
 import com.example.resay.domain.analysis.repository.ConversationAnalysisRepository;
+import com.example.resay.domain.recording.code.RecordingErrorCode;
+import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,9 +24,16 @@ public class AnalysisReportQueryService {
 
     private final ConversationAnalysisRepository conversationAnalysisRepository;
     private final AnalysisResultRepository analysisResultRepository;
+    private final RecordingRepository recordingRepository;
     private final ObjectMapper objectMapper;
 
-    public AnalysisReportResponseDto getByRecordingId(Long recordingId) {
+    public AnalysisReportResponseDto getByRecordingId(Long recordingId, Long userId) {
+        recordingRepository.findByIdAndUserId(recordingId, userId)
+                .orElseThrow(() -> new GeneralException(RecordingErrorCode.RECORDING_NOT_FOUND));
+        return getByRecordingIdForInternalUse(recordingId);
+    }
+
+    AnalysisReportResponseDto getByRecordingIdForInternalUse(Long recordingId) {
         ConversationAnalysis analysis = conversationAnalysisRepository.findByRecordingId(recordingId)
                 .orElseThrow(() -> new GeneralException(AnalysisErrorCode.ANALYSIS_NOT_FOUND));
 
