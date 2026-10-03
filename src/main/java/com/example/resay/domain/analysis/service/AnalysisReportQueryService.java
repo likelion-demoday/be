@@ -1,6 +1,7 @@
 package com.example.resay.domain.analysis.service;
 
 import com.example.resay.domain.analysis.code.AnalysisErrorCode;
+import com.example.resay.domain.analysis.dto.AnalysisReportDto;
 import com.example.resay.domain.analysis.dto.AnalysisReportResponseDto;
 import com.example.resay.domain.analysis.entity.AnalysisResult;
 import com.example.resay.domain.analysis.entity.AnalysisStatus;
@@ -43,7 +44,7 @@ public class AnalysisReportQueryService {
         return new AnalysisReportResponseDto(
                 recordingId,
                 analysis.getStatus(),
-                readReport(result.getResultJson()),
+                AnalysisReportDto.from(readReport(result.getResultJson())),
                 result.getModelName(),
                 result.getPromptVersion(),
                 result.getSchemaVersion()

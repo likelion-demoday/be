@@ -66,13 +66,39 @@ class MockAnalysisControllerIntegrationTest {
         JsonNode response = objectMapper.readTree(responseBody);
         long recordingId = response.get("result").get("recordingId").asLong();
         assertThat(recordingId).isPositive();
+        assertThat(containsField(response, "evidenceSegmentIds")).isFalse();
+        assertThat(containsField(response, "segmentIds")).isFalse();
 
-        mockMvc.perform(get("/api/v1/mock/analyses/{recordingId}", recordingId)
+        String storedResult = analysisResultRepository.findAll().get(0).getResultJson();
+        assertThat(storedResult)
+                .contains("\"evidenceSegmentIds\"")
+                .contains("\"segmentIds\"");
+
+        String getResponseBody = mockMvc.perform(get("/api/v1/mock/analyses/{recordingId}", recordingId)
                         .with(user("mock-user")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.recordingId").value(recordingId))
                 .andExpect(jsonPath("$.result.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.result.modelName").value("mock-analysis-model"))
-                .andExpect(jsonPath("$.result.schemaVersion").value("analysis-report-v3"));
+                .andExpect(jsonPath("$.result.schemaVersion").value("analysis-report-v3"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode getResponse = objectMapper.readTree(getResponseBody);
+        assertThat(containsField(getResponse, "evidenceSegmentIds")).isFalse();
+        assertThat(containsField(getResponse, "segmentIds")).isFalse();
+    }
+
+    private boolean containsField(JsonNode node, String fieldName) {
+        if (node.isObject() && node.has(fieldName)) {
+            return true;
+        }
+        for (JsonNode child : node) {
+            if (containsField(child, fieldName)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
