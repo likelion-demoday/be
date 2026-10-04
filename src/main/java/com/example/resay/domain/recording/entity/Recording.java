@@ -67,4 +67,18 @@ public class Recording extends BaseEntity {
         this.title = relationshipType.displayName() + " - " + getCreatedAt().toLocalDate().format(TITLE_DATE_FORMAT);
         this.status = RecordingStatus.TYPE_SELECTED;
     }
+
+    public void startTranscribing() {
+        if (this.status != RecordingStatus.PAYMENT_COMPLETED) {
+            throw new GeneralException(RecordingErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        this.status = RecordingStatus.TRANSCRIBING;
+    }
+
+    public void fail() {
+        if (this.status == RecordingStatus.COMPLETED) {
+            throw new GeneralException(RecordingErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        this.status = RecordingStatus.FAILED;
+    }
 }

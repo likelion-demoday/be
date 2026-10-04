@@ -79,6 +79,9 @@ clova:
   speech:
     invoke-url: ${CLOVA_SPEECH_INVOKE_URL:}
     secret-key: ${CLOVA_SPEECH_SECRET_KEY:}
+    # 비동기 전사가 끝나면 CLOVA가 전사 결과를 보내는 주소 (비동기 요청 필수값)
+    # 요청마다 뒤에 추측할 수 없는 비밀값을 붙여 보낸다
+    callback-base-url: ${CLOVA_SPEECH_CALLBACK_BASE_URL:}
 
 liner:
   api-key: ${LINER_API_KEY:}
