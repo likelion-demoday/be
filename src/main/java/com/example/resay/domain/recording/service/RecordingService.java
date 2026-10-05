@@ -36,9 +36,9 @@ public class RecordingService {
 
         String filePath = localFileStorage.save(audioFile, extension);
         try {
-            validateDuration(filePath);
+            int durationSeconds = validateDuration(filePath);
 
-            Recording recording = Recording.create(userId, filePath);
+            Recording recording = Recording.create(userId, filePath, durationSeconds);
             recordingRepository.save(recording);
 
             return new RecordingUploadResponseDto(recording.getId());
@@ -67,11 +67,16 @@ public class RecordingService {
         }
     }
 
-    private void validateDuration(String filePath) {
+    // 프론트가 "너무 짧음"과 "너무 김"을 구분해 안내할 수 있도록 서로 다른 코드로 응답한다
+    private int validateDuration(String filePath) {
         int durationSeconds = audioDurationReader.readSeconds(filePath);
-        if (durationSeconds < MIN_DURATION_SECONDS || durationSeconds > MAX_DURATION_SECONDS) {
-            throw new GeneralException(RecordingErrorCode.INVALID_DURATION);
+        if (durationSeconds < MIN_DURATION_SECONDS) {
+            throw new GeneralException(RecordingErrorCode.DURATION_TOO_SHORT);
         }
+        if (durationSeconds > MAX_DURATION_SECONDS) {
+            throw new GeneralException(RecordingErrorCode.DURATION_TOO_LONG);
+        }
+        return durationSeconds;
     }
 
     @Transactional
