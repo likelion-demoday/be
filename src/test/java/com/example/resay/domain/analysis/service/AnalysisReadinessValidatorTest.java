@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static com.example.resay.domain.analysis.support.AnalysisTestSpeakers.speakersFor;
 
 class AnalysisReadinessValidatorTest {
 
@@ -46,6 +47,7 @@ class AnalysisReadinessValidatorTest {
                 1L,
                 AnalysisScenario.COUPLE_DAILY,
                 10_000L,
+                speakersFor(AnalysisScenario.COUPLE_DAILY),
                 List.of(
                         new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "안녕"),
                         new AnalysisSegment(2L, SpeakerRole.PARTNER, 600L, 900L, "반가워")

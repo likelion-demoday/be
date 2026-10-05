@@ -24,6 +24,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static com.example.resay.domain.analysis.support.AnalysisTestSpeakers.speakersFor;
 
 @SpringBootTest
 @Import(AnalysisProcessorIntegrationTest.TestConfig.class)
@@ -62,7 +63,7 @@ class AnalysisProcessorIntegrationTest {
                 .contains("\"title\":\"대화 요약\"");
         assertThat(result.getModelName()).isEqualTo("fake-model");
         assertThat(result.getPromptVersion()).isEqualTo("test-v1");
-        assertThat(result.getSchemaVersion()).isEqualTo("analysis-report-v4");
+        assertThat(result.getSchemaVersion()).isEqualTo("analysis-report-v5");
         assertThat(analysisModelClient.wasTransactionActive()).isFalse();
     }
 
@@ -91,6 +92,7 @@ class AnalysisProcessorIntegrationTest {
                     recordingId,
                     AnalysisScenario.COUPLE_DAILY,
                     10_000L,
+                    speakersFor(AnalysisScenario.COUPLE_DAILY),
                     List.of(
                             new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "안녕"),
                             new AnalysisSegment(2L, SpeakerRole.PARTNER, 600L, 900L, "반가워")

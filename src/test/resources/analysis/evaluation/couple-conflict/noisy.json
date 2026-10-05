@@ -2,6 +2,10 @@
   "recordingId": 1003,
   "scenario": "COUPLE_CONFLICT",
   "durationMs": 680000,
+  "speakers": [
+    {"speakerRole": "SELF", "speakerName": "지민"},
+    {"speakerRole": "PARTNER", "speakerName": "서연"}
+  ],
   "segments": [
     {"segmentId": 1, "speakerRole": "SELF", "startMs": 1000, "endMs": 6500, "content": "어제 약속시간 바뀐걸 왜 도착 직전에 말했어"},
     {"segmentId": 2, "speakerRole": "PARTNER", "startMs": 7000, "endMs": 12000, "content": "회의가 길어져서 나도 정시가 없었어"},

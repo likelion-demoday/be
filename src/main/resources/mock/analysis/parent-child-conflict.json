@@ -2,6 +2,10 @@
   "recordingId": 1004,
   "scenario": "PARENT_CHILD_CONFLICT",
   "durationMs": 680000,
+  "speakers": [
+    {"speakerRole": "PARENT", "speakerName": "정희"},
+    {"speakerRole": "CHILD", "speakerName": "민준"}
+  ],
   "segments": [
     {"segmentId": 1, "speakerRole": "PARENT", "startMs": 1000, "endMs": 7000, "content": "어제 열한 시가 넘었는데 연락이 없어서 정말 걱정했어."},
     {"segmentId": 2, "speakerRole": "CHILD", "startMs": 7500, "endMs": 13500, "content": "버스를 놓쳤고 휴대폰 배터리도 거의 없어서 연락을 못 했어."},

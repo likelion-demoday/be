@@ -9,6 +9,7 @@ public record AnalysisSource(
         Long recordingId,
         AnalysisScenario scenario,
         Long durationMs,
+        List<AnalysisSpeaker> speakers,
         List<AnalysisSegment> segments
 ) {
 
@@ -22,14 +23,33 @@ public record AnalysisSource(
         if (durationMs == null || durationMs <= 0) {
             throw new IllegalArgumentException("durationMs는 양수여야 합니다.");
         }
+        if (speakers == null || speakers.isEmpty()) {
+            throw new IllegalArgumentException("speakers는 비어 있을 수 없습니다.");
+        }
         if (segments == null || segments.isEmpty()) {
             throw new IllegalArgumentException("segments는 비어 있을 수 없습니다.");
         }
 
+        speakers = List.copyOf(speakers);
         segments = List.copyOf(segments);
+        validateSpeakers(scenario, speakers);
         validateSegmentIds(segments);
         validateSegmentOrder(segments);
         validateSpeakerRoles(scenario, segments);
+    }
+
+    private static void validateSpeakers(
+            AnalysisScenario scenario,
+            List<AnalysisSpeaker> speakers
+    ) {
+        Set<SpeakerRole> actualRoles = new HashSet<>();
+        for (AnalysisSpeaker speaker : speakers) {
+            actualRoles.add(speaker.speakerRole());
+        }
+        if (speakers.size() != scenario.requiredRoles().size()
+                || !actualRoles.equals(scenario.requiredRoles())) {
+            throw new IllegalArgumentException("시나리오에 필요한 화자 정보와 일치하지 않습니다.");
+        }
     }
 
     private static void validateSegmentIds(List<AnalysisSegment> segments) {

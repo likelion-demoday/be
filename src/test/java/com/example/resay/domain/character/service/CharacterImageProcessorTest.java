@@ -25,6 +25,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.example.resay.domain.analysis.support.AnalysisTestSpeakers.speakersFor;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -202,7 +203,7 @@ class CharacterImageProcessorTest {
                 objectMapper.writeValueAsString(report()),
                 "liner-mark-1.1",
                 "analysis-prompt-v4",
-                "analysis-report-v4"
+                "analysis-report-v5"
         );
         given(conversationAnalysisRepository.findById(10L)).willReturn(Optional.of(analysis));
         given(analysisResultRepository.findByAnalysisId(10L)).willReturn(Optional.of(result));
@@ -210,7 +211,12 @@ class CharacterImageProcessorTest {
 
     private AnalysisReport report() {
         return new AnalysisReport(
-                new AnalysisReport.RecordingInfo(1L, AnalysisScenario.FRIEND_DAILY, 600_000L),
+                new AnalysisReport.RecordingInfo(
+                        1L,
+                        AnalysisScenario.FRIEND_DAILY,
+                        600_000L,
+                        speakersFor(AnalysisScenario.FRIEND_DAILY)
+                ),
                 new AnalysisReport.QuantitativeAnalysis(List.of(), null),
                 new AnalysisReport.QualitativeReport(
                         new QualitativeAnalysis.Overview("요약", "설명", List.of(1L)),

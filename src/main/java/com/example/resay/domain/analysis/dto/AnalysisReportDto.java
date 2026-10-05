@@ -26,15 +26,31 @@ public record AnalysisReportDto(
     public record RecordingInfo(
             Long recordingId,
             AnalysisScenario scenario,
-            Long durationMs
+            Long durationMs,
+            List<SpeakerInfo> speakers
     ) {
 
         private static RecordingInfo from(AnalysisReport.RecordingInfo source) {
             return new RecordingInfo(
                     source.recordingId(),
                     source.scenario(),
-                    source.durationMs()
+                    source.durationMs(),
+                    source.speakers().stream().map(SpeakerInfo::from).toList()
             );
+        }
+    }
+
+    public record SpeakerInfo(
+            @Schema(description = "분석에서 사용하는 화자 역할", example = "SELF")
+            SpeakerRole speakerRole,
+            @Schema(description = "사용자가 입력한 화자 이름", example = "호준")
+            String speakerName
+    ) {
+
+        private static SpeakerInfo from(
+                com.example.resay.domain.analysis.model.AnalysisSpeaker source
+        ) {
+            return new SpeakerInfo(source.speakerRole(), source.speakerName());
         }
     }
 

@@ -18,7 +18,7 @@ public record AnalysisReportResponseDto(
         String modelName,
         @Schema(description = "분석 프롬프트 버전. 분석 완료 전에는 null", example = "analysis-prompt-v4")
         String promptVersion,
-        @Schema(description = "보고서 스키마 버전. 분석 완료 전에는 null", example = "analysis-report-v4")
+        @Schema(description = "보고서 스키마 버전. 분석 완료 전에는 null", example = "analysis-report-v5")
         String schemaVersion
 ) {
 }

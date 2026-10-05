@@ -9,6 +9,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static com.example.resay.domain.analysis.support.AnalysisTestSpeakers.speakersFor;
 
 class LinerAnalysisResponseValidatorTest {
 
@@ -291,6 +292,7 @@ class LinerAnalysisResponseValidatorTest {
                 1L,
                 AnalysisScenario.FRIEND_DAILY,
                 10_000L,
+                speakersFor(AnalysisScenario.FRIEND_DAILY),
                 List.of(
                         new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "오늘 뭐 했어?"),
                         new AnalysisSegment(2L, SpeakerRole.FRIEND, 600L, 900L, "학교 갔다 왔어"),
@@ -304,6 +306,7 @@ class LinerAnalysisResponseValidatorTest {
                 2L,
                 AnalysisScenario.COUPLE_CONFLICT,
                 10_000L,
+                speakersFor(AnalysisScenario.COUPLE_CONFLICT),
                 List.of(
                         new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "왜 연락 안 했어?"),
                         new AnalysisSegment(2L, SpeakerRole.PARTNER, 600L, 900L, "회의 중이었어")
