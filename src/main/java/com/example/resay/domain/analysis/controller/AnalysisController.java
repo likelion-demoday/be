@@ -3,6 +3,7 @@ package com.example.resay.domain.analysis.controller;
 import com.example.resay.domain.analysis.code.AnalysisSuccessCode;
 import com.example.resay.domain.analysis.dto.AnalysisListResponseDto;
 import com.example.resay.domain.analysis.dto.AnalysisReportResponseDto;
+import com.example.resay.domain.analysis.service.AnalysisDeletionService;
 import com.example.resay.domain.analysis.service.AnalysisListQueryService;
 import com.example.resay.domain.analysis.service.AnalysisReportQueryService;
 import com.example.resay.global.apiPayload.ApiResponse;
@@ -13,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,6 +28,7 @@ public class AnalysisController {
 
     private final AnalysisReportQueryService analysisReportQueryService;
     private final AnalysisListQueryService analysisListQueryService;
+    private final AnalysisDeletionService analysisDeletionService;
 
     @GetMapping
     @Operation(
@@ -59,5 +62,21 @@ public class AnalysisController {
                 analysisReportQueryService.getByRecordingId(recordingId, userId);
         return ResponseEntity.status(AnalysisSuccessCode.REPORT_GET.getHttpStatus())
                 .body(ApiResponse.onSuccess(AnalysisSuccessCode.REPORT_GET, response));
+    }
+
+    @DeleteMapping("/{recordingId}")
+    @Operation(
+            summary = "분석 결과 삭제",
+            description = "본인이 소유한 완료 또는 실패 분석 결과를 삭제합니다. "
+                    + "녹음과 전사 데이터는 삭제하지 않습니다."
+    )
+    public ResponseEntity<ApiResponse<Void>> delete(
+            @Parameter(hidden = true) @CurrentUserId Long userId,
+            @Parameter(description = "삭제할 분석의 녹음 ID", example = "1")
+            @PathVariable Long recordingId
+    ) {
+        analysisDeletionService.delete(recordingId, userId);
+        return ResponseEntity.status(AnalysisSuccessCode.DELETE.getHttpStatus())
+                .body(ApiResponse.onSuccess(AnalysisSuccessCode.DELETE));
     }
 }
