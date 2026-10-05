@@ -2,6 +2,7 @@ package com.example.resay.domain.recording.entity;
 
 import com.example.resay.global.exception.GeneralException;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat; // 값 비교를 읽기 좋게 해주는 AssertJ 라이브러리
 import static org.junit.jupiter.api.Assertions.assertThrows; // 예외가 던져지는지 확인하는 JUnit 메서드
@@ -42,5 +43,44 @@ class RecordingTest {
 
         assertThrows(GeneralException.class,
                 () -> recording.selectType(null)); // null 체크가 상태 체크 다음, getCreatedAt() 쓰기 전에 걸려서 순수 단위 테스트로도 검증 가능
+    }
+
+    @Test
+    void startTranscribing_결제완료_상태면_TRANSCRIBING으로_전이() {
+        Recording recording = recordingWithStatus(RecordingStatus.PAYMENT_COMPLETED); // 결제 기능이 아직 없어 상태를 직접 지정
+
+        recording.startTranscribing();
+
+        assertThat(recording.getStatus()).isEqualTo(RecordingStatus.TRANSCRIBING);
+    }
+
+    @Test
+    void startTranscribing_결제완료가_아니면_예외() {
+        Recording recording = recordingWithStatus(RecordingStatus.TYPE_SELECTED);
+
+        assertThrows(GeneralException.class, recording::startTranscribing);
+        assertThat(recording.getStatus()).isEqualTo(RecordingStatus.TYPE_SELECTED); // 실패해도 상태는 그대로
+    }
+
+    @Test
+    void fail_진행중이면_FAILED로_전이() {
+        Recording recording = recordingWithStatus(RecordingStatus.TRANSCRIBING);
+
+        recording.fail();
+
+        assertThat(recording.getStatus()).isEqualTo(RecordingStatus.FAILED);
+    }
+
+    @Test
+    void fail_이미_완료된_녹음이면_예외() {
+        Recording recording = recordingWithStatus(RecordingStatus.COMPLETED);
+
+        assertThrows(GeneralException.class, recording::fail);
+    }
+
+    private Recording recordingWithStatus(RecordingStatus status) {
+        Recording recording = Recording.create(1L, "/storage/test.mp3");
+        ReflectionTestUtils.setField(recording, "status", status);
+        return recording;
     }
 }

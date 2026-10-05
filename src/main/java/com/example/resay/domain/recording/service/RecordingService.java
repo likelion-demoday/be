@@ -81,4 +81,22 @@ public class RecordingService {
 
         recording.selectType(relationshipType);
     }
+
+    // 외부 전사 요청 전에 상태를 먼저 바꿔 같은 녹음이 중복 요청되지 않게 한다
+    @Transactional
+    public String startTranscribing(Long recordingId) {
+        Recording recording = findRecording(recordingId);
+        recording.startTranscribing();
+        return recording.getAudioFilePath();
+    }
+
+    @Transactional
+    public void fail(Long recordingId) {
+        findRecording(recordingId).fail();
+    }
+
+    private Recording findRecording(Long recordingId) {
+        return recordingRepository.findById(recordingId)
+                .orElseThrow(() -> new GeneralException(RecordingErrorCode.RECORDING_NOT_FOUND));
+    }
 }
