@@ -43,6 +43,12 @@ rate-limit:
     max-attempts-per-ip: 30
     window: 1h
 
+credit:
+  price:
+    analysis-daily: 1500
+    analysis-conflict: 2000
+    character: 500
+
 oauth:
   kakao:
     client-id: test-kakao-client-id

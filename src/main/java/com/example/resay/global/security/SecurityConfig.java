@@ -52,6 +52,8 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        // 운영자 전용 API. 권한은 토큰의 role 값으로 판단한다
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 // 토큰 없이 보호된 API에 접근한 경우
                 .exceptionHandling(exception -> exception
