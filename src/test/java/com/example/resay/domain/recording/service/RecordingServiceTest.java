@@ -2,6 +2,7 @@ package com.example.resay.domain.recording.service;
 
 import com.example.resay.domain.recording.code.RecordingErrorCode;
 import com.example.resay.domain.recording.entity.Recording;
+import com.example.resay.domain.recording.entity.RecordingStatus;
 import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.global.exception.GeneralException;
 import com.example.resay.global.infrastructure.audio.AudioDurationReader;
@@ -15,11 +16,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -167,6 +171,72 @@ class RecordingServiceTest {
                 () -> recordingService.selectType(999L, 1L, null));
 
         assertEquals(RecordingErrorCode.RECORDING_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void deleteAudio_파일을_지우고_삭제_시각을_기록() {
+        Recording recording = savedRecording(RecordingStatus.COMPLETED);
+        when(localFileStorage.delete(SAVED_PATH)).thenReturn(true);
+
+        boolean deleted = recordingService.deleteAudio(1L);
+
+        assertTrue(deleted);
+        assertFalse(recording.hasAudio());
+        verify(recordingRepository, never()).delete(any()); // 녹음 기록은 남긴다
+    }
+
+    @Test
+    void deleteAudio_파일_삭제에_실패하면_기록하지_않아_다음에_다시_시도() {
+        Recording recording = savedRecording(RecordingStatus.COMPLETED);
+        when(localFileStorage.delete(SAVED_PATH)).thenReturn(false);
+
+        boolean deleted = recordingService.deleteAudio(1L);
+
+        assertFalse(deleted);
+        assertTrue(recording.hasAudio());
+    }
+
+    @Test
+    void deleteAudio_이미_지운_음성이면_파일을_다시_건드리지_않음() {
+        Recording recording = savedRecording(RecordingStatus.COMPLETED);
+        recording.markAudioDeleted();
+
+        assertTrue(recordingService.deleteAudio(1L));
+        verify(localFileStorage, never()).delete(any());
+    }
+
+    @Test
+    void deleteAbandoned_결제_전_녹음은_파일과_기록을_모두_삭제() {
+        Recording recording = savedRecording(RecordingStatus.TYPE_SELECTED);
+        when(localFileStorage.delete(SAVED_PATH)).thenReturn(true);
+
+        assertTrue(recordingService.deleteAbandoned(1L));
+        verify(recordingRepository).delete(recording);
+    }
+
+    @Test
+    void deleteAbandoned_그사이_결제됐으면_지우지_않음() {
+        savedRecording(RecordingStatus.PAYMENT_COMPLETED);
+
+        assertFalse(recordingService.deleteAbandoned(1L));
+        verify(localFileStorage, never()).delete(any());
+        verify(recordingRepository, never()).delete(any());
+    }
+
+    @Test
+    void deleteAbandoned_파일_삭제에_실패하면_기록도_남겨_다음에_다시_시도() {
+        savedRecording(RecordingStatus.UPLOADED);
+        when(localFileStorage.delete(SAVED_PATH)).thenReturn(false);
+
+        assertFalse(recordingService.deleteAbandoned(1L));
+        verify(recordingRepository, never()).delete(any());
+    }
+
+    private Recording savedRecording(RecordingStatus status) {
+        Recording recording = Recording.create(1L, SAVED_PATH, 600);
+        ReflectionTestUtils.setField(recording, "status", status);
+        when(recordingRepository.findById(1L)).thenReturn(Optional.of(recording));
+        return recording;
     }
 
     private MockMultipartFile mp3File() {
