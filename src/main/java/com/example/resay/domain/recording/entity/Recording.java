@@ -49,6 +49,10 @@ public class Recording extends BaseEntity {
 
     private LocalDateTime failedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(columnDefinition = "varchar(40)")
+    private RecordingFailureReason failureReason;
+
     // 값이 있으면 음성 파일이 이미 삭제된 녹음 (보고서·전사 텍스트는 남는다)
     private LocalDateTime audioDeletedAt;
 
@@ -100,11 +104,15 @@ public class Recording extends BaseEntity {
         this.completedAt = LocalDateTime.now();
     }
 
-    public void fail() {
+    public void fail(RecordingFailureReason reason) {
+        if (reason == null) {
+            throw new GeneralException(RecordingErrorCode.VALIDATION_ERROR);
+        }
         if (this.status == RecordingStatus.COMPLETED) {
             throw new GeneralException(RecordingErrorCode.INVALID_STATUS_TRANSITION);
         }
         this.status = RecordingStatus.FAILED;
+        this.failureReason = reason;
         this.failedAt = LocalDateTime.now();
     }
 
