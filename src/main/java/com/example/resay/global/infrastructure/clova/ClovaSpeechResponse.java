@@ -8,6 +8,7 @@ import java.util.List;
 public record ClovaSpeechResponse(
         String result,
         String message,
+        String token,
         List<ClovaSegment> segments,
         List<ClovaSpeaker> speakers
 ) {

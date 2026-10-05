@@ -3,6 +3,7 @@ package com.example.resay.domain.recording.service;
 import com.example.resay.domain.recording.code.RecordingErrorCode;
 import com.example.resay.domain.recording.dto.RecordingUploadResponseDto;
 import com.example.resay.domain.recording.entity.Recording;
+import com.example.resay.domain.recording.entity.RecordingFailureReason;
 import com.example.resay.domain.recording.entity.RecordingStatus;
 import com.example.resay.domain.recording.entity.RelationshipType;
 import com.example.resay.domain.recording.repository.RecordingRepository;
@@ -100,9 +101,15 @@ public class RecordingService {
         return recording.getAudioFilePath();
     }
 
+    // 전사 단계의 실패만 기록한다 (그사이 다른 단계로 넘어간 녹음은 건드리지 않는다)
     @Transactional
-    public void fail(Long recordingId) {
-        findRecording(recordingId).fail();
+    public boolean failTranscription(Long recordingId, RecordingFailureReason reason) {
+        Recording recording = findRecording(recordingId);
+        if (recording.getStatus() != RecordingStatus.TRANSCRIBING) {
+            return false;
+        }
+        recording.fail(reason);
+        return true;
     }
 
     // 음성 파일만 지우고 녹음·보고서·전사 텍스트는 남긴다 (보관 기간 만료, 대화 삭제에서 사용)

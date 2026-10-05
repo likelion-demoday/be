@@ -32,4 +32,33 @@ class TranscriptionTest {
 
         assertThrows(IllegalArgumentException.class, () -> transcription.assignJobToken(" "));
     }
+
+    @Test
+    void complete_결과를_기다리는_중이면_완료하고_완료_시각을_기록() {
+        Transcription transcription = Transcription.prepare(1L, TranscriptionProvider.CLOVA_SPEECH);
+        assertThat(transcription.isRequested()).isTrue();
+
+        transcription.complete();
+
+        assertThat(transcription.getStatus()).isEqualTo(TranscriptionStatus.COMPLETED);
+        assertThat(transcription.getCompletedAt()).isNotNull();
+    }
+
+    @Test
+    void 이미_끝난_전사는_다시_완료하거나_실패로_바꿀_수_없다() {
+        Transcription transcription = Transcription.prepare(1L, TranscriptionProvider.CLOVA_SPEECH);
+        transcription.fail();
+
+        assertThrows(IllegalStateException.class, transcription::complete);
+        assertThrows(IllegalStateException.class, transcription::fail);
+        assertThat(transcription.getStatus()).isEqualTo(TranscriptionStatus.FAILED);
+    }
+
+    @Test
+    void TranscriptSegment_내용이_없거나_시각이_잘못되면_만들_수_없다() {
+        assertThrows(IllegalArgumentException.class, () -> TranscriptSegment.create(1L, 1, "1", 0, 1000, " "));
+        assertThrows(IllegalArgumentException.class, () -> TranscriptSegment.create(1L, 1, "1", 1000, 1000, "안녕"));
+        assertThrows(IllegalArgumentException.class, () -> TranscriptSegment.create(1L, 0, "1", 0, 1000, "안녕"));
+        assertThrows(IllegalArgumentException.class, () -> TranscriptSegment.create(1L, 1, " ", 0, 1000, "안녕"));
+    }
 }

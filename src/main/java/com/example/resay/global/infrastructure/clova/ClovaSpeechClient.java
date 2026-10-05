@@ -1,7 +1,11 @@
 package com.example.resay.global.infrastructure.clova;
 
+import com.example.resay.domain.transcription.code.TranscriptionErrorCode;
 import com.example.resay.domain.transcription.entity.TranscriptionProvider;
+import com.example.resay.domain.transcription.model.RecognitionResult;
+import com.example.resay.domain.transcription.model.RecognitionResult.RecognizedSegment;
 import com.example.resay.domain.transcription.port.SpeechRecognitionClient;
+import com.example.resay.global.exception.GeneralException;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.MediaType;
@@ -15,6 +19,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
 @Component
@@ -25,6 +30,8 @@ public class ClovaSpeechClient implements SpeechRecognitionClient {
     private static final String LANGUAGE = "ko-KR";
     // 관계유형이 모두 1:1 대화라 화자를 2명으로 고정해 잘못 나뉘는 것을 줄인다
     private static final int SPEAKER_COUNT = 2;
+    // 전사 결과 상태값 (그 외 FAILED 등은 실패로 본다)
+    private static final String COMPLETED = "COMPLETED";
 
     private final ClovaSpeechProperties properties;
     private final RestClient restClient;
@@ -85,6 +92,8 @@ public class ClovaSpeechClient implements SpeechRecognitionClient {
                 "completion", "async",
                 "callback", callbackUrl(callbackSecret),
                 "fullText", true,
+                // 단어별 시각은 쓰지 않으므로 받지 않아 callback 본문을 줄인다
+                "wordAlignment", false,
                 "diarization", Map.of(
                         "enable", true,
                         "speakerCountMin", SPEAKER_COUNT,
@@ -97,6 +106,28 @@ public class ClovaSpeechClient implements SpeechRecognitionClient {
     private String callbackUrl(String callbackSecret) {
         String baseUrl = properties.callbackBaseUrl();
         return (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/") + callbackSecret;
+    }
+
+    @Override
+    public RecognitionResult parseResult(String rawBody) {
+        ClovaSpeechResponse response;
+        try {
+            response = objectMapper.readValue(rawBody, ClovaSpeechResponse.class);
+        } catch (RuntimeException e) {
+            throw new GeneralException(TranscriptionErrorCode.INVALID_CALLBACK);
+        }
+        if (response == null || response.result() == null) {
+            throw new GeneralException(TranscriptionErrorCode.INVALID_CALLBACK);
+        }
+
+        List<RecognizedSegment> segments = response.segments() == null ? List.of() : response.segments().stream()
+                .map(segment -> new RecognizedSegment(
+                        segment.speaker() == null ? null : segment.speaker().label(),
+                        segment.start(),
+                        segment.end(),
+                        segment.text()))
+                .toList();
+        return new RecognitionResult(COMPLETED.equals(response.result()), response.token(), segments);
     }
 
     private String extractToken(ClovaSpeechJobResponse response) {

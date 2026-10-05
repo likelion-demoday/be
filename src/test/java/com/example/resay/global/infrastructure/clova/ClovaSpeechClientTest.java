@@ -1,5 +1,9 @@
 package com.example.resay.global.infrastructure.clova;
 
+import com.example.resay.domain.transcription.code.TranscriptionErrorCode;
+import com.example.resay.domain.transcription.model.RecognitionResult;
+import com.example.resay.domain.transcription.model.RecognitionResult.RecognizedSegment;
+import com.example.resay.global.exception.GeneralException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -58,6 +62,7 @@ class ClovaSpeechClientTest {
                 .andExpect(content().string(containsString("\"callback\":\"" + CALLBACK_BASE_URL + "/" + CALLBACK_SECRET + "\"")))
                 .andExpect(content().string(containsString("\"speakerCountMin\":2")))
                 .andExpect(content().string(containsString("\"speakerCountMax\":2")))
+                .andExpect(content().string(containsString("\"wordAlignment\":false")))
                 .andRespond(withSuccess("""
                         {"token":"job-token","result":"SUCCEEDED","message":"Succeeded"}
                         """, MediaType.APPLICATION_JSON));
@@ -66,6 +71,39 @@ class ClovaSpeechClientTest {
 
         assertThat(token).isEqualTo("job-token");
         clovaServer.verify();
+    }
+
+    @Test
+    void parseResult_callback_본문을_화자별_구간으로_바꾼다() {
+        RecognitionResult result = clovaSpeechClient.parseResult("""
+                {"result":"COMPLETED","message":"Succeeded","token":"job-token",
+                 "segments":[{"start":350,"end":2420,"text":"안녕","confidence":0.99,"speaker":{"label":"1","name":"A"}}],
+                 "speakers":[{"label":"1","name":"A"}]}
+                """);
+
+        assertThat(result.completed()).isTrue();
+        assertThat(result.jobToken()).isEqualTo("job-token");
+        assertThat(result.segments()).containsExactly(new RecognizedSegment("1", 350, 2420, "안녕"));
+    }
+
+    @Test
+    void parseResult_COMPLETED가_아니면_실패_결과() {
+        RecognitionResult result = clovaSpeechClient.parseResult("""
+                {"result":"FAILED","message":"Failed","token":"job-token","segments":[]}
+                """);
+
+        assertThat(result.completed()).isFalse();
+        assertThat(result.segments()).isEmpty();
+    }
+
+    @Test
+    void parseResult_형식이_잘못되면_INVALID_CALLBACK() {
+        assertThatThrownBy(() -> clovaSpeechClient.parseResult("not json"))
+                .isInstanceOf(GeneralException.class)
+                .extracting("errorCode")
+                .isEqualTo(TranscriptionErrorCode.INVALID_CALLBACK);
+        assertThatThrownBy(() -> clovaSpeechClient.parseResult("{}"))
+                .isInstanceOf(GeneralException.class);
     }
 
     @Test

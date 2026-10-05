@@ -75,16 +75,25 @@ class RecordingTest {
     void fail_진행중이면_FAILED로_전이() {
         Recording recording = recordingWithStatus(RecordingStatus.TRANSCRIBING);
 
-        recording.fail();
+        recording.fail(RecordingFailureReason.SPEAKER_NOT_SEPARATED);
 
         assertThat(recording.getStatus()).isEqualTo(RecordingStatus.FAILED);
+        assertThat(recording.getFailureReason()).isEqualTo(RecordingFailureReason.SPEAKER_NOT_SEPARATED); // 프론트 안내 문구용
     }
 
     @Test
     void fail_이미_완료된_녹음이면_예외() {
         Recording recording = recordingWithStatus(RecordingStatus.COMPLETED);
 
-        assertThrows(GeneralException.class, recording::fail);
+        assertThrows(GeneralException.class, () -> recording.fail(RecordingFailureReason.TRANSCRIPTION_FAILED));
+    }
+
+    @Test
+    void fail_실패_사유가_없으면_예외() {
+        Recording recording = recordingWithStatus(RecordingStatus.TRANSCRIBING);
+
+        assertThrows(GeneralException.class, () -> recording.fail(null));
+        assertThat(recording.getStatus()).isEqualTo(RecordingStatus.TRANSCRIBING);
     }
 
     @Test
@@ -109,7 +118,7 @@ class RecordingTest {
     void fail_실패_시각을_기록() {
         Recording recording = recordingWithStatus(RecordingStatus.TRANSCRIBING);
 
-        recording.fail();
+        recording.fail(RecordingFailureReason.TRANSCRIPTION_TIMEOUT);
 
         assertThat(recording.getFailedAt()).isNotNull(); // 실패 후 3일 보관 기간의 기준 시각
     }

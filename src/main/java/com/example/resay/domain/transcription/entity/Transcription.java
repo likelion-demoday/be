@@ -6,6 +6,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -39,10 +40,18 @@ public class Transcription extends BaseEntity {
     // 외부 전사 서비스의 작업 식별자 (요청이 접수된 뒤에 채워진다)
     private String jobToken;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "varchar(20)")
+    private TranscriptionStatus status;
+
+    // 전사 결과를 받은 시각
+    private LocalDateTime completedAt;
+
     private Transcription(Long recordingId, TranscriptionProvider provider) {
         this.recordingId = recordingId;
         this.provider = provider;
         this.callbackSecret = UUID.randomUUID().toString();
+        this.status = TranscriptionStatus.REQUESTED;
     }
 
     public static Transcription prepare(Long recordingId, TranscriptionProvider provider) {
@@ -63,5 +72,26 @@ public class Transcription extends BaseEntity {
             throw new IllegalStateException("이미 작업 토큰이 저장된 전사 요청입니다.");
         }
         this.jobToken = jobToken;
+    }
+
+    public boolean isRequested() {
+        return this.status == TranscriptionStatus.REQUESTED;
+    }
+
+    public void complete() {
+        requireRequested();
+        this.status = TranscriptionStatus.COMPLETED;
+        this.completedAt = LocalDateTime.now();
+    }
+
+    public void fail() {
+        requireRequested();
+        this.status = TranscriptionStatus.FAILED;
+    }
+
+    private void requireRequested() {
+        if (!isRequested()) {
+            throw new IllegalStateException("결과를 기다리는 전사 요청만 상태를 바꿀 수 있습니다.");
+        }
     }
 }
