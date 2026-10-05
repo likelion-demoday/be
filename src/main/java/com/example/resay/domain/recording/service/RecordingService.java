@@ -3,6 +3,7 @@ package com.example.resay.domain.recording.service;
 import com.example.resay.domain.recording.code.RecordingErrorCode;
 import com.example.resay.domain.recording.dto.RecordingUploadResponseDto;
 import com.example.resay.domain.recording.entity.Recording;
+import com.example.resay.domain.recording.entity.RecordingStatus;
 import com.example.resay.domain.recording.entity.RelationshipType;
 import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.global.exception.GeneralException;
@@ -13,7 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +27,8 @@ public class RecordingService {
     private static final long MAX_FILE_SIZE = 200L * 1024 * 1024;
     private static final int MIN_DURATION_SECONDS = 5 * 60;
     private static final int MAX_DURATION_SECONDS = 30 * 60;
+    public static final Set<RecordingStatus> UNPAID_STATUSES =
+            EnumSet.of(RecordingStatus.UPLOADED, RecordingStatus.TYPE_SELECTED);
 
     private final RecordingRepository recordingRepository;
     private final LocalFileStorage localFileStorage;
@@ -98,6 +103,36 @@ public class RecordingService {
     @Transactional
     public void fail(Long recordingId) {
         findRecording(recordingId).fail();
+    }
+
+    // 음성 파일만 지우고 녹음·보고서·전사 텍스트는 남긴다 (보관 기간 만료, 대화 삭제에서 사용)
+    // 파일 삭제에 실패하면 기록하지 않아 다음 실행에서 다시 시도된다
+    @Transactional
+    public boolean deleteAudio(Long recordingId) {
+        Recording recording = findRecording(recordingId);
+        if (!recording.hasAudio()) {
+            return true;
+        }
+        if (!localFileStorage.delete(recording.getAudioFilePath())) {
+            return false;
+        }
+        recording.markAudioDeleted();
+        return true;
+    }
+
+    // 결제 전에 이탈한 녹음은 남길 정보가 없어 파일과 녹음 기록을 모두 지운다
+    @Transactional
+    public boolean deleteAbandoned(Long recordingId) {
+        Recording recording = findRecording(recordingId);
+        // 조회 이후 결제가 진행됐다면 지우지 않는다
+        if (!UNPAID_STATUSES.contains(recording.getStatus())) {
+            return false;
+        }
+        if (!localFileStorage.delete(recording.getAudioFilePath())) {
+            return false;
+        }
+        recordingRepository.delete(recording);
+        return true;
     }
 
     private Recording findRecording(Long recordingId) {

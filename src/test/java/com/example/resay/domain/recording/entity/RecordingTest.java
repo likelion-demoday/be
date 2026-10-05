@@ -87,6 +87,46 @@ class RecordingTest {
         assertThrows(GeneralException.class, recording::fail);
     }
 
+    @Test
+    void complete_분석_중이면_완료로_전이하고_완료_시각을_기록() {
+        Recording recording = recordingWithStatus(RecordingStatus.ANALYZING);
+
+        recording.complete();
+
+        assertThat(recording.getStatus()).isEqualTo(RecordingStatus.COMPLETED);
+        assertThat(recording.getCompletedAt()).isNotNull(); // 3일 보관 기간의 기준 시각
+    }
+
+    @Test
+    void complete_분석_중이_아니면_예외() {
+        Recording recording = recordingWithStatus(RecordingStatus.TRANSCRIBING);
+
+        assertThrows(GeneralException.class, recording::complete);
+        assertThat(recording.getCompletedAt()).isNull();
+    }
+
+    @Test
+    void fail_실패_시각을_기록() {
+        Recording recording = recordingWithStatus(RecordingStatus.TRANSCRIBING);
+
+        recording.fail();
+
+        assertThat(recording.getFailedAt()).isNotNull(); // 실패 후 3일 보관 기간의 기준 시각
+    }
+
+    @Test
+    void markAudioDeleted_음성_삭제_시각을_한번만_기록() {
+        Recording recording = Recording.create(1L, "/storage/test.mp3", 600);
+        assertThat(recording.hasAudio()).isTrue();
+
+        recording.markAudioDeleted();
+        var firstDeletedAt = recording.getAudioDeletedAt();
+        recording.markAudioDeleted(); // 다시 호출해도 처음 시각을 유지
+
+        assertThat(recording.hasAudio()).isFalse();
+        assertThat(recording.getAudioDeletedAt()).isEqualTo(firstDeletedAt);
+    }
+
     private Recording recordingWithStatus(RecordingStatus status) {
         Recording recording = Recording.create(1L, "/storage/test.mp3", 600);
         ReflectionTestUtils.setField(recording, "status", status);

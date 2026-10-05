@@ -9,6 +9,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 @Entity
@@ -42,6 +43,14 @@ public class Recording extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "varchar(20)")
     private RecordingStatus status;
+
+    // 음성 보관 기간(완료·실패 후 3일)의 기준 시각
+    private LocalDateTime completedAt;
+
+    private LocalDateTime failedAt;
+
+    // 값이 있으면 음성 파일이 이미 삭제된 녹음 (보고서·전사 텍스트는 남는다)
+    private LocalDateTime audioDeletedAt;
 
     private Recording(Long userId, String audioFilePath, Integer durationSeconds) {
         this.userId = userId;
@@ -83,10 +92,29 @@ public class Recording extends BaseEntity {
         this.status = RecordingStatus.TRANSCRIBING;
     }
 
+    public void complete() {
+        if (this.status != RecordingStatus.ANALYZING) {
+            throw new GeneralException(RecordingErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        this.status = RecordingStatus.COMPLETED;
+        this.completedAt = LocalDateTime.now();
+    }
+
     public void fail() {
         if (this.status == RecordingStatus.COMPLETED) {
             throw new GeneralException(RecordingErrorCode.INVALID_STATUS_TRANSITION);
         }
         this.status = RecordingStatus.FAILED;
+        this.failedAt = LocalDateTime.now();
+    }
+
+    public boolean hasAudio() {
+        return this.audioDeletedAt == null;
+    }
+
+    public void markAudioDeleted() {
+        if (hasAudio()) {
+            this.audioDeletedAt = LocalDateTime.now();
+        }
     }
 }

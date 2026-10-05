@@ -34,13 +34,23 @@ class LocalFileStorageTest {
         String savedPath = localFileStorage.save(file, "mp3");
         assertTrue(Files.exists(Paths.get(savedPath)));
 
-        localFileStorage.delete(savedPath);
+        boolean deleted = localFileStorage.delete(savedPath);
 
+        assertTrue(deleted);
         assertFalse(Files.exists(Paths.get(savedPath)));
     }
 
     @Test
-    void delete_없는_파일이어도_예외가_나지_않음() {
-        assertDoesNotThrow(() -> localFileStorage.delete(tempDir.resolve("none.mp3").toString()));
+    void delete_없는_파일은_이미_삭제된_것으로_본다() {
+        assertDoesNotThrow(() -> assertTrue(localFileStorage.delete(tempDir.resolve("none.mp3").toString())));
+    }
+
+    @Test
+    void delete_지우지_못하면_false를_반환() throws Exception {
+        // 내용이 있는 폴더는 지울 수 없어 삭제 실패 상황을 만든다
+        Path notEmptyDir = Files.createDirectories(tempDir.resolve("not-empty"));
+        Files.writeString(notEmptyDir.resolve("inner.mp3"), "내용");
+
+        assertFalse(localFileStorage.delete(notEmptyDir.toString()));
     }
 }

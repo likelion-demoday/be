@@ -8,6 +8,7 @@ import com.example.resay.global.exception.GeneralException;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest; // Spring Boot 4 기준 새 패키지 경로 (지난번 PR #15에서 배운 그 변경사항)
 import org.springframework.context.annotation.Import;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -45,14 +46,41 @@ class RecordingRepositoryTest {
     }
 
     @Test
-    void findByCreatedAtBefore_지정시각_이전_녹음만_조회된다() {
+    void findAudioExpiredIds_완료_실패_후_기한이_지나고_음성이_남은_녹음만_조회된다() {
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(3);
+        Long 완료_만료 = saveWith(RecordingStatus.COMPLETED, "completedAt", cutoff.minusMinutes(1));
+        Long 실패_만료 = saveWith(RecordingStatus.FAILED, "failedAt", cutoff.minusMinutes(1));
+        saveWith(RecordingStatus.COMPLETED, "completedAt", cutoff.plusMinutes(1)); // 아직 기한 전
+        Long 이미_삭제 = saveWith(RecordingStatus.COMPLETED, "completedAt", cutoff.minusDays(1));
+        recordingRepository.findById(이미_삭제).orElseThrow().markAudioDeleted(); // 음성은 이미 지움
+        saveWith(RecordingStatus.ANALYZING, "completedAt", cutoff.minusDays(1)); // 아직 분석 중
+
+        List<Long> ids = recordingRepository.findAudioExpiredIds(cutoff);
+
+        assertThat(ids).containsExactlyInAnyOrder(완료_만료, 실패_만료);
+    }
+
+    @Test
+    void findIdsByStatusInAndCreatedAtBefore_결제_전_상태이고_업로드가_오래된_녹음만_조회된다() {
+        Recording 업로드만 = recordingRepository.save(Recording.create(1L, "/storage/a.mp3", 600));
+        Recording 결제완료 = recordingRepository.save(Recording.create(1L, "/storage/b.mp3", 600));
+        ReflectionTestUtils.setField(결제완료, "status", RecordingStatus.PAYMENT_COMPLETED);
+        recordingRepository.flush();
+
+        // 방금 저장한 녹음은 createdAt이 현재 시각이므로, 기준 시각을 미래로 잡아 "오래된 녹음"처럼 조회한다
+        List<Long> 기한_지남 = recordingRepository.findIdsByStatusInAndCreatedAtBefore(
+                List.of(RecordingStatus.UPLOADED, RecordingStatus.TYPE_SELECTED), LocalDateTime.now().plusMinutes(1));
+        List<Long> 기한_전 = recordingRepository.findIdsByStatusInAndCreatedAtBefore(
+                List.of(RecordingStatus.UPLOADED, RecordingStatus.TYPE_SELECTED), LocalDateTime.now().minusHours(3));
+
+        assertThat(기한_지남).containsExactly(업로드만.getId());
+        assertThat(기한_전).isEmpty();
+    }
+
+    private Long saveWith(RecordingStatus status, String timeField, LocalDateTime time) {
         Recording recording = Recording.create(1L, "/storage/test.mp3", 600);
-        recordingRepository.save(recording); // 지금 이 순간 createdAt이 "지금 시각"으로 저장됨
-
-        List<Recording> future기준 = recordingRepository.findByCreatedAtBefore(LocalDateTime.now().plusDays(1)); // 내일 시각 기준으로 찾으면 -- 방금 저장한 건 당연히 "그 이전"이라 나와야 함
-        List<Recording> past기준 = recordingRepository.findByCreatedAtBefore(LocalDateTime.now().minusDays(1)); // 어제 시각 기준으로 찾으면 -- 방금 저장한 건 "그 이후"라 안 나와야 함
-
-        assertThat(future기준).hasSize(1);
-        assertThat(past기준).isEmpty();
+        ReflectionTestUtils.setField(recording, "status", status);
+        ReflectionTestUtils.setField(recording, timeField, time);
+        return recordingRepository.saveAndFlush(recording).getId();
     }
 }
