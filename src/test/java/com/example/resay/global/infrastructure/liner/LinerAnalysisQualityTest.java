@@ -91,6 +91,7 @@ class LinerAnalysisQualityTest {
         AnalysisReportResponseDto frontendResult = new AnalysisReportResponseDto(
                 source.recordingId(),
                 AnalysisStatus.COMPLETED,
+                null,
                 AnalysisReportDto.from(report),
                 reportResult.modelName(),
                 reportResult.promptVersion(),

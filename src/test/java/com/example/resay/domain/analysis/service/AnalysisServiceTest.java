@@ -3,6 +3,7 @@ package com.example.resay.domain.analysis.service;
 import com.example.resay.domain.analysis.code.AnalysisErrorCode;
 import com.example.resay.domain.analysis.dto.AnalysisResultCommand;
 import com.example.resay.domain.analysis.entity.AnalysisResult;
+import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
 import com.example.resay.domain.analysis.entity.AnalysisStatus;
 import com.example.resay.domain.analysis.entity.ConversationAnalysis;
 import com.example.resay.domain.analysis.event.AnalysisCompletedEvent;
@@ -97,9 +98,10 @@ class AnalysisServiceTest {
         ConversationAnalysis analysis = ConversationAnalysis.start(1L);
         given(conversationAnalysisRepository.findByRecordingId(1L)).willReturn(Optional.of(analysis));
 
-        analysisService.fail(1L);
+        analysisService.fail(1L, AnalysisFailureReason.PROCESSING_ERROR);
 
         assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.FAILED);
+        assertThat(analysis.getFailureReason()).isEqualTo(AnalysisFailureReason.PROCESSING_ERROR);
     }
 
     @Test
@@ -150,7 +152,9 @@ class AnalysisServiceTest {
         analysis.complete();
         given(conversationAnalysisRepository.findByRecordingId(1L)).willReturn(Optional.of(analysis));
 
-        assertThatThrownBy(() -> analysisService.fail(1L))
+        assertThatThrownBy(() ->
+                analysisService.fail(1L, AnalysisFailureReason.PROCESSING_ERROR)
+        )
                 .isInstanceOfSatisfying(GeneralException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(AnalysisErrorCode.INVALID_ANALYSIS_STATUS)
                 );

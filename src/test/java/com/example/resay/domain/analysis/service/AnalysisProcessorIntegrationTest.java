@@ -1,6 +1,7 @@
 package com.example.resay.domain.analysis.service;
 
 import com.example.resay.domain.analysis.entity.AnalysisStatus;
+import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
@@ -76,6 +77,7 @@ class AnalysisProcessorIntegrationTest {
         var analysis = conversationAnalysisRepository.findByRecordingId(7002L).orElseThrow();
 
         assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.FAILED);
+        assertThat(analysis.getFailureReason()).isEqualTo(AnalysisFailureReason.PROCESSING_ERROR);
         assertThat(analysisResultRepository.findByAnalysisId(analysis.getId())).isEmpty();
         assertThat(analysisModelClient.wasTransactionActive()).isFalse();
     }
@@ -112,8 +114,8 @@ class AnalysisProcessorIntegrationTest {
                     analysisSourceReader,
                     analysisModelClient,
                     new ConversationMetricsCalculator(),
-                    new AnalysisReportAssembler(new ObjectMapper()),
-                    Runnable::run
+                    new AnalysisReadinessValidator(),
+                    new AnalysisReportAssembler(new ObjectMapper())
             );
         }
     }

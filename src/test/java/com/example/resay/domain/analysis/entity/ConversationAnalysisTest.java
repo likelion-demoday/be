@@ -39,9 +39,10 @@ class ConversationAnalysisTest {
     void failsAnalyzingAnalysis() {
         ConversationAnalysis analysis = ConversationAnalysis.start(1L);
 
-        analysis.fail();
+        analysis.fail(AnalysisFailureReason.PROCESSING_ERROR);
 
         assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.FAILED);
+        assertThat(analysis.getFailureReason()).isEqualTo(AnalysisFailureReason.PROCESSING_ERROR);
     }
 
     @Test
@@ -58,14 +59,14 @@ class ConversationAnalysisTest {
         ConversationAnalysis analysis = ConversationAnalysis.start(1L);
         analysis.complete();
 
-        assertThatThrownBy(analysis::fail)
+        assertThatThrownBy(() -> analysis.fail(AnalysisFailureReason.PROCESSING_ERROR))
                 .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
     void rejectsCompletingFailedAnalysis() {
         ConversationAnalysis analysis = ConversationAnalysis.start(1L);
-        analysis.fail();
+        analysis.fail(AnalysisFailureReason.PROCESSING_ERROR);
 
         assertThatThrownBy(analysis::complete)
                 .isInstanceOf(IllegalStateException.class);
@@ -74,9 +75,17 @@ class ConversationAnalysisTest {
     @Test
     void rejectsFailingFailedAnalysis() {
         ConversationAnalysis analysis = ConversationAnalysis.start(1L);
-        analysis.fail();
+        analysis.fail(AnalysisFailureReason.PROCESSING_ERROR);
 
-        assertThatThrownBy(analysis::fail)
+        assertThatThrownBy(() -> analysis.fail(AnalysisFailureReason.PROCESSING_ERROR))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void rejectsFailureWithoutReason() {
+        ConversationAnalysis analysis = ConversationAnalysis.start(1L);
+
+        assertThatThrownBy(() -> analysis.fail(null))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }

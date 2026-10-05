@@ -3,11 +3,10 @@ package com.example.resay.domain.analysis.config;
 import com.example.resay.domain.analysis.port.AnalysisModelClient;
 import com.example.resay.domain.analysis.port.AnalysisSourceReader;
 import com.example.resay.domain.analysis.service.AnalysisProcessor;
+import com.example.resay.domain.analysis.service.AnalysisReadinessValidator;
 import com.example.resay.domain.analysis.service.AnalysisReportAssembler;
 import com.example.resay.domain.analysis.service.AnalysisService;
 import com.example.resay.domain.analysis.service.ConversationMetricsCalculator;
-import java.util.concurrent.Executor;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -22,16 +21,16 @@ public class MockAnalysisConfig {
             AnalysisSourceReader analysisSourceReader,
             AnalysisModelClient analysisModelClient,
             ConversationMetricsCalculator metricsCalculator,
-            AnalysisReportAssembler reportAssembler,
-            @Qualifier("analysisTaskExecutor") Executor analysisTaskExecutor
+            AnalysisReadinessValidator readinessValidator,
+            AnalysisReportAssembler reportAssembler
     ) {
         return new AnalysisProcessor(
                 analysisService,
                 analysisSourceReader,
                 analysisModelClient,
                 metricsCalculator,
-                reportAssembler,
-                analysisTaskExecutor
+                readinessValidator,
+                reportAssembler
         );
     }
 }

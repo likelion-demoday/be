@@ -37,6 +37,10 @@ public class ConversationAnalysis extends BaseEntity {
     @Column(nullable = false, columnDefinition = "varchar(20)")
     private AnalysisStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "failure_reason", columnDefinition = "varchar(50)")
+    private AnalysisFailureReason failureReason;
+
     private ConversationAnalysis(Long recordingId) {
         this.recordingId = recordingId;
         this.status = AnalysisStatus.ANALYZING;
@@ -54,9 +58,13 @@ public class ConversationAnalysis extends BaseEntity {
         this.status = AnalysisStatus.COMPLETED;
     }
 
-    public void fail() {
+    public void fail(AnalysisFailureReason failureReason) {
         requireAnalyzing();
+        if (failureReason == null) {
+            throw new IllegalArgumentException("failureReason은 비어 있을 수 없습니다.");
+        }
         this.status = AnalysisStatus.FAILED;
+        this.failureReason = failureReason;
     }
 
     private void requireAnalyzing() {
