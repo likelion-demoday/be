@@ -9,7 +9,8 @@ import org.springframework.http.HttpStatus;
 @AllArgsConstructor
 public enum AnalysisSuccessCode implements BaseSuccessCode {
 
-    REPORT_GET(HttpStatus.OK, "ANALYSIS200_1", "분석 보고서를 조회했습니다.");
+    REPORT_GET(HttpStatus.OK, "ANALYSIS200_1", "분석 보고서를 조회했습니다."),
+    LIST_GET(HttpStatus.OK, "ANALYSIS200_2", "분석 목록을 조회했습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

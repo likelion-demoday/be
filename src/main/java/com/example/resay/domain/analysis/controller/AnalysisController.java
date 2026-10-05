@@ -1,7 +1,9 @@
 package com.example.resay.domain.analysis.controller;
 
 import com.example.resay.domain.analysis.code.AnalysisSuccessCode;
+import com.example.resay.domain.analysis.dto.AnalysisListResponseDto;
 import com.example.resay.domain.analysis.dto.AnalysisReportResponseDto;
+import com.example.resay.domain.analysis.service.AnalysisListQueryService;
 import com.example.resay.domain.analysis.service.AnalysisReportQueryService;
 import com.example.resay.global.apiPayload.ApiResponse;
 import com.example.resay.global.security.CurrentUserId;
@@ -12,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -22,6 +25,24 @@ import org.springframework.web.bind.annotation.RestController;
 public class AnalysisController {
 
     private final AnalysisReportQueryService analysisReportQueryService;
+    private final AnalysisListQueryService analysisListQueryService;
+
+    @GetMapping
+    @Operation(
+            summary = "분석 목록 조회",
+            description = "로그인 사용자의 분석 목록을 최신순으로 조회합니다."
+    )
+    public ResponseEntity<ApiResponse<AnalysisListResponseDto>> getList(
+            @Parameter(hidden = true) @CurrentUserId Long userId,
+            @Parameter(description = "페이지 번호. 0부터 시작", example = "0")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "페이지 크기. 1 이상 50 이하", example = "10")
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        AnalysisListResponseDto response = analysisListQueryService.getList(userId, page, size);
+        return ResponseEntity.status(AnalysisSuccessCode.LIST_GET.getHttpStatus())
+                .body(ApiResponse.onSuccess(AnalysisSuccessCode.LIST_GET, response));
+    }
 
     @GetMapping("/{recordingId}")
     @Operation(
