@@ -2,6 +2,10 @@
   "recordingId": 1001,
   "scenario": "FRIEND_DAILY",
   "durationMs": 660000,
+  "speakers": [
+    {"speakerRole": "SELF", "speakerName": "호준"},
+    {"speakerRole": "FRIEND", "speakerName": "호석"}
+  ],
   "segments": [
     {"segmentId": 1, "speakerRole": "SELF", "startMs": 1000, "endMs": 6000, "content": "요즘 새로 들어간 회사는 좀 어때?"},
     {"segmentId": 2, "speakerRole": "FRIEND", "startMs": 6500, "endMs": 12500, "content": "아직 적응 중인데 팀 사람들이 생각보다 편하게 대해줘."},

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static com.example.resay.domain.analysis.support.AnalysisTestSpeakers.speakersFor;
 
 class AnalysisSourceTest {
 
@@ -15,13 +16,69 @@ class AnalysisSourceTest {
                 1L,
                 AnalysisScenario.COUPLE_DAILY,
                 10_000L,
+                speakersFor(AnalysisScenario.COUPLE_DAILY),
                 coupleSegments()
         );
 
         assertThat(source.recordingId()).isEqualTo(1L);
         assertThat(source.scenario()).isEqualTo(AnalysisScenario.COUPLE_DAILY);
         assertThat(source.durationMs()).isEqualTo(10_000L);
+        assertThat(source.speakers()).hasSize(2);
         assertThat(source.segments()).hasSize(2);
+    }
+
+    @Test
+    void copiesSpeakersDefensively() {
+        List<AnalysisSpeaker> speakers = new ArrayList<>(
+                speakersFor(AnalysisScenario.COUPLE_DAILY)
+        );
+        AnalysisSource source = new AnalysisSource(
+                1L,
+                AnalysisScenario.COUPLE_DAILY,
+                10_000L,
+                speakers,
+                coupleSegments()
+        );
+
+        speakers.clear();
+
+        assertThat(source.speakers()).hasSize(2);
+        assertThatThrownBy(() -> source.speakers().clear())
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void rejectsSpeakersThatDoNotMatchScenario() {
+        List<AnalysisSpeaker> speakers = List.of(
+                new AnalysisSpeaker(SpeakerRole.SELF, "호준"),
+                new AnalysisSpeaker(SpeakerRole.FRIEND, "호석")
+        );
+
+        assertThatThrownBy(() -> new AnalysisSource(
+                1L,
+                AnalysisScenario.COUPLE_DAILY,
+                10_000L,
+                speakers,
+                coupleSegments()
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("화자 정보");
+    }
+
+    @Test
+    void rejectsDuplicateSpeakerRoles() {
+        List<AnalysisSpeaker> speakers = List.of(
+                new AnalysisSpeaker(SpeakerRole.SELF, "호준"),
+                new AnalysisSpeaker(SpeakerRole.SELF, "호석")
+        );
+
+        assertThatThrownBy(() -> new AnalysisSource(
+                1L,
+                AnalysisScenario.COUPLE_DAILY,
+                10_000L,
+                speakers,
+                coupleSegments()
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("화자 정보");
     }
 
     @Test
@@ -31,6 +88,7 @@ class AnalysisSourceTest {
                 1L,
                 AnalysisScenario.COUPLE_DAILY,
                 10_000L,
+                speakersFor(AnalysisScenario.COUPLE_DAILY),
                 segments
         );
 
@@ -52,6 +110,7 @@ class AnalysisSourceTest {
                 1L,
                 AnalysisScenario.COUPLE_DAILY,
                 10_000L,
+                speakersFor(AnalysisScenario.COUPLE_DAILY),
                 segments
         )).isInstanceOf(IllegalArgumentException.class);
     }
@@ -67,6 +126,7 @@ class AnalysisSourceTest {
                 1L,
                 AnalysisScenario.COUPLE_DAILY,
                 10_000L,
+                speakersFor(AnalysisScenario.COUPLE_DAILY),
                 segments
         )).isInstanceOf(IllegalArgumentException.class);
     }
@@ -82,6 +142,7 @@ class AnalysisSourceTest {
                 1L,
                 AnalysisScenario.COUPLE_DAILY,
                 10_000L,
+                speakersFor(AnalysisScenario.COUPLE_DAILY),
                 segments
         )).isInstanceOf(IllegalArgumentException.class);
     }
@@ -97,6 +158,7 @@ class AnalysisSourceTest {
                 1L,
                 AnalysisScenario.COUPLE_DAILY,
                 10_000L,
+                speakersFor(AnalysisScenario.COUPLE_DAILY),
                 segments
         )).isInstanceOf(IllegalArgumentException.class);
     }

@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.example.resay.domain.analysis.support.AnalysisTestSpeakers.speakersFor;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -97,6 +98,10 @@ class AnalysisControllerIntegrationTest {
                 .andExpect(jsonPath("$.result.failureReason").isEmpty())
                 .andExpect(jsonPath("$.result.report.recordingInfo.recordingId")
                         .value(recording.getId()))
+                .andExpect(jsonPath("$.result.report.recordingInfo.speakers[0].speakerRole")
+                        .value("SELF"))
+                .andExpect(jsonPath("$.result.report.recordingInfo.speakers[0].speakerName")
+                        .value("호준"))
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.overview.title")
                         .value("연락 방식 조율"))
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.overview.evidenceSegmentIds")
@@ -177,7 +182,8 @@ class AnalysisControllerIntegrationTest {
                 new AnalysisReport.RecordingInfo(
                         recording.getId(),
                         AnalysisScenario.FRIEND_DAILY,
-                        600_000L
+                        600_000L,
+                        speakersFor(AnalysisScenario.FRIEND_DAILY)
                 ),
                 new AnalysisReport.QuantitativeAnalysis(List.of(), null),
                 new AnalysisReport.QualitativeReport(
@@ -214,7 +220,7 @@ class AnalysisControllerIntegrationTest {
                 objectMapper.writeValueAsString(report),
                 "liner-mark-1.1",
                 "analysis-prompt-v4",
-                "analysis-report-v4"
+                "analysis-report-v5"
         );
     }
 }

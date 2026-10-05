@@ -11,8 +11,13 @@ public record AnalysisReport(
     public record RecordingInfo(
             Long recordingId,
             AnalysisScenario scenario,
-            Long durationMs
+            Long durationMs,
+            List<AnalysisSpeaker> speakers
     ) {
+
+        public RecordingInfo {
+            speakers = speakers == null ? List.of() : List.copyOf(speakers);
+        }
     }
 
     public record QuantitativeAnalysis(

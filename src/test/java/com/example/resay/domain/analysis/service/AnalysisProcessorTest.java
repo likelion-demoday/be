@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static com.example.resay.domain.analysis.support.AnalysisTestSpeakers.speakersFor;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
@@ -165,6 +166,7 @@ class AnalysisProcessorTest {
                 recordingId,
                 AnalysisScenario.COUPLE_DAILY,
                 10_000L,
+                speakersFor(AnalysisScenario.COUPLE_DAILY),
                 List.of(
                         new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "안녕"),
                         new AnalysisSegment(2L, SpeakerRole.PARTNER, 600L, 900L, "반가워")

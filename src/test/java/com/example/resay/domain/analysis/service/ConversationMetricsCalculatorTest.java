@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static com.example.resay.domain.analysis.support.AnalysisTestSpeakers.speakersFor;
 
 class ConversationMetricsCalculatorTest {
 
@@ -22,6 +23,7 @@ class ConversationMetricsCalculatorTest {
                 1L,
                 AnalysisScenario.FRIEND_DAILY,
                 70_000L,
+                speakersFor(AnalysisScenario.FRIEND_DAILY),
                 List.of(
                         new AnalysisSegment(1L, SpeakerRole.SELF, 0L, 30_000L, "안녕 친구야"),
                         new AnalysisSegment(2L, SpeakerRole.FRIEND, 30_000L, 50_000L, "응 잘 지냈어"),
@@ -60,6 +62,7 @@ class ConversationMetricsCalculatorTest {
                 1L,
                 AnalysisScenario.FRIEND_DAILY,
                 120_000L,
+                speakersFor(AnalysisScenario.FRIEND_DAILY),
                 List.of(
                         new AnalysisSegment(1L, SpeakerRole.SELF, 0L, 60_000L, "안녕, 123! 😊"),
                         new AnalysisSegment(2L, SpeakerRole.FRIEND, 60_000L, 120_000L, "... 😊")
@@ -99,6 +102,7 @@ class ConversationMetricsCalculatorTest {
                 1L,
                 AnalysisScenario.COUPLE_DAILY,
                 10_000L,
+                speakersFor(AnalysisScenario.COUPLE_DAILY),
                 List.of(
                         new AnalysisSegment(1L, SpeakerRole.SELF, 0L, 4_000L, "안녕"),
                         new AnalysisSegment(2L, SpeakerRole.PARTNER, 5_000L, 9_000L, "반가워")

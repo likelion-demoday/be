@@ -2,6 +2,10 @@
   "recordingId": 1002,
   "scenario": "COUPLE_DAILY",
   "durationMs": 660000,
+  "speakers": [
+    {"speakerRole": "SELF", "speakerName": "지민"},
+    {"speakerRole": "PARTNER", "speakerName": "서연"}
+  ],
   "segments": [
     {"segmentId": 1, "speakerRole": "SELF", "startMs": 1000, "endMs": 6500, "content": "오늘 목소리가 좀 피곤해 보이는데 회사에서 무슨 일 있었어?"},
     {"segmentId": 2, "speakerRole": "PARTNER", "startMs": 7000, "endMs": 13500, "content": "오후에 갑자기 회의가 두 개나 잡혀서 정신이 없었어."},

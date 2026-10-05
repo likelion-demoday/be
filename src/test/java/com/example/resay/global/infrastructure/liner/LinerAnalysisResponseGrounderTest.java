@@ -9,6 +9,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.example.resay.domain.analysis.support.AnalysisTestSpeakers.speakersFor;
 
 class LinerAnalysisResponseGrounderTest {
 
@@ -106,6 +107,7 @@ class LinerAnalysisResponseGrounderTest {
                 1L,
                 AnalysisScenario.PARENT_CHILD_CONFLICT,
                 10_000L,
+                speakersFor(AnalysisScenario.PARENT_CHILD_CONFLICT),
                 List.of(
                         new AnalysisSegment(
                                 1L,

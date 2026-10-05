@@ -18,7 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class AnalysisReportAssembler {
 
-    private static final String REPORT_SCHEMA_VERSION = "analysis-report-v4";
+    private static final String REPORT_SCHEMA_VERSION = "analysis-report-v5";
 
     private final ObjectMapper objectMapper;
 
@@ -53,7 +53,8 @@ public class AnalysisReportAssembler {
         return new AnalysisReport.RecordingInfo(
                 source.recordingId(),
                 source.scenario(),
-                source.durationMs()
+                source.durationMs(),
+                source.speakers()
         );
     }
 

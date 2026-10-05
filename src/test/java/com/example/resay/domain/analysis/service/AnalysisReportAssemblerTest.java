@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.example.resay.domain.analysis.support.AnalysisTestSpeakers.speakersFor;
 
 class AnalysisReportAssemblerTest {
 
@@ -88,6 +89,9 @@ class AnalysisReportAssemblerTest {
 
         AnalysisReport json = objectMapper.readValue(report.resultJson(), AnalysisReport.class);
         assertThat(json.recordingInfo().recordingId()).isEqualTo(10L);
+        assertThat(json.recordingInfo().speakers())
+                .extracting("speakerName")
+                .containsExactly("호준", "호석");
         assertThat(json.quantitativeAnalysis().speakers()).hasSize(2);
         AnalysisReport.TimelineItem timeline = json.qualitativeAnalysis().timeline().get(0);
         assertThat(timeline.startMs()).isEqualTo(100L);
@@ -105,7 +109,7 @@ class AnalysisReportAssemblerTest {
         assertThat(AnalysisReportDto.from(json).qualitativeAnalysis()
                 .speakerInsights().get(0).patterns().get(0).count()).isEqualTo(2);
         assertThat(report.modelName()).isEqualTo("liner-mark-1.1");
-        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v4");
+        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v5");
     }
 
     private AnalysisSource source() {
@@ -113,6 +117,7 @@ class AnalysisReportAssemblerTest {
                 10L,
                 AnalysisScenario.FRIEND_DAILY,
                 2_000L,
+                speakersFor(AnalysisScenario.FRIEND_DAILY),
                 List.of(
                         new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "주말에 만날까?"),
                         new AnalysisSegment(2L, SpeakerRole.FRIEND, 700L, 1_200L, "좋아, 오후에 보자."),
