@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
-@Profile({"local", "mock"})
+@Profile("mock")
 @Service
 @RequiredArgsConstructor
 public class MockAnalysisApplicationService {

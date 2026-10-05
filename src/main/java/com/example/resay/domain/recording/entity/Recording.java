@@ -56,6 +56,19 @@ public class Recording extends BaseEntity {
     // 값이 있으면 음성 파일이 이미 삭제된 녹음 (보고서·전사 텍스트는 남는다)
     private LocalDateTime audioDeletedAt;
 
+    // 사용자가 고른 본인 화자 (전사 서비스가 붙인 화자 번호, 나머지 화자는 상대)
+    @Column(length = 10)
+    private String selfSpeakerLabel;
+
+    // 보고서에서 상대를 부를 이름
+    @Column(length = 20)
+    private String partnerNickname;
+
+    // 부모-자녀 대화에서만 사용
+    @Enumerated(EnumType.STRING)
+    @Column(columnDefinition = "varchar(10)")
+    private ParentChildRole parentChildRole;
+
     private Recording(Long userId, String audioFilePath, Integer durationSeconds) {
         this.userId = userId;
         this.title = LocalDate.now().format(TITLE_DATE_FORMAT) + " 녹음";
@@ -94,6 +107,26 @@ public class Recording extends BaseEntity {
             throw new GeneralException(RecordingErrorCode.INVALID_STATUS_TRANSITION);
         }
         this.status = RecordingStatus.TRANSCRIBING;
+    }
+
+    // 전사가 끝난 녹음에 화자를 지정하고 분석 단계로 넘긴다
+    public void mapSpeakers(String selfSpeakerLabel, String partnerNickname, ParentChildRole parentChildRole) {
+        if (this.status != RecordingStatus.TRANSCRIBING) {
+            throw new GeneralException(RecordingErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        if (selfSpeakerLabel == null || selfSpeakerLabel.isBlank()
+                || partnerNickname == null || partnerNickname.isBlank()) {
+            throw new GeneralException(RecordingErrorCode.INVALID_SPEAKER_MAPPING);
+        }
+        boolean parentChild = this.relationshipType == RelationshipType.PARENT_CHILD_CONFLICT;
+        // 부모-자녀 대화는 본인이 부모인지 자녀인지 알아야 하고, 그 외 대화에서는 받지 않는다
+        if (parentChild != (parentChildRole != null)) {
+            throw new GeneralException(RecordingErrorCode.INVALID_SPEAKER_MAPPING);
+        }
+        this.selfSpeakerLabel = selfSpeakerLabel;
+        this.partnerNickname = partnerNickname.strip();
+        this.parentChildRole = parentChildRole;
+        this.status = RecordingStatus.ANALYZING;
     }
 
     public void complete() {

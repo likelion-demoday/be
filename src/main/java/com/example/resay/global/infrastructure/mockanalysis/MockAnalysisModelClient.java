@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
 @Primary
-@Profile({"local", "mock"})
+@Profile("mock")
 @Component
 @ConditionalOnProperty(
         prefix = "analysis.mock",

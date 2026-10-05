@@ -10,5 +10,7 @@ public enum RecordingFailureReason {
     // 두 사람의 목소리를 구분하지 못함 (화자가 한 명만 검출됨)
     SPEAKER_NOT_SEPARATED,
     // 제한 시간 안에 전사 결과가 오지 않음
-    TRANSCRIPTION_TIMEOUT
+    TRANSCRIPTION_TIMEOUT,
+    // 분석 단계에서 실패함 (발화 부족 등, 분석 쪽에서 판단)
+    ANALYSIS_FAILED
 }
