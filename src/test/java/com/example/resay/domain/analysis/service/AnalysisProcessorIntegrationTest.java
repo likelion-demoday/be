@@ -91,11 +91,23 @@ class AnalysisProcessorIntegrationTest {
             return recordingId -> new AnalysisSource(
                     recordingId,
                     AnalysisScenario.COUPLE_DAILY,
-                    10_000L,
+                    90_000L,
                     speakersFor(AnalysisScenario.COUPLE_DAILY),
                     List.of(
-                            new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "안녕"),
-                            new AnalysisSegment(2L, SpeakerRole.PARTNER, 600L, 900L, "반가워")
+                            new AnalysisSegment(
+                                    1L,
+                                    SpeakerRole.SELF,
+                                    0L,
+                                    35_000L,
+                                    "오늘 하루 동안 있었던 일을 천천히 이야기해 볼게 생각보다 재미있는 일이 정말 많았어"
+                            ),
+                            new AnalysisSegment(
+                                    2L,
+                                    SpeakerRole.PARTNER,
+                                    36_000L,
+                                    71_000L,
+                                    "좋아 어떤 일이 가장 기억에 남았는지 처음부터 자세히 들려주면 좋을 것 같아"
+                            )
                     )
             );
         }
@@ -109,14 +121,15 @@ class AnalysisProcessorIntegrationTest {
         AnalysisProcessor analysisProcessor(
                 AnalysisService analysisService,
                 AnalysisSourceReader analysisSourceReader,
-                AnalysisModelClient analysisModelClient
+                AnalysisModelClient analysisModelClient,
+                AnalysisReadinessValidator readinessValidator
         ) {
             return new AnalysisProcessor(
                     analysisService,
                     analysisSourceReader,
                     analysisModelClient,
                     new ConversationMetricsCalculator(),
-                    new AnalysisReadinessValidator(),
+                    readinessValidator,
                     new AnalysisReportAssembler(new ObjectMapper())
             );
         }

@@ -122,6 +122,13 @@ character:
   image:
     generation-enabled: ${CHARACTER_IMAGE_GENERATION_ENABLED:true}
 
+analysis:
+  readiness:
+    minimum-total-speaking-duration: ${ANALYSIS_MIN_TOTAL_SPEAKING_DURATION:60s}
+    minimum-speaker-speaking-duration: ${ANALYSIS_MIN_SPEAKER_SPEAKING_DURATION:15s}
+    minimum-speaker-character-count: ${ANALYSIS_MIN_SPEAKER_CHARACTER_COUNT:30}
+    minimum-speaker-ratio-percent: ${ANALYSIS_MIN_SPEAKER_RATIO_PERCENT:5}
+
 storage:
   local:
     base-path: ${STORAGE_BASE_PATH:./storage/recordings}
