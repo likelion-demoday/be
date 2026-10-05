@@ -2,6 +2,7 @@ package com.example.resay.domain.recording.service;
 
 import com.example.resay.domain.recording.code.RecordingErrorCode;
 import com.example.resay.domain.recording.entity.Recording;
+import com.example.resay.domain.recording.entity.RecordingFailureReason;
 import com.example.resay.domain.recording.entity.RecordingStatus;
 import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.global.exception.GeneralException;
@@ -171,6 +172,23 @@ class RecordingServiceTest {
                 () -> recordingService.selectType(999L, 1L, null));
 
         assertEquals(RecordingErrorCode.RECORDING_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void failTranscription_전사_중이면_사유와_함께_실패로_바꾼다() {
+        Recording recording = savedRecording(RecordingStatus.TRANSCRIBING);
+
+        assertTrue(recordingService.failTranscription(1L, RecordingFailureReason.SPEAKER_NOT_SEPARATED));
+        assertEquals(RecordingStatus.FAILED, recording.getStatus());
+        assertEquals(RecordingFailureReason.SPEAKER_NOT_SEPARATED, recording.getFailureReason());
+    }
+
+    @Test
+    void failTranscription_전사_중이_아니면_건드리지_않는다() {
+        Recording recording = savedRecording(RecordingStatus.ANALYZING);
+
+        assertFalse(recordingService.failTranscription(1L, RecordingFailureReason.TRANSCRIPTION_TIMEOUT));
+        assertEquals(RecordingStatus.ANALYZING, recording.getStatus());
     }
 
     @Test
