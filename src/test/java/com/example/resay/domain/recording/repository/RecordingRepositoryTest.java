@@ -24,7 +24,7 @@ class RecordingRepositoryTest {
 
     @Test
     void selectType_성공시_제목과_상태가_바뀐다() {
-        Recording recording = Recording.create(1L, "/storage/test.mp3"); // 아직 메모리에만 있는 객체
+        Recording recording = Recording.create(1L, "/storage/test.mp3", 600); // 아직 메모리에만 있는 객체
         recordingRepository.save(recording); // 실제로 저장 -- 이 순간 JPA Auditing이 createdAt을 채워줌
 
         recording.selectType(RelationshipType.COUPLE_DAILY); // 이제 getCreatedAt()이 null이 아니라서 안전하게 실행됨
@@ -36,7 +36,7 @@ class RecordingRepositoryTest {
 
     @Test
     void selectType_이미_선택된_상태면_예외() {
-        Recording recording = Recording.create(1L, "/storage/test.mp3");
+        Recording recording = Recording.create(1L, "/storage/test.mp3", 600);
         recordingRepository.save(recording);
         recording.selectType(RelationshipType.COUPLE_DAILY); // 한 번은 성공시켜서 TYPE_SELECTED로 만들어둠
 
@@ -46,7 +46,7 @@ class RecordingRepositoryTest {
 
     @Test
     void findByCreatedAtBefore_지정시각_이전_녹음만_조회된다() {
-        Recording recording = Recording.create(1L, "/storage/test.mp3");
+        Recording recording = Recording.create(1L, "/storage/test.mp3", 600);
         recordingRepository.save(recording); // 지금 이 순간 createdAt이 "지금 시각"으로 저장됨
 
         List<Recording> future기준 = recordingRepository.findByCreatedAtBefore(LocalDateTime.now().plusDays(1)); // 내일 시각 기준으로 찾으면 -- 방금 저장한 건 당연히 "그 이전"이라 나와야 함

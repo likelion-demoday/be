@@ -1,16 +1,19 @@
 package com.example.resay.domain.recording.service;
 
 import com.example.resay.domain.recording.code.RecordingErrorCode;
+import com.example.resay.domain.recording.entity.Recording;
 import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.global.exception.GeneralException;
 import com.example.resay.global.infrastructure.audio.AudioDurationReader;
 import com.example.resay.global.infrastructure.storage.LocalFileStorage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.Optional;
@@ -90,16 +93,43 @@ class RecordingServiceTest {
     }
 
     @Test
-    void upload_재생시간이_범위를_벗어나면_저장_파일_삭제() {
+    void upload_5분_미만이면_너무_짧음_오류로_응답하고_저장_파일_삭제() {
         MockMultipartFile file = mp3File();
         when(localFileStorage.save(file, "mp3")).thenReturn(SAVED_PATH);
-        when(audioDurationReader.readSeconds(SAVED_PATH)).thenReturn(60);
+        when(audioDurationReader.readSeconds(SAVED_PATH)).thenReturn(5 * 60 - 1);
 
         GeneralException exception = assertThrows(GeneralException.class,
                 () -> recordingService.upload(1L, file));
 
-        assertEquals(RecordingErrorCode.INVALID_DURATION, exception.getErrorCode());
+        assertEquals(RecordingErrorCode.DURATION_TOO_SHORT, exception.getErrorCode());
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getErrorCode().getHttpStatus());
         verify(localFileStorage).delete(SAVED_PATH);
+    }
+
+    @Test
+    void upload_30분_초과면_너무_김_오류로_응답하고_저장_파일_삭제() {
+        MockMultipartFile file = mp3File();
+        when(localFileStorage.save(file, "mp3")).thenReturn(SAVED_PATH);
+        when(audioDurationReader.readSeconds(SAVED_PATH)).thenReturn(30 * 60 + 1);
+
+        GeneralException exception = assertThrows(GeneralException.class,
+                () -> recordingService.upload(1L, file));
+
+        assertEquals(RecordingErrorCode.DURATION_TOO_LONG, exception.getErrorCode());
+        assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, exception.getErrorCode().getHttpStatus());
+        verify(localFileStorage).delete(SAVED_PATH);
+    }
+
+    @Test
+    void upload_정확히_5분과_30분은_허용() {
+        MockMultipartFile file = mp3File();
+        when(localFileStorage.save(file, "mp3")).thenReturn(SAVED_PATH);
+        when(audioDurationReader.readSeconds(SAVED_PATH)).thenReturn(5 * 60, 30 * 60);
+
+        recordingService.upload(1L, file);
+        recordingService.upload(1L, file);
+
+        verify(localFileStorage, never()).delete(any());
     }
 
     @Test
@@ -116,14 +146,16 @@ class RecordingServiceTest {
     }
 
     @Test
-    void upload_성공하면_저장_파일을_지우지_않음() {
+    void upload_성공하면_재생시간을_저장하고_파일을_지우지_않음() {
         MockMultipartFile file = mp3File();
         when(localFileStorage.save(file, "mp3")).thenReturn(SAVED_PATH);
-        when(audioDurationReader.readSeconds(SAVED_PATH)).thenReturn(10 * 60);
+        when(audioDurationReader.readSeconds(SAVED_PATH)).thenReturn(13 * 60 + 3);
 
         recordingService.upload(1L, file);
 
-        verify(recordingRepository).save(any());
+        ArgumentCaptor<Recording> captor = ArgumentCaptor.forClass(Recording.class);
+        verify(recordingRepository).save(captor.capture());
+        assertEquals(13 * 60 + 3, captor.getValue().getDurationSeconds());
         verify(localFileStorage, never()).delete(any());
     }
 
