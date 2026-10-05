@@ -136,6 +136,40 @@ class RecordingTest {
         assertThat(recording.getAudioDeletedAt()).isEqualTo(firstDeletedAt);
     }
 
+    @Test
+    void mapSpeakers_전사_중이면_화자를_저장하고_분석_중으로_전이() {
+        Recording recording = recordingWithStatus(RecordingStatus.TRANSCRIBING);
+        ReflectionTestUtils.setField(recording, "relationshipType", RelationshipType.FRIEND_DAILY);
+
+        recording.mapSpeakers("2", " 호석 ", null);
+
+        assertThat(recording.getStatus()).isEqualTo(RecordingStatus.ANALYZING);
+        assertThat(recording.getSelfSpeakerLabel()).isEqualTo("2");
+        assertThat(recording.getPartnerNickname()).isEqualTo("호석"); // 앞뒤 공백 제거
+    }
+
+    @Test
+    void mapSpeakers_부모_자녀_대화는_본인_역할이_필요하고_다른_대화에서는_받지_않는다() {
+        Recording parentChild = recordingWithStatus(RecordingStatus.TRANSCRIBING);
+        ReflectionTestUtils.setField(parentChild, "relationshipType", RelationshipType.PARENT_CHILD_CONFLICT);
+        Recording friend = recordingWithStatus(RecordingStatus.TRANSCRIBING);
+        ReflectionTestUtils.setField(friend, "relationshipType", RelationshipType.FRIEND_DAILY);
+
+        assertThrows(GeneralException.class, () -> parentChild.mapSpeakers("1", "엄마", null));
+        assertThrows(GeneralException.class, () -> friend.mapSpeakers("1", "호석", ParentChildRole.PARENT));
+
+        parentChild.mapSpeakers("1", "엄마", ParentChildRole.CHILD);
+        assertThat(parentChild.getParentChildRole()).isEqualTo(ParentChildRole.CHILD);
+    }
+
+    @Test
+    void mapSpeakers_전사_중이_아니면_예외() {
+        Recording recording = recordingWithStatus(RecordingStatus.ANALYZING);
+        ReflectionTestUtils.setField(recording, "relationshipType", RelationshipType.FRIEND_DAILY);
+
+        assertThrows(GeneralException.class, () -> recording.mapSpeakers("1", "호석", null));
+    }
+
     private Recording recordingWithStatus(RecordingStatus status) {
         Recording recording = Recording.create(1L, "/storage/test.mp3", 600);
         ReflectionTestUtils.setField(recording, "status", status);
