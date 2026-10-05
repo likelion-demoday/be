@@ -104,7 +104,16 @@ liner:
   read-timeout: ${LINER_READ_TIMEOUT:120s}
 
 openai:
-  api-key: ${OPENAI_API_KEY:}
+  image:
+    api-key: ${OPENAI_API_KEY:}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+    model: ${OPENAI_IMAGE_MODEL:gpt-image-2.5-flare}
+    size: ${OPENAI_IMAGE_SIZE:1024x1024}
+    quality: ${OPENAI_IMAGE_QUALITY:medium}
+    output-format: ${OPENAI_IMAGE_OUTPUT_FORMAT:png}
+    background: ${OPENAI_IMAGE_BACKGROUND:transparent}
+    connect-timeout: ${OPENAI_CONNECT_TIMEOUT:3s}
+    read-timeout: ${OPENAI_IMAGE_READ_TIMEOUT:180s}
 
 storage:
   local:

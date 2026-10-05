@@ -55,6 +55,18 @@ oauth:
     # 통합 테스트에서는 검증기를 목으로 대체하므로 실제로 호출되지 않는다
     jwk-set-uri: http://127.0.0.1:1/unused
 
+openai:
+  image:
+    api-key: ${OPENAI_API_KEY:}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+    model: ${OPENAI_IMAGE_MODEL:gpt-image-2.5-flare}
+    size: ${OPENAI_IMAGE_SIZE:1024x1024}
+    quality: ${OPENAI_IMAGE_QUALITY:medium}
+    output-format: ${OPENAI_IMAGE_OUTPUT_FORMAT:png}
+    background: ${OPENAI_IMAGE_BACKGROUND:transparent}
+    connect-timeout: ${OPENAI_CONNECT_TIMEOUT:3s}
+    read-timeout: ${OPENAI_IMAGE_READ_TIMEOUT:180s}
+
 # 테스트 전용 스토리지 경로 (실제 파일이 쌓이지 않게 임시 폴더 사용)
 storage:
   local:
