@@ -71,6 +71,13 @@ character:
   image:
     generation-enabled: false
 
+analysis:
+  readiness:
+    minimum-total-speaking-duration: 60s
+    minimum-speaker-speaking-duration: 15s
+    minimum-speaker-character-count: 30
+    minimum-speaker-ratio-percent: 5
+
 # 테스트 전용 스토리지 경로 (실제 파일이 쌓이지 않게 임시 폴더 사용)
 storage:
   local:
