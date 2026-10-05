@@ -7,6 +7,8 @@
 ## 처리 흐름
 
 ```text
+AnalysisRequestedEvent (화자 매핑 저장 커밋 후)
+  -> 비동기 분석 파이프라인 시작
 AnalysisSourceReader
   -> 정량 지표 계산
   -> 분석 입력 적합성 검증
@@ -15,6 +17,10 @@ AnalysisSourceReader
   -> 분석 상태와 보고서 저장
   -> 보고서 조회
 ```
+
+B는 전사 세그먼트와 두 화자의 역할·이름을 저장하는 트랜잭션 안에서
+`AnalysisRequestedEvent`를 발행합니다. C는 해당 트랜잭션이 커밋된 후에만 이벤트를 받아
+별도 스레드에서 분석을 시작합니다. 같은 녹음에 대한 중복 이벤트는 한 번만 분석합니다.
 
 입력 적합성 검증을 통과한 데이터만 정성 모델에 전달합니다. 저장되는 보고서는
 `recordingInfo`, `quantitativeAnalysis`, `qualitativeAnalysis`로 구성됩니다.
