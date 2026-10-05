@@ -61,7 +61,7 @@ class AnalysisControllerIntegrationTest {
                 User.createLocal("analysis-other@example.com", "encoded-password", "다른사용자")
         );
         recording = recordingRepository.saveAndFlush(
-                Recording.create(user.getId(), "analysis-test.m4a")
+                Recording.create(user.getId(), "analysis-test.m4a", 600)
         );
         accessToken = jwtTokenProvider
                 .issueAccessToken(user.getId(), user.getRole().name())

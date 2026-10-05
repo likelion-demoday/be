@@ -31,6 +31,10 @@ public class Recording extends BaseEntity {
     @Column(nullable = false)
     private String audioFilePath;
 
+    // 업로드 시 읽은 재생시간 (보고서의 녹음 길이 표시에 사용)
+    @Column(nullable = false)
+    private Integer durationSeconds;
+
     @Enumerated(EnumType.STRING)
     @Column(columnDefinition = "varchar(30)")
     private RelationshipType relationshipType;
@@ -39,21 +43,25 @@ public class Recording extends BaseEntity {
     @Column(nullable = false, columnDefinition = "varchar(20)")
     private RecordingStatus status;
 
-    private Recording(Long userId, String audioFilePath) {
+    private Recording(Long userId, String audioFilePath, Integer durationSeconds) {
         this.userId = userId;
         this.title = LocalDate.now().format(TITLE_DATE_FORMAT) + " 녹음";
         this.audioFilePath = audioFilePath;
+        this.durationSeconds = durationSeconds;
         this.status = RecordingStatus.UPLOADED;
     }
 
-    public static Recording create(Long userId, String audioFilePath) {
+    public static Recording create(Long userId, String audioFilePath, Integer durationSeconds) {
         if (userId == null) {
             throw new GeneralException(RecordingErrorCode.VALIDATION_ERROR);
         }
         if (audioFilePath == null || audioFilePath.isBlank()) {
             throw new GeneralException(RecordingErrorCode.VALIDATION_ERROR);
         }
-        return new Recording(userId, audioFilePath);
+        if (durationSeconds == null || durationSeconds <= 0) {
+            throw new GeneralException(RecordingErrorCode.VALIDATION_ERROR);
+        }
+        return new Recording(userId, audioFilePath, durationSeconds);
     }
 
     public void selectType(RelationshipType relationshipType) {
