@@ -67,7 +67,13 @@ openai:
     connect-timeout: ${OPENAI_CONNECT_TIMEOUT:3s}
     read-timeout: ${OPENAI_IMAGE_READ_TIMEOUT:180s}
 
+character:
+  image:
+    generation-enabled: false
+
 # 테스트 전용 스토리지 경로 (실제 파일이 쌓이지 않게 임시 폴더 사용)
 storage:
   local:
     base-path: ./build/test-storage
+  character:
+    base-path: ./build/test-character-storage

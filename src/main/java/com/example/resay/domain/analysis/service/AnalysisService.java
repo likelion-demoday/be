@@ -4,12 +4,14 @@ import com.example.resay.domain.analysis.code.AnalysisErrorCode;
 import com.example.resay.domain.analysis.dto.AnalysisResultCommand;
 import com.example.resay.domain.analysis.entity.AnalysisResult;
 import com.example.resay.domain.analysis.entity.ConversationAnalysis;
+import com.example.resay.domain.analysis.event.AnalysisCompletedEvent;
 import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
 import com.example.resay.domain.analysis.repository.ConversationAnalysisRepository;
 import com.example.resay.global.exception.GeneralException;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,7 @@ public class AnalysisService {
 
     private final ConversationAnalysisRepository conversationAnalysisRepository;
     private final AnalysisResultRepository analysisResultRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public void start(Long recordingId) {
@@ -53,6 +56,7 @@ public class AnalysisService {
         try {
             analysis.complete();
             analysisResultRepository.saveAndFlush(result);
+            eventPublisher.publishEvent(new AnalysisCompletedEvent(analysis.getId(), recordingId));
         } catch (DataIntegrityViolationException exception) {
             throw new GeneralException(AnalysisErrorCode.ANALYSIS_RESULT_ALREADY_EXISTS);
         } catch (IllegalStateException exception) {
