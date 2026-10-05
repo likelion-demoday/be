@@ -5,6 +5,7 @@ import com.example.resay.domain.analysis.dto.AnalysisResultCommand;
 import com.example.resay.domain.analysis.entity.AnalysisResult;
 import com.example.resay.domain.analysis.entity.AnalysisStatus;
 import com.example.resay.domain.analysis.entity.ConversationAnalysis;
+import com.example.resay.domain.analysis.event.AnalysisCompletedEvent;
 import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
 import com.example.resay.domain.analysis.repository.ConversationAnalysisRepository;
 import com.example.resay.global.exception.GeneralException;
@@ -16,6 +17,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,6 +33,9 @@ class AnalysisServiceTest {
 
     @Mock
     private AnalysisResultRepository analysisResultRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private AnalysisService analysisService;
@@ -84,6 +89,7 @@ class AnalysisServiceTest {
         then(analysisResultRepository).should().saveAndFlush(captor.capture());
         assertThat(captor.getValue().getAnalysisId()).isEqualTo(10L);
         assertThat(captor.getValue().getResultJson()).isEqualTo("{\"summary\":\"대화 요약\"}");
+        then(eventPublisher).should().publishEvent(new AnalysisCompletedEvent(10L, 1L));
     }
 
     @Test
@@ -119,6 +125,7 @@ class AnalysisServiceTest {
                 );
 
         assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.ANALYZING);
+        then(eventPublisher).shouldHaveNoInteractions();
     }
 
     @Test
@@ -134,6 +141,7 @@ class AnalysisServiceTest {
                         assertThat(exception.getErrorCode())
                                 .isEqualTo(AnalysisErrorCode.ANALYSIS_RESULT_ALREADY_EXISTS)
                 );
+        then(eventPublisher).shouldHaveNoInteractions();
     }
 
     @Test

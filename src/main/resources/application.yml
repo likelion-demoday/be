@@ -115,6 +115,12 @@ openai:
     connect-timeout: ${OPENAI_CONNECT_TIMEOUT:3s}
     read-timeout: ${OPENAI_IMAGE_READ_TIMEOUT:180s}
 
+character:
+  image:
+    generation-enabled: ${CHARACTER_IMAGE_GENERATION_ENABLED:true}
+
 storage:
   local:
     base-path: ${STORAGE_BASE_PATH:./storage/recordings}
+  character:
+    base-path: ${CHARACTER_IMAGE_STORAGE_BASE_PATH:./storage/characters}
