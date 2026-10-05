@@ -1,6 +1,7 @@
 package com.example.resay.domain.analysis.service;
 
 import com.example.resay.domain.analysis.dto.AnalysisResultCommand;
+import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
@@ -36,6 +37,9 @@ class AnalysisProcessorTest {
     @Mock
     private AnalysisModelClient analysisModelClient;
 
+    @Mock
+    private AnalysisReadinessValidator readinessValidator;
+
     private AnalysisProcessor analysisProcessor;
 
     @BeforeEach
@@ -45,8 +49,8 @@ class AnalysisProcessorTest {
                 analysisSourceReader,
                 analysisModelClient,
                 new ConversationMetricsCalculator(),
-                new AnalysisReportAssembler(new ObjectMapper()),
-                Runnable::run
+                readinessValidator,
+                new AnalysisReportAssembler(new ObjectMapper())
         );
     }
 
@@ -68,7 +72,10 @@ class AnalysisProcessorTest {
                 .contains("\"qualitativeAnalysis\":{\"overview\"")
                 .contains("\"title\":\"대화 요약\"");
         assertThat(captor.getValue().modelName()).isEqualTo("liner-mark-1.1");
-        then(analysisService).should(never()).fail(1L);
+        then(analysisService).should(never()).fail(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()
+        );
     }
 
     @Test
@@ -81,7 +88,7 @@ class AnalysisProcessorTest {
         assertThatThrownBy(() -> analysisProcessor.process(1L))
                 .isSameAs(modelException);
 
-        then(analysisService).should().fail(1L);
+        then(analysisService).should().fail(1L, AnalysisFailureReason.PROCESSING_ERROR);
         then(analysisService).should(never()).complete(
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any()
@@ -98,7 +105,10 @@ class AnalysisProcessorTest {
 
         then(analysisSourceReader).shouldHaveNoInteractions();
         then(analysisModelClient).shouldHaveNoInteractions();
-        then(analysisService).should(never()).fail(1L);
+        then(analysisService).should(never()).fail(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()
+        );
     }
 
     @Test
@@ -109,7 +119,7 @@ class AnalysisProcessorTest {
                 .isInstanceOf(IllegalStateException.class);
 
         then(analysisModelClient).shouldHaveNoInteractions();
-        then(analysisService).should().fail(1L);
+        then(analysisService).should().fail(1L, AnalysisFailureReason.PROCESSING_ERROR);
     }
 
     @Test
@@ -119,13 +129,35 @@ class AnalysisProcessorTest {
         AnalysisSource source = analysisSource(1L);
         given(analysisSourceReader.read(1L)).willReturn(source);
         given(analysisModelClient.analyze(source)).willThrow(modelException);
-        willThrow(statusException).given(analysisService).fail(1L);
+        willThrow(statusException).given(analysisService)
+                .fail(1L, AnalysisFailureReason.PROCESSING_ERROR);
 
         assertThatThrownBy(() -> analysisProcessor.process(1L))
                 .isSameAs(modelException)
                 .satisfies(exception ->
                         assertThat(exception.getSuppressed()).containsExactly(statusException)
                 );
+    }
+
+    @Test
+    void skipsModelCallAndStoresReasonWhenInputIsInsufficient() {
+        AnalysisSource source = analysisSource(1L);
+        AnalysisReadinessException readinessException =
+                new AnalysisReadinessException("화자별 발화가 부족합니다.");
+        given(analysisSourceReader.read(1L)).willReturn(source);
+        willThrow(readinessException).given(readinessValidator).validate(
+                org.mockito.ArgumentMatchers.eq(source),
+                org.mockito.ArgumentMatchers.any()
+        );
+
+        assertThatThrownBy(() -> analysisProcessor.process(1L))
+                .isSameAs(readinessException);
+
+        then(analysisModelClient).shouldHaveNoInteractions();
+        then(analysisService).should().fail(
+                1L,
+                AnalysisFailureReason.INSUFFICIENT_SPEAKER_DATA
+        );
     }
 
     private AnalysisSource analysisSource(Long recordingId) {

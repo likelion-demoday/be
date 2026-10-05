@@ -2,6 +2,7 @@ package com.example.resay.domain.analysis.service;
 
 import com.example.resay.domain.analysis.dto.AnalysisResultCommand;
 import com.example.resay.domain.analysis.entity.AnalysisStatus;
+import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
 import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
 import com.example.resay.domain.analysis.repository.ConversationAnalysisRepository;
 import com.example.resay.global.config.JpaAuditingConfig;
@@ -45,6 +46,20 @@ class AnalysisServiceIntegrationTest {
         assertThat(result.getModelName()).isEqualTo("liner-mark-1.1");
         assertThat(result.getPromptVersion()).isEqualTo("v1");
         assertThat(result.getSchemaVersion()).isEqualTo("v1");
+    }
+
+    @Test
+    void persistsFailureReason() {
+        analysisService.start(2L);
+
+        analysisService.fail(2L, AnalysisFailureReason.INSUFFICIENT_SPEAKER_DATA);
+        entityManager.flush();
+        entityManager.clear();
+
+        var analysis = conversationAnalysisRepository.findByRecordingId(2L).orElseThrow();
+        assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.FAILED);
+        assertThat(analysis.getFailureReason())
+                .isEqualTo(AnalysisFailureReason.INSUFFICIENT_SPEAKER_DATA);
     }
 
     private AnalysisResultCommand resultCommand() {

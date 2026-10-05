@@ -1,6 +1,7 @@
 package com.example.resay.domain.analysis.controller;
 
 import com.example.resay.domain.analysis.dto.AnalysisResultCommand;
+import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
 import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
@@ -80,6 +81,7 @@ class AnalysisControllerIntegrationTest {
                 .andExpect(jsonPath("$.code").value("ANALYSIS200_1"))
                 .andExpect(jsonPath("$.result.recordingId").value(recording.getId()))
                 .andExpect(jsonPath("$.result.status").value("ANALYZING"))
+                .andExpect(jsonPath("$.result.failureReason").isEmpty())
                 .andExpect(jsonPath("$.result.report").isEmpty())
                 .andExpect(jsonPath("$.result.modelName").isEmpty());
     }
@@ -92,6 +94,7 @@ class AnalysisControllerIntegrationTest {
         performGet(accessToken)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.result.failureReason").isEmpty())
                 .andExpect(jsonPath("$.result.report.recordingInfo.recordingId")
                         .value(recording.getId()))
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.overview.title")
@@ -110,11 +113,12 @@ class AnalysisControllerIntegrationTest {
     @Test
     void returnsFailedStatusWithoutReport() throws Exception {
         analysisService.start(recording.getId());
-        analysisService.fail(recording.getId());
+        analysisService.fail(recording.getId(), AnalysisFailureReason.PROCESSING_ERROR);
 
         performGet(accessToken)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.status").value("FAILED"))
+                .andExpect(jsonPath("$.result.failureReason").value("PROCESSING_ERROR"))
                 .andExpect(jsonPath("$.result.report").isEmpty());
     }
 

@@ -41,6 +41,7 @@ public class AnalysisReportQueryService {
             return new AnalysisReportResponseDto(
                     recordingId,
                     analysis.getStatus(),
+                    analysis.getFailureReason(),
                     null,
                     null,
                     null,
@@ -53,6 +54,7 @@ public class AnalysisReportQueryService {
         return new AnalysisReportResponseDto(
                 recordingId,
                 analysis.getStatus(),
+                null,
                 AnalysisReportDto.from(readReport(result.getResultJson())),
                 result.getModelName(),
                 result.getPromptVersion(),

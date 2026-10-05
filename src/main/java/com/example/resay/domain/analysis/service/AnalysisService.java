@@ -3,6 +3,7 @@ package com.example.resay.domain.analysis.service;
 import com.example.resay.domain.analysis.code.AnalysisErrorCode;
 import com.example.resay.domain.analysis.dto.AnalysisResultCommand;
 import com.example.resay.domain.analysis.entity.AnalysisResult;
+import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
 import com.example.resay.domain.analysis.entity.ConversationAnalysis;
 import com.example.resay.domain.analysis.event.AnalysisCompletedEvent;
 import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
@@ -65,10 +66,11 @@ public class AnalysisService {
     }
 
     @Transactional
-    public void fail(Long recordingId) {
+    public void fail(Long recordingId, AnalysisFailureReason failureReason) {
+        Objects.requireNonNull(failureReason, "분석 실패 사유는 비어 있을 수 없습니다.");
         ConversationAnalysis analysis = findAnalysis(recordingId);
         try {
-            analysis.fail();
+            analysis.fail(failureReason);
         } catch (IllegalStateException exception) {
             throw new GeneralException(AnalysisErrorCode.INVALID_ANALYSIS_STATUS);
         }

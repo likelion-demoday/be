@@ -1,14 +1,12 @@
 package com.example.resay.domain.analysis.service;
 
 import com.example.resay.domain.analysis.dto.AnalysisResultCommand;
+import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.ConversationMetrics;
 import com.example.resay.domain.analysis.port.AnalysisModelClient;
 import com.example.resay.domain.analysis.port.AnalysisSourceReader;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
 
 public class AnalysisProcessor {
 
@@ -16,23 +14,23 @@ public class AnalysisProcessor {
     private final AnalysisSourceReader analysisSourceReader;
     private final AnalysisModelClient analysisModelClient;
     private final ConversationMetricsCalculator metricsCalculator;
+    private final AnalysisReadinessValidator readinessValidator;
     private final AnalysisReportAssembler reportAssembler;
-    private final Executor analysisTaskExecutor;
 
     public AnalysisProcessor(
             AnalysisService analysisService,
             AnalysisSourceReader analysisSourceReader,
             AnalysisModelClient analysisModelClient,
             ConversationMetricsCalculator metricsCalculator,
-            AnalysisReportAssembler reportAssembler,
-            Executor analysisTaskExecutor
+            AnalysisReadinessValidator readinessValidator,
+            AnalysisReportAssembler reportAssembler
     ) {
         this.analysisService = analysisService;
         this.analysisSourceReader = analysisSourceReader;
         this.analysisModelClient = analysisModelClient;
         this.metricsCalculator = metricsCalculator;
+        this.readinessValidator = readinessValidator;
         this.reportAssembler = reportAssembler;
-        this.analysisTaskExecutor = analysisTaskExecutor;
     }
 
     public void process(Long recordingId) {
@@ -42,35 +40,17 @@ public class AnalysisProcessor {
             AnalysisSource source = analysisSourceReader.read(recordingId);
             requireMatchingRecording(recordingId, source);
 
-            CompletableFuture<ConversationMetrics> metricsFuture = CompletableFuture.supplyAsync(
-                    () -> metricsCalculator.calculate(source),
-                    analysisTaskExecutor
-            );
-            CompletableFuture<AnalysisModelResult> qualitativeFuture = CompletableFuture.supplyAsync(
-                    () -> analysisModelClient.analyze(source),
-                    analysisTaskExecutor
-            );
-
-            awaitBoth(metricsFuture, qualitativeFuture);
+            ConversationMetrics metrics = metricsCalculator.calculate(source);
+            readinessValidator.validate(source, metrics);
+            AnalysisModelResult qualitativeResult = analysisModelClient.analyze(source);
             AnalysisModelResult report = reportAssembler.assemble(
                     source,
-                    metricsFuture.join(),
-                    qualitativeFuture.join()
+                    metrics,
+                    qualitativeResult
             );
             analysisService.complete(recordingId, toCommand(report));
         } catch (RuntimeException exception) {
             markFailed(recordingId, exception);
-            throw exception;
-        }
-    }
-
-    private void awaitBoth(CompletableFuture<?> first, CompletableFuture<?> second) {
-        try {
-            CompletableFuture.allOf(first, second).join();
-        } catch (CompletionException exception) {
-            if (exception.getCause() instanceof RuntimeException runtimeException) {
-                throw runtimeException;
-            }
             throw exception;
         }
     }
@@ -95,9 +75,16 @@ public class AnalysisProcessor {
 
     private void markFailed(Long recordingId, RuntimeException originalException) {
         try {
-            analysisService.fail(recordingId);
+            analysisService.fail(recordingId, failureReason(originalException));
         } catch (RuntimeException statusException) {
             originalException.addSuppressed(statusException);
         }
+    }
+
+    private AnalysisFailureReason failureReason(RuntimeException exception) {
+        if (exception instanceof AnalysisReadinessException) {
+            return AnalysisFailureReason.INSUFFICIENT_SPEAKER_DATA;
+        }
+        return AnalysisFailureReason.PROCESSING_ERROR;
     }
 }

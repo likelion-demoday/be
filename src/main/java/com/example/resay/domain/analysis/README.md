@@ -8,13 +8,15 @@
 
 ```text
 AnalysisSourceReader
-  -> 정량 지표 계산 + 정성 모델 분석
+  -> 정량 지표 계산
+  -> 분석 입력 적합성 검증
+  -> 정성 모델 분석
   -> AnalysisReportAssembler
   -> 분석 상태와 보고서 저장
   -> 보고서 조회
 ```
 
-정량 지표와 정성 분석은 `analysisTaskExecutor`에서 동시에 실행합니다. 저장되는 보고서는
+입력 적합성 검증을 통과한 데이터만 정성 모델에 전달합니다. 저장되는 보고서는
 `recordingInfo`, `quantitativeAnalysis`, `qualitativeAnalysis`로 구성됩니다.
 
 ## 분석 보고서 v3
