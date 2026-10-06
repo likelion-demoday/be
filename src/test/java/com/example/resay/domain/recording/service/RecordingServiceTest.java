@@ -4,6 +4,7 @@ import com.example.resay.domain.recording.code.RecordingErrorCode;
 import com.example.resay.domain.recording.entity.Recording;
 import com.example.resay.domain.recording.entity.RecordingFailureReason;
 import com.example.resay.domain.recording.entity.RecordingStatus;
+import com.example.resay.domain.recording.event.RecordingPaymentCompletedEvent;
 import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.global.exception.GeneralException;
 import com.example.resay.global.infrastructure.audio.AudioDurationReader;
@@ -14,6 +15,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import jakarta.persistence.EntityManager;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
@@ -26,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -43,6 +47,46 @@ class RecordingServiceTest {
 
     @Mock
     private AudioDurationReader audioDurationReader;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private EntityManager entityManager;
+
+    @Test
+    void completePayment_조건부로_결제_완료로_바꾸고_전사_시작용_이벤트를_발행() {
+        when(recordingRepository.markPaymentCompleted(eq(10L), eq(1L), any())).thenReturn(1);
+
+        recordingService.completePayment(10L, 1L);
+
+        verify(eventPublisher).publishEvent(new RecordingPaymentCompletedEvent(10L));
+    }
+
+    @Test
+    void completePayment_이미_결제됐거나_유형_선택_전이면_400_이벤트도_없음() {
+        when(recordingRepository.markPaymentCompleted(eq(10L), eq(1L), any())).thenReturn(0);
+        when(recordingRepository.findByIdAndUserId(10L, 1L))
+                .thenReturn(Optional.of(Recording.create(1L, SAVED_PATH, 600)));
+
+        GeneralException exception = assertThrows(GeneralException.class,
+                () -> recordingService.completePayment(10L, 1L));
+
+        assertEquals(RecordingErrorCode.INVALID_STATUS_TRANSITION, exception.getErrorCode());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void completePayment_다른_사람의_녹음이면_404_이벤트도_없음() {
+        when(recordingRepository.markPaymentCompleted(eq(10L), eq(2L), any())).thenReturn(0);
+        when(recordingRepository.findByIdAndUserId(10L, 2L)).thenReturn(Optional.empty());
+
+        GeneralException exception = assertThrows(GeneralException.class,
+                () -> recordingService.completePayment(10L, 2L));
+
+        assertEquals(RecordingErrorCode.RECORDING_NOT_FOUND, exception.getErrorCode());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
 
     @InjectMocks
     private RecordingService recordingService;
@@ -244,7 +288,7 @@ class RecordingServiceTest {
 
     @Test
     void deleteAbandoned_결제_전_녹음은_파일과_기록을_모두_삭제() {
-        Recording recording = savedRecording(RecordingStatus.TYPE_SELECTED);
+        Recording recording = lockedRecording(RecordingStatus.TYPE_SELECTED);
         when(localFileStorage.delete(SAVED_PATH)).thenReturn(true);
 
         assertTrue(recordingService.deleteAbandoned(1L));
@@ -253,7 +297,7 @@ class RecordingServiceTest {
 
     @Test
     void deleteAbandoned_그사이_결제됐으면_지우지_않음() {
-        savedRecording(RecordingStatus.PAYMENT_COMPLETED);
+        lockedRecording(RecordingStatus.PAYMENT_COMPLETED);
 
         assertFalse(recordingService.deleteAbandoned(1L));
         verify(localFileStorage, never()).delete(any());
@@ -262,7 +306,7 @@ class RecordingServiceTest {
 
     @Test
     void deleteAbandoned_파일_삭제에_실패하면_기록도_남겨_다음에_다시_시도() {
-        savedRecording(RecordingStatus.UPLOADED);
+        lockedRecording(RecordingStatus.UPLOADED);
         when(localFileStorage.delete(SAVED_PATH)).thenReturn(false);
 
         assertFalse(recordingService.deleteAbandoned(1L));
@@ -273,6 +317,14 @@ class RecordingServiceTest {
         Recording recording = Recording.create(1L, SAVED_PATH, 600);
         ReflectionTestUtils.setField(recording, "status", status);
         when(recordingRepository.findById(1L)).thenReturn(Optional.of(recording));
+        return recording;
+    }
+
+    // 결제와 동시에 일어날 수 있는 처리는 잠금 조회로 읽는다
+    private Recording lockedRecording(RecordingStatus status) {
+        Recording recording = Recording.create(1L, SAVED_PATH, 600);
+        ReflectionTestUtils.setField(recording, "status", status);
+        when(recordingRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(recording));
         return recording;
     }
 
