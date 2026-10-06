@@ -8,6 +8,7 @@ import com.example.resay.domain.recording.dto.SpeakerMappingRequestDto;
 import com.example.resay.domain.recording.dto.SpeakerSamplesResponseDto;
 import com.example.resay.domain.recording.service.RecordingAudioService;
 import com.example.resay.domain.recording.service.RecordingService;
+import com.example.resay.domain.transcription.service.ConversationDeletionService;
 import com.example.resay.domain.transcription.service.RecordingStatusService;
 import com.example.resay.domain.transcription.service.SpeakerMappingService;
 import com.example.resay.domain.transcription.service.SpeakerSampleService;
@@ -34,6 +35,18 @@ public class RecordingController {
     private final SpeakerSampleService speakerSampleService;
     private final RecordingAudioService recordingAudioService;
     private final AudioUrlSigner audioUrlSigner;
+    private final ConversationDeletionService conversationDeletionService;
+
+    // 대화 삭제: 음성·전사 원문을 지우고 녹음은 숨긴다 (보고서는 남음). 분석이 끝난 대화만 가능
+    @DeleteMapping("/{recordingId}")
+    public ResponseEntity<ApiResponse<Void>> delete(
+            @CurrentUserId Long userId,
+            @PathVariable Long recordingId
+    ) {
+        conversationDeletionService.delete(recordingId, userId);
+        return ResponseEntity.status(RecordingSuccessCode.DELETE.getHttpStatus())
+                .body(ApiResponse.onSuccess(RecordingSuccessCode.DELETE));
+    }
 
     // 화자 선택 화면: 화자별로 들려줄 구간과 재생 주소(10분 후 만료)를 준다
     @GetMapping("/{recordingId}/speaker-samples")

@@ -14,6 +14,7 @@ public enum RecordingErrorCode implements BaseErrorCode {
     DURATION_TOO_SHORT(HttpStatus.BAD_REQUEST, "RECORDING400_3", "녹음 길이가 너무 짧습니다. 5분 이상이어야 합니다."),
     INVALID_SPEAKER_MAPPING(HttpStatus.BAD_REQUEST, "RECORDING400_4", "선택한 화자 정보가 올바르지 않습니다."),
     TRANSCRIPTION_NOT_COMPLETED(HttpStatus.CONFLICT, "RECORDING409_1", "전사가 끝난 녹음만 화자를 지정할 수 있습니다."),
+    DELETE_NOT_ALLOWED(HttpStatus.CONFLICT, "RECORDING409_2", "분석이 끝난 대화만 삭제할 수 있습니다."),
     UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "RECORDING415_1", "지원하지 않는 오디오 포맷입니다."),
     FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "RECORDING413_1", "파일 용량이 허용 범위를 초과했습니다."),
     RECORDING_NOT_FOUND(HttpStatus.NOT_FOUND, "RECORDING404_1", "해당 녹음을 찾을 수 없습니다."),
