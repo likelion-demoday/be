@@ -83,6 +83,31 @@ class TranscriptionRepositoryTest {
         assertThat(ids).containsExactlyInAnyOrder(결과_없음, 요청_기록도_없음);
     }
 
+    @Test
+    void findSpeakerSelectionExpiredRecordingIds_전사가_끝난_지_기한이_지났고_화자를_고르지_않은_녹음만_조회() {
+        Long 기한_지남 = transcribedRecording(4);
+        transcribedRecording(1); // 아직 기한 전
+        Long 이미_분석_중 = transcribedRecording(4);
+        Recording analyzing = recordingRepository.findById(이미_분석_중).orElseThrow();
+        ReflectionTestUtils.setField(analyzing, "status", RecordingStatus.ANALYZING); // 화자를 이미 고름
+        entityManager.flush();
+        entityManager.clear();
+
+        List<Long> ids = transcriptionRepository.findSpeakerSelectionExpiredRecordingIds(LocalDateTime.now().minusDays(3));
+
+        assertThat(ids).containsExactly(기한_지남);
+    }
+
+    // 전사가 daysAgo일 전에 끝난 녹음 (화자 선택 대기 중)
+    private Long transcribedRecording(int daysAgo) {
+        Long id = transcribingRecording(0);
+        Transcription transcription = Transcription.prepare(id, TranscriptionProvider.CLOVA_SPEECH);
+        transcription.complete();
+        ReflectionTestUtils.setField(transcription, "completedAt", LocalDateTime.now().minusDays(daysAgo));
+        transcriptionRepository.save(transcription);
+        return id;
+    }
+
     // 전사 중인 녹음을 저장하고 마지막 상태 변경 시각을 hoursAgo 시간 전으로 맞춘다
     private Long transcribingRecording(int hoursAgo) {
         Recording recording = Recording.create(1L, "/storage/test.m4a", 600);

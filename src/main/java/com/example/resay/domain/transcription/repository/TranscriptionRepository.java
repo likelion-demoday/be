@@ -28,4 +28,14 @@ public interface TranscriptionRepository extends JpaRepository<Transcription, Lo
               )
             """)
     List<Long> findTimedOutRecordingIds(@Param("cutoff") LocalDateTime cutoff);
+
+    // 전사가 끝난 지 오래됐는데 사용자가 화자를 고르지 않은 녹음
+    @Query("""
+            select r.id from Recording r, Transcription t
+            where t.recordingId = r.id
+              and r.status = com.example.resay.domain.recording.entity.RecordingStatus.TRANSCRIBING
+              and t.status = com.example.resay.domain.transcription.entity.TranscriptionStatus.COMPLETED
+              and t.completedAt < :cutoff
+            """)
+    List<Long> findSpeakerSelectionExpiredRecordingIds(@Param("cutoff") LocalDateTime cutoff);
 }

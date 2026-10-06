@@ -30,4 +30,12 @@ public interface RecordingRepository extends JpaRepository<Recording, Long> {
             @Param("statuses") Collection<RecordingStatus> statuses,
             @Param("cutoff") LocalDateTime cutoff
     );
+
+    // 결제는 끝났는데 전사가 시작되지 않은 녹음 (상태가 바뀐 시각 = 결제 완료 시각 기준)
+    @Query("""
+            select r.id from Recording r
+            where r.status = com.example.resay.domain.recording.entity.RecordingStatus.PAYMENT_COMPLETED
+              and r.updatedAt < :cutoff
+            """)
+    List<Long> findTranscriptionNotStartedIds(@Param("cutoff") LocalDateTime cutoff);
 }
