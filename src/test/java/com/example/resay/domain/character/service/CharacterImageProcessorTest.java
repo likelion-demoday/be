@@ -2,13 +2,13 @@ package com.example.resay.domain.character.service;
 
 import com.example.resay.domain.analysis.entity.AnalysisResult;
 import com.example.resay.domain.analysis.entity.ConversationAnalysis;
-import com.example.resay.domain.analysis.event.AnalysisCompletedEvent;
 import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
 import com.example.resay.domain.analysis.repository.ConversationAnalysisRepository;
+import com.example.resay.domain.character.event.CharacterImageRequestedEvent;
 import com.example.resay.domain.character.model.CharacterImageGenerationCommand;
 import com.example.resay.domain.character.model.GeneratedCharacterImage;
 import com.example.resay.domain.character.port.CharacterImageGenerator;
@@ -84,7 +84,7 @@ class CharacterImageProcessorTest {
         given(characterImageStorage.save(eq(10L), any(), eq(generatedImage)))
                 .willAnswer(invocation -> "10/" + invocation.getArgument(1, SpeakerRole.class) + ".png");
 
-        processor.process(new AnalysisCompletedEvent(10L, 1L));
+        processor.process(new CharacterImageRequestedEvent(10L, 1L));
 
         ArgumentCaptor<CharacterImageGenerationCommand> commandCaptor =
                 ArgumentCaptor.forClass(CharacterImageGenerationCommand.class);
@@ -121,7 +121,7 @@ class CharacterImageProcessorTest {
         given(characterImageStorage.save(10L, SpeakerRole.FRIEND, generatedImage))
                 .willReturn("10/friend.png");
 
-        processor.process(new AnalysisCompletedEvent(10L, 1L));
+        processor.process(new CharacterImageRequestedEvent(10L, 1L));
 
         then(characterImageService).should().fail(
                 10L,
@@ -141,7 +141,7 @@ class CharacterImageProcessorTest {
         givenCompletedReport();
         given(characterImageService.begin(eq(10L), any())).willReturn(false);
 
-        processor.process(new AnalysisCompletedEvent(10L, 1L));
+        processor.process(new CharacterImageRequestedEvent(10L, 1L));
 
         then(characterImageGenerator).shouldHaveNoInteractions();
         then(characterImageStorage).shouldHaveNoInteractions();
@@ -157,7 +157,7 @@ class CharacterImageProcessorTest {
         given(characterImageStorage.save(10L, SpeakerRole.FRIEND, generatedImage))
                 .willReturn("10/friend.png");
 
-        processor.process(new AnalysisCompletedEvent(10L, 1L));
+        processor.process(new CharacterImageRequestedEvent(10L, 1L));
 
         then(characterImageService).should().complete(
                 10L,
@@ -184,7 +184,7 @@ class CharacterImageProcessorTest {
                 .given(characterImageService)
                 .complete(10L, SpeakerRole.SELF, "10/self.png", generatedImage);
 
-        processor.process(new AnalysisCompletedEvent(10L, 1L));
+        processor.process(new CharacterImageRequestedEvent(10L, 1L));
 
         then(characterImageStorage).should().delete("10/self.png");
         then(characterImageService).should().fail(

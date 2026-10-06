@@ -3,11 +3,11 @@ package com.example.resay.domain.character.service;
 import com.example.resay.domain.analysis.entity.AnalysisResult;
 import com.example.resay.domain.analysis.entity.AnalysisStatus;
 import com.example.resay.domain.analysis.entity.ConversationAnalysis;
-import com.example.resay.domain.analysis.event.AnalysisCompletedEvent;
 import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
 import com.example.resay.domain.analysis.repository.ConversationAnalysisRepository;
+import com.example.resay.domain.character.event.CharacterImageRequestedEvent;
 import com.example.resay.domain.character.model.CharacterImageGenerationCommand;
 import com.example.resay.domain.character.model.GeneratedCharacterImage;
 import com.example.resay.domain.character.port.CharacterImageGenerator;
@@ -32,7 +32,7 @@ public class CharacterImageProcessor {
     private final CharacterImageStorage characterImageStorage;
     private final ObjectMapper objectMapper;
 
-    public void process(AnalysisCompletedEvent event) {
+    public void process(CharacterImageRequestedEvent event) {
         ConversationAnalysis analysis = conversationAnalysisRepository.findById(event.analysisId())
                 .orElseThrow(() -> new IllegalStateException("완료된 분석이 존재하지 않습니다."));
         if (!event.recordingId().equals(analysis.getRecordingId())

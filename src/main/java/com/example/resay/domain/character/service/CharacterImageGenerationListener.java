@@ -1,6 +1,6 @@
 package com.example.resay.domain.character.service;
 
-import com.example.resay.domain.analysis.event.AnalysisCompletedEvent;
+import com.example.resay.domain.character.event.CharacterImageRequestedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -24,7 +24,7 @@ public class CharacterImageGenerationListener {
 
     @Async("characterImageTaskExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void handle(AnalysisCompletedEvent event) {
+    public void handle(CharacterImageRequestedEvent event) {
         try {
             characterImageProcessor.process(event);
         } catch (RuntimeException exception) {
