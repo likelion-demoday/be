@@ -25,6 +25,7 @@ public class RecordingStatusService {
 
     public RecordingStatusResponseDto getStatus(Long recordingId, Long userId) {
         Recording recording = recordingRepository.findByIdAndUserId(recordingId, userId)
+                .filter(found -> !found.isDeleted()) // 대화를 삭제한 녹음은 없는 것으로 본다
                 .orElseThrow(() -> new GeneralException(RecordingErrorCode.RECORDING_NOT_FOUND));
         boolean transcribed = recording.getStatus() == RecordingStatus.TRANSCRIBING
                 && transcriptionRepository.findByRecordingId(recordingId)

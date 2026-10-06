@@ -69,6 +69,9 @@ public class Recording extends BaseEntity {
     @Column(columnDefinition = "varchar(10)")
     private ParentChildRole parentChildRole;
 
+    // 사용자가 대화를 삭제한 시각. 녹음 행은 보고서의 소유자 확인에 필요해 남기고 숨김 처리한다
+    private LocalDateTime deletedAt;
+
     private Recording(Long userId, String audioFilePath, Integer durationSeconds) {
         this.userId = userId;
         this.title = LocalDate.now().format(TITLE_DATE_FORMAT) + " 녹음";
@@ -149,6 +152,20 @@ public class Recording extends BaseEntity {
         this.status = RecordingStatus.FAILED;
         this.failureReason = reason;
         this.failedAt = LocalDateTime.now();
+    }
+
+    // 분석이 끝난(완료·실패) 녹음만 사용자가 삭제할 수 있다 (진행 중에 지우면 결제한 작업이 망가진다)
+    public void markDeleted() {
+        if (this.status != RecordingStatus.COMPLETED && this.status != RecordingStatus.FAILED) {
+            throw new GeneralException(RecordingErrorCode.DELETE_NOT_ALLOWED);
+        }
+        if (this.deletedAt == null) {
+            this.deletedAt = LocalDateTime.now();
+        }
+    }
+
+    public boolean isDeleted() {
+        return this.deletedAt != null;
     }
 
     public boolean hasAudio() {

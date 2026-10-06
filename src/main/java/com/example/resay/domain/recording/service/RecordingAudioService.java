@@ -30,7 +30,7 @@ public class RecordingAudioService {
         Recording recording = recordingRepository.findById(recordingId)
                 .orElseThrow(() -> new GeneralException(RecordingErrorCode.RECORDING_NOT_FOUND));
         Path path = Path.of(recording.getAudioFilePath());
-        if (!recording.hasAudio() || !Files.isRegularFile(path)) {
+        if (recording.isDeleted() || !recording.hasAudio() || !Files.isRegularFile(path)) {
             throw new GeneralException(RecordingErrorCode.AUDIO_DELETED);
         }
         return new AudioFile(new FileSystemResource(path), mediaType(path));

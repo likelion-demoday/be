@@ -39,12 +39,15 @@ public interface RecordingRepository extends JpaRepository<Recording, Long> {
     @Query("select r from Recording r where r.id = :id")
     Optional<Recording> findByIdForUpdate(@Param("id") Long id);
 
-    // 분석이 끝났거나 실패한 뒤 보관 기간이 지났는데 음성 파일이 남아 있는 녹음
+    // 음성 파일이 남아 있는데 지워야 하는 녹음
+    // - 분석이 끝났거나 실패한 뒤 보관 기간이 지남
+    // - 사용자가 대화를 삭제했는데 그때 파일 삭제에 실패함 (보관 기간과 상관없이 바로 다시 지운다)
     @Query("""
             select r.id from Recording r
             where r.audioDeletedAt is null
               and ((r.status = com.example.resay.domain.recording.entity.RecordingStatus.COMPLETED and r.completedAt < :cutoff)
-                or (r.status = com.example.resay.domain.recording.entity.RecordingStatus.FAILED and r.failedAt < :cutoff))
+                or (r.status = com.example.resay.domain.recording.entity.RecordingStatus.FAILED and r.failedAt < :cutoff)
+                or r.deletedAt is not null)
             """)
     List<Long> findAudioExpiredIds(@Param("cutoff") LocalDateTime cutoff);
 
