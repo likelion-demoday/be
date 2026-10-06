@@ -77,6 +77,23 @@ class RecordingRepositoryTest {
         assertThat(기한_전).isEmpty();
     }
 
+    @Test
+    void findTranscriptionNotStartedIds_결제_완료_상태로_오래_머문_녹음만_조회된다() {
+        Recording 결제완료 = Recording.create(1L, "/storage/a.mp3", 600);
+        ReflectionTestUtils.setField(결제완료, "status", RecordingStatus.PAYMENT_COMPLETED);
+        recordingRepository.saveAndFlush(결제완료);
+        Recording 전사중 = Recording.create(1L, "/storage/b.mp3", 600);
+        ReflectionTestUtils.setField(전사중, "status", RecordingStatus.TRANSCRIBING);
+        recordingRepository.saveAndFlush(전사중);
+
+        // 방금 저장해 updatedAt이 현재 시각이므로, 기준 시각을 미래로 잡아 "오래 머문 녹음"처럼 조회한다
+        List<Long> 오래됨 = recordingRepository.findTranscriptionNotStartedIds(LocalDateTime.now().plusMinutes(1));
+        List<Long> 방금 = recordingRepository.findTranscriptionNotStartedIds(LocalDateTime.now().minusMinutes(5));
+
+        assertThat(오래됨).containsExactly(결제완료.getId());
+        assertThat(방금).isEmpty();
+    }
+
     private Long saveWith(RecordingStatus status, String timeField, LocalDateTime time) {
         Recording recording = Recording.create(1L, "/storage/test.mp3", 600);
         ReflectionTestUtils.setField(recording, "status", status);

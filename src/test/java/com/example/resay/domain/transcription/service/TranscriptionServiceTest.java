@@ -2,6 +2,7 @@ package com.example.resay.domain.transcription.service;
 
 import com.example.resay.domain.recording.code.RecordingErrorCode;
 import com.example.resay.domain.recording.entity.RecordingFailureReason;
+import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.domain.recording.service.RecordingService;
 import com.example.resay.domain.transcription.code.TranscriptionErrorCode;
 import com.example.resay.domain.transcription.entity.TranscriptSegment;
@@ -58,6 +59,9 @@ class TranscriptionServiceTest {
 
     @Mock
     private TranscriptSegmentRepository transcriptSegmentRepository;
+
+    @Mock
+    private RecordingRepository recordingRepository;
 
     @InjectMocks
     private TranscriptionService transcriptionService;
@@ -266,6 +270,47 @@ class TranscriptionServiceTest {
         transcriptionService.failTimedOut(RECORDING_ID);
 
         verify(recordingService).failTranscription(RECORDING_ID, RecordingFailureReason.TRANSCRIPTION_TIMEOUT);
+    }
+
+    // ---------- 전사 시작 복구 ----------
+
+    @Test
+    void findTranscriptionNotStartedIds_결제_후_5분이_지난_녹음을_조회() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 6, 12, 0);
+        when(recordingRepository.findTranscriptionNotStartedIds(now.minusMinutes(5))).thenReturn(List.of(RECORDING_ID));
+
+        assertThat(transcriptionService.findTranscriptionNotStartedIds(now)).containsExactly(RECORDING_ID);
+    }
+
+    // ---------- 화자 선택 기한 만료 ----------
+
+    @Test
+    void findSpeakerSelectionExpiredRecordingIds_3일_전을_기준으로_조회() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 6, 12, 0);
+        when(transcriptionRepository.findSpeakerSelectionExpiredRecordingIds(now.minusDays(3)))
+                .thenReturn(List.of(RECORDING_ID));
+
+        assertThat(transcriptionService.findSpeakerSelectionExpiredRecordingIds(now)).containsExactly(RECORDING_ID);
+    }
+
+    @Test
+    void expireSpeakerSelection_실패로_바꾸고_음성을_바로_지운다() {
+        when(recordingService.failTranscription(RECORDING_ID, RecordingFailureReason.SPEAKER_SELECTION_EXPIRED))
+                .thenReturn(true);
+
+        transcriptionService.expireSpeakerSelection(RECORDING_ID);
+
+        verify(recordingService).deleteAudio(RECORDING_ID);
+    }
+
+    @Test
+    void expireSpeakerSelection_그사이_화자를_골랐으면_건드리지_않는다() {
+        when(recordingService.failTranscription(RECORDING_ID, RecordingFailureReason.SPEAKER_SELECTION_EXPIRED))
+                .thenReturn(false);
+
+        transcriptionService.expireSpeakerSelection(RECORDING_ID);
+
+        verify(recordingService, never()).deleteAudio(anyLong());
     }
 
     private Transcription requested(String jobToken) {
