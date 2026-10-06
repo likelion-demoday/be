@@ -1,6 +1,7 @@
 package com.example.resay.domain.transcription.service;
 
 import com.example.resay.domain.recording.entity.RecordingFailureReason;
+import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.domain.recording.service.RecordingService;
 import com.example.resay.domain.transcription.code.TranscriptionErrorCode;
 import com.example.resay.domain.transcription.entity.TranscriptSegment;
@@ -30,6 +31,10 @@ public class TranscriptionService {
 
     // 6분 43초 음성이 1분 안에 끝났으므로, 30분 음성도 여유 있게 기다릴 수 있는 시간
     static final Duration RESULT_TIMEOUT = Duration.ofHours(1);
+    // 결제한 녹음이라 돌아와서 화자를 고를 수 있게 음성 보관 기간(3일)만큼 기다린다
+    static final Duration SPEAKER_SELECTION_TIMEOUT = Duration.ofDays(3);
+    // 결제 쪽 호출이 빠지거나 서버 재시작으로 비동기 작업이 사라진 경우를 위한 대기 시간
+    static final Duration START_GRACE_PERIOD = Duration.ofMinutes(5);
     // 1:1 대화만 분석하므로 화자가 정확히 두 명이어야 한다
     private static final int REQUIRED_SPEAKER_COUNT = 2;
 
@@ -37,6 +42,7 @@ public class TranscriptionService {
     private final SpeechRecognitionClient speechRecognitionClient;
     private final TranscriptionRepository transcriptionRepository;
     private final TranscriptSegmentRepository transcriptSegmentRepository;
+    private final RecordingRepository recordingRepository;
 
     // 결제 완료 트랜잭션이 커밋된 뒤 호출한다
     // 음성 파일 전송이 오래 걸릴 수 있어 결제 응답을 붙잡지 않도록 별도 스레드에서 실행한다
@@ -103,6 +109,24 @@ public class TranscriptionService {
 
     public List<Long> findTimedOutRecordingIds(LocalDateTime now) {
         return transcriptionRepository.findTimedOutRecordingIds(now.minus(RESULT_TIMEOUT));
+    }
+
+    // 결제 후 일정 시간이 지나도 전사가 시작되지 않은 녹음 (스케줄러가 대신 전사를 시작한다)
+    public List<Long> findTranscriptionNotStartedIds(LocalDateTime now) {
+        return recordingRepository.findTranscriptionNotStartedIds(now.minus(START_GRACE_PERIOD));
+    }
+
+    public List<Long> findSpeakerSelectionExpiredRecordingIds(LocalDateTime now) {
+        return transcriptionRepository.findSpeakerSelectionExpiredRecordingIds(now.minus(SPEAKER_SELECTION_TIMEOUT));
+    }
+
+    // 화자를 고르지 않은 채 기한이 지난 녹음을 실패로 바꾸고 음성을 바로 지운다
+    // (이미 3일을 기다렸으므로 실패 후 3일을 더 보관하지 않는다)
+    @Transactional
+    public void expireSpeakerSelection(Long recordingId) {
+        if (recordingService.failTranscription(recordingId, RecordingFailureReason.SPEAKER_SELECTION_EXPIRED)) {
+            recordingService.deleteAudio(recordingId);
+        }
     }
 
     // 제한 시간 안에 결과가 오지 않은 녹음을 실패로 바꾼다 (이후 늦게 온 결과는 무시된다)

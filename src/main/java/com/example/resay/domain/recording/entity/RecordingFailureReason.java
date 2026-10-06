@@ -11,6 +11,8 @@ public enum RecordingFailureReason {
     SPEAKER_NOT_SEPARATED,
     // 제한 시간 안에 전사 결과가 오지 않음
     TRANSCRIPTION_TIMEOUT,
+    // 전사가 끝났는데 기한 안에 화자를 고르지 않음
+    SPEAKER_SELECTION_EXPIRED,
     // 두 명은 검출됐지만 분석하기에 발화가 부족함 (분석 쪽에서 판단)
     INSUFFICIENT_SPEAKER_DATA,
     // 분석 처리 중 오류
