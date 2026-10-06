@@ -74,6 +74,14 @@ rate-limit:
     max-attempts-per-ip: 30
     window: 1h
 
+# 크레딧 가격 (1원 = 1크레딧)
+# 분석은 일상 중심인지 갈등 중심인지에 따라 다르고, 캐릭터 생성은 계정당 첫 1회가 무료다
+credit:
+  price:
+    analysis-daily: 1500
+    analysis-conflict: 2000
+    character: 500
+
 # 소셜 로그인
 # 키가 없어도 서버는 뜬다. 해당 소셜 로그인 API를 호출할 때만 설정을 확인한다.
 oauth:

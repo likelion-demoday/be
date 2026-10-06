@@ -28,7 +28,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         BaseErrorCode errorCode = exception.getErrorCode();
 
         return ResponseEntity.status(errorCode.getHttpStatus())
-                .body(ApiResponse.onFailure(errorCode, null));
+                .body(ApiResponse.onFailure(errorCode, exception.getDetail()));
     }
 
     @ExceptionHandler(RateLimitExceededException.class)
