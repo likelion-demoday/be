@@ -7,15 +7,15 @@ import com.example.resay.domain.analysis.service.AnalysisReadinessValidator;
 import com.example.resay.domain.analysis.service.AnalysisReportAssembler;
 import com.example.resay.domain.analysis.service.AnalysisService;
 import com.example.resay.domain.analysis.service.ConversationMetricsCalculator;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 
-@Profile("mock")
 @Configuration
-public class MockAnalysisConfig {
+public class AnalysisProcessorConfig {
 
     @Bean
+    @ConditionalOnMissingBean(AnalysisProcessor.class)
     public AnalysisProcessor analysisProcessor(
             AnalysisService analysisService,
             AnalysisSourceReader analysisSourceReader,

@@ -2,6 +2,7 @@ package com.example.resay.domain.analysis.service;
 
 import com.example.resay.domain.analysis.entity.AnalysisStatus;
 import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
+import com.example.resay.domain.analysis.event.AnalysisFailedEvent;
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
@@ -19,8 +20,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,6 +30,7 @@ import static com.example.resay.domain.analysis.support.AnalysisTestSpeakers.spe
 
 @SpringBootTest
 @Import(AnalysisProcessorIntegrationTest.TestConfig.class)
+@RecordApplicationEvents
 class AnalysisProcessorIntegrationTest {
 
     @Autowired
@@ -41,6 +44,9 @@ class AnalysisProcessorIntegrationTest {
 
     @Autowired
     private FakeAnalysisModelClient analysisModelClient;
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
 
     @AfterEach
     void cleanUp() {
@@ -81,6 +87,8 @@ class AnalysisProcessorIntegrationTest {
         assertThat(analysis.getFailureReason()).isEqualTo(AnalysisFailureReason.PROCESSING_ERROR);
         assertThat(analysisResultRepository.findByAnalysisId(analysis.getId())).isEmpty();
         assertThat(analysisModelClient.wasTransactionActive()).isFalse();
+        assertThat(applicationEvents.stream(AnalysisFailedEvent.class))
+                .containsExactly(new AnalysisFailedEvent(7002L, AnalysisFailureReason.PROCESSING_ERROR));
     }
 
     @TestConfiguration
@@ -117,22 +125,6 @@ class AnalysisProcessorIntegrationTest {
             return new FakeAnalysisModelClient();
         }
 
-        @Bean
-        AnalysisProcessor analysisProcessor(
-                AnalysisService analysisService,
-                AnalysisSourceReader analysisSourceReader,
-                AnalysisModelClient analysisModelClient,
-                AnalysisReadinessValidator readinessValidator
-        ) {
-            return new AnalysisProcessor(
-                    analysisService,
-                    analysisSourceReader,
-                    analysisModelClient,
-                    new ConversationMetricsCalculator(),
-                    readinessValidator,
-                    new AnalysisReportAssembler(new ObjectMapper())
-            );
-        }
     }
 
     static class FakeAnalysisModelClient implements AnalysisModelClient {

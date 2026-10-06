@@ -6,6 +6,7 @@ import com.example.resay.domain.analysis.entity.AnalysisResult;
 import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
 import com.example.resay.domain.analysis.entity.ConversationAnalysis;
 import com.example.resay.domain.analysis.event.AnalysisCompletedEvent;
+import com.example.resay.domain.analysis.event.AnalysisFailedEvent;
 import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
 import com.example.resay.domain.analysis.repository.ConversationAnalysisRepository;
 import com.example.resay.global.exception.GeneralException;
@@ -71,6 +72,7 @@ public class AnalysisService {
         ConversationAnalysis analysis = findAnalysis(recordingId);
         try {
             analysis.fail(failureReason);
+            eventPublisher.publishEvent(new AnalysisFailedEvent(recordingId, failureReason));
         } catch (IllegalStateException exception) {
             throw new GeneralException(AnalysisErrorCode.INVALID_ANALYSIS_STATUS);
         }

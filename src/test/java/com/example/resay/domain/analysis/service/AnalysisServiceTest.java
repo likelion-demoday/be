@@ -7,6 +7,7 @@ import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
 import com.example.resay.domain.analysis.entity.AnalysisStatus;
 import com.example.resay.domain.analysis.entity.ConversationAnalysis;
 import com.example.resay.domain.analysis.event.AnalysisCompletedEvent;
+import com.example.resay.domain.analysis.event.AnalysisFailedEvent;
 import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
 import com.example.resay.domain.analysis.repository.ConversationAnalysisRepository;
 import com.example.resay.global.exception.GeneralException;
@@ -102,6 +103,9 @@ class AnalysisServiceTest {
 
         assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.FAILED);
         assertThat(analysis.getFailureReason()).isEqualTo(AnalysisFailureReason.PROCESSING_ERROR);
+        then(eventPublisher).should().publishEvent(
+                new AnalysisFailedEvent(1L, AnalysisFailureReason.PROCESSING_ERROR)
+        );
     }
 
     @Test
