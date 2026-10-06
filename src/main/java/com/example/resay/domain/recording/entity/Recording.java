@@ -102,6 +102,8 @@ public class Recording extends BaseEntity {
         this.status = RecordingStatus.TYPE_SELECTED;
     }
 
+    // 결제 완료(TYPE_SELECTED → PAYMENT_COMPLETED)는 동시 요청을 막기 위해
+    // RecordingRepository.markPaymentCompleted의 조건부 UPDATE로 바꾼다
     public void startTranscribing() {
         if (this.status != RecordingStatus.PAYMENT_COMPLETED) {
             throw new GeneralException(RecordingErrorCode.INVALID_STATUS_TRANSITION);
