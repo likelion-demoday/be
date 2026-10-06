@@ -58,7 +58,7 @@ class AnalysisRequestedEventListenerTest {
     }
 
     @Test
-    void doesNothingUntilProductionSourceReaderIsConnected() {
+    void doesNothingWhenProcessorIsUnavailable() {
         given(analysisProcessorProvider.getIfAvailable()).willReturn(null);
         AnalysisRequestedEventListener listener = listener();
 
