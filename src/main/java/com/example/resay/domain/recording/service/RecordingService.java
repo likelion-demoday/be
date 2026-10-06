@@ -125,11 +125,11 @@ public class RecordingService {
     }
 
     @Transactional
-    public boolean failAnalysis(Long recordingId) {
+    public boolean failAnalysis(Long recordingId, RecordingFailureReason reason) {
         return recordingRepository.findById(recordingId)
                 .filter(recording -> recording.getStatus() == RecordingStatus.ANALYZING)
                 .map(recording -> {
-                    recording.fail(RecordingFailureReason.ANALYSIS_FAILED);
+                    recording.fail(reason);
                     return true;
                 })
                 .orElse(false);

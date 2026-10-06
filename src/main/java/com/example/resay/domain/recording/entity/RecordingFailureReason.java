@@ -11,6 +11,8 @@ public enum RecordingFailureReason {
     SPEAKER_NOT_SEPARATED,
     // 제한 시간 안에 전사 결과가 오지 않음
     TRANSCRIPTION_TIMEOUT,
-    // 분석 단계에서 실패함 (발화 부족 등, 분석 쪽에서 판단)
+    // 두 명은 검출됐지만 분석하기에 발화가 부족함 (분석 쪽에서 판단)
+    INSUFFICIENT_SPEAKER_DATA,
+    // 분석 처리 중 오류
     ANALYSIS_FAILED
 }

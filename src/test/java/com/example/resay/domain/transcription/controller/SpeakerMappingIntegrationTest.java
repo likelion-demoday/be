@@ -1,12 +1,15 @@
 package com.example.resay.domain.transcription.controller;
 
+import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
 import com.example.resay.domain.analysis.event.AnalysisCompletedEvent;
+import com.example.resay.domain.analysis.event.AnalysisFailedEvent;
 import com.example.resay.domain.analysis.event.AnalysisRequestedEvent;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import com.example.resay.domain.analysis.port.AnalysisSourceReader;
 import com.example.resay.domain.analysis.service.AnalysisProcessor;
 import com.example.resay.domain.recording.entity.Recording;
+import com.example.resay.domain.recording.entity.RecordingFailureReason;
 import com.example.resay.domain.recording.entity.RecordingStatus;
 import com.example.resay.domain.recording.entity.RelationshipType;
 import com.example.resay.domain.recording.repository.RecordingRepository;
@@ -204,10 +207,44 @@ class SpeakerMappingIntegrationTest {
     }
 
     @Test
+    void 분석이_발화_부족으로_실패하면_녹음을_사유와_함께_실패로_바꾼다() {
+        analyzingRecording();
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+                eventPublisher.publishEvent(new AnalysisFailedEvent(
+                        recording.getId(), AnalysisFailureReason.INSUFFICIENT_SPEAKER_DATA)));
+
+        Recording failed = recordingRepository.findById(recording.getId()).orElseThrow();
+        assertThat(failed.getStatus()).isEqualTo(RecordingStatus.FAILED);
+        assertThat(failed.getFailureReason()).isEqualTo(RecordingFailureReason.INSUFFICIENT_SPEAKER_DATA);
+        assertThat(failed.getFailedAt()).isNotNull(); // 실패 후 3일 보관 기간의 기준 시각
+    }
+
+    @Test
+    void 분석_처리_오류로_실패하면_분석_실패_사유로_저장한다() {
+        analyzingRecording();
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+                eventPublisher.publishEvent(new AnalysisFailedEvent(
+                        recording.getId(), AnalysisFailureReason.PROCESSING_ERROR)));
+
+        assertThat(recordingRepository.findById(recording.getId()).orElseThrow().getFailureReason())
+                .isEqualTo(RecordingFailureReason.ANALYSIS_FAILED);
+    }
+
+    @Test
     void 녹음이_없는_분석_완료_이벤트는_무시한다() {
         // 목업 분석처럼 실제 녹음이 없는 경우에도 분석 쪽 흐름을 막지 않는다
         new TransactionTemplate(transactionManager).executeWithoutResult(status ->
                 eventPublisher.publishEvent(new AnalysisCompletedEvent(1L, 999_999L)));
+    }
+
+    // 화자 지정까지 끝나 분석 중인 녹음
+    private void analyzingRecording() {
+        transcribed(RelationshipType.FRIEND_DAILY);
+        Recording analyzing = recordingRepository.findById(recording.getId()).orElseThrow();
+        analyzing.mapSpeakers("1", "호석", null);
+        recordingRepository.save(analyzing);
     }
 
     // 전사가 끝난 녹음: 화자 1·2의 발화가 저장되어 있다

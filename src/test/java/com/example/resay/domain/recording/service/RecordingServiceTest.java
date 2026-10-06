@@ -195,9 +195,9 @@ class RecordingServiceTest {
     void failAnalysis_분석_중이면_분석_실패로_바꾼다() {
         Recording recording = savedRecording(RecordingStatus.ANALYZING);
 
-        assertTrue(recordingService.failAnalysis(1L));
+        assertTrue(recordingService.failAnalysis(1L, RecordingFailureReason.INSUFFICIENT_SPEAKER_DATA));
         assertEquals(RecordingStatus.FAILED, recording.getStatus());
-        assertEquals(RecordingFailureReason.ANALYSIS_FAILED, recording.getFailureReason());
+        assertEquals(RecordingFailureReason.INSUFFICIENT_SPEAKER_DATA, recording.getFailureReason());
     }
 
     @Test
