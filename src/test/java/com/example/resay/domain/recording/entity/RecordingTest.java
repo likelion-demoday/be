@@ -4,6 +4,8 @@ import com.example.resay.global.exception.GeneralException;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat; // 값 비교를 읽기 좋게 해주는 AssertJ 라이브러리
 import static org.junit.jupiter.api.Assertions.assertThrows; // 예외가 던져지는지 확인하는 JUnit 메서드
 
@@ -121,6 +123,24 @@ class RecordingTest {
         recording.fail(RecordingFailureReason.TRANSCRIPTION_TIMEOUT);
 
         assertThat(recording.getFailedAt()).isNotNull(); // 실패 후 3일 보관 기간의 기준 시각
+    }
+
+    @Test
+    void markDeleted_분석이_끝난_녹음만_숨긴다() {
+        Recording completed = recordingWithStatus(RecordingStatus.COMPLETED);
+        Recording failed = recordingWithStatus(RecordingStatus.FAILED);
+
+        completed.markDeleted();
+        failed.markDeleted();
+
+        assertThat(completed.isDeleted()).isTrue();
+        assertThat(failed.isDeleted()).isTrue();
+        for (RecordingStatus inProgress : List.of(RecordingStatus.UPLOADED, RecordingStatus.TYPE_SELECTED,
+                RecordingStatus.PAYMENT_COMPLETED, RecordingStatus.TRANSCRIBING, RecordingStatus.ANALYZING)) {
+            Recording recording = recordingWithStatus(inProgress);
+            assertThrows(GeneralException.class, recording::markDeleted);
+            assertThat(recording.isDeleted()).isFalse();
+        }
     }
 
     @Test

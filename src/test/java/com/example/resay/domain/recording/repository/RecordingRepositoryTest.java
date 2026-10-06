@@ -54,10 +54,13 @@ class RecordingRepositoryTest {
         Long 이미_삭제 = saveWith(RecordingStatus.COMPLETED, "completedAt", cutoff.minusDays(1));
         recordingRepository.findById(이미_삭제).orElseThrow().markAudioDeleted(); // 음성은 이미 지움
         saveWith(RecordingStatus.ANALYZING, "completedAt", cutoff.minusDays(1)); // 아직 분석 중
+        // 사용자가 대화를 지웠는데 파일 삭제에 실패한 녹음은 보관 기간 전이어도 다시 지운다
+        Long 대화_삭제 = saveWith(RecordingStatus.COMPLETED, "completedAt", cutoff.plusDays(1));
+        recordingRepository.findById(대화_삭제).orElseThrow().markDeleted();
 
         List<Long> ids = recordingRepository.findAudioExpiredIds(cutoff);
 
-        assertThat(ids).containsExactlyInAnyOrder(완료_만료, 실패_만료);
+        assertThat(ids).containsExactlyInAnyOrder(완료_만료, 실패_만료, 대화_삭제);
     }
 
     @Test
