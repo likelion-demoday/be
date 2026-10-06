@@ -28,8 +28,8 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class SpeakerSampleService {
 
-    // 짧은 맞장구보다 목소리를 알아듣기 쉬운 긴 발화를 고른다
-    static final int SAMPLES_PER_SPEAKER = 3;
+    // 화면에 화자마다 두 개씩 보여준다 (짧은 맞장구보다 목소리를 알아듣기 쉬운 긴 발화를 고른다)
+    static final int SAMPLES_PER_SPEAKER = 2;
 
     private final RecordingRepository recordingRepository;
     private final TranscriptionRepository transcriptionRepository;
