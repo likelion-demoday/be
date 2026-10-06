@@ -43,18 +43,18 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("overview", evidenceItem(
                 "두 사람이 주제를 주고받은 대화",
-                "목업 전사문을 바탕으로 대화의 주요 흐름을 요약했습니다.",
+                "두 사람이 주제를 주고받으며 대화를 이어가요.",
                 List.of(first.segmentId(), second.segmentId())
         ));
         response.put("timeline", List.of(
                 evidenceItem(
                         "대화 시작",
-                        "첫 번째 화자가 주제를 꺼내고 상대 화자가 반응했습니다.",
+                        "한 사람이 주제를 꺼내자 상대가 자연스럽게 반응해요.",
                         List.of(first.segmentId(), second.segmentId())
                 ),
                 evidenceItem(
                         "대화 전개",
-                        "두 화자가 각자의 생각을 덧붙이며 대화를 이어갔습니다.",
+                        "서로의 생각을 덧붙이며 대화를 이어가요.",
                         List.of(segments.get(segments.size() - 2).segmentId(), segments.get(segments.size() - 1).segmentId())
                 )
         ));
@@ -71,7 +71,7 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
                     objectMapper.writeValueAsString(response),
                     "mock-analysis-model",
                     "mock-prompt-v2",
-                    "analysis-result-v4"
+                    "analysis-result-v5"
             );
         } catch (Exception exception) {
             throw new IllegalStateException("목업 정성 분석 결과를 만들 수 없습니다.", exception);
@@ -89,7 +89,7 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
                     Map<String, Object> pattern = new LinkedHashMap<>();
                     pattern.put("category", "EXPRESSION_PATTERN");
                     pattern.put("title", roleTitle(role));
-                    pattern.put("description", "이번 대화에서 반복적으로 관찰할 수 있는 표현 방식을 정리했습니다.");
+                    pattern.put("description", "이번 대화에서 이런 표현 방식을 자주 보여요.");
                     pattern.put("evidenceSegmentIds", List.of(evidence.segmentId()));
 
                     Map<String, Object> insight = new LinkedHashMap<>();
@@ -122,7 +122,7 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
     private Map<String, Object> topic(List<AnalysisSegment> segments) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("title", "주요 대화 주제");
-        result.put("description", "두 화자가 가장 길게 이어간 주제를 정리했습니다.");
+        result.put("description", "두 사람이 가장 오래 이야기한 주제예요.");
         result.put("segmentIds", segments.stream().map(AnalysisSegment::segmentId).toList());
         return result;
     }
@@ -131,7 +131,7 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("speakerRole", role);
         result.put("name", roleTitle(role));
-        result.put("description", "이번 대화에서 관찰된 표현을 바탕으로 만든 목업 캐릭터입니다.");
+        result.put("description", "이번 대화에서 보여준 표현을 담은 캐릭터예요.");
         result.put("evidenceSegmentIds", List.of(evidence.segmentId()));
         return result;
     }
@@ -140,13 +140,13 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
         Map<String, Object> observation = categorizedItem(
                 "QUESTION",
                 "대화 참여",
-                "상대의 말에 반응하며 대화를 이어갔습니다.",
+                "상대의 말에 반응하며 대화를 이어가요.",
                 evidence.segmentId()
         );
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("speakerRole", role);
         result.put("score", 50);
-        result.put("description", "이번 대화에서 관찰된 관심 표현을 기준으로 만든 목업 점수입니다.");
+        result.put("description", "이번 대화에서 보여준 관심 표현을 기준으로 한 점수예요.");
         result.put("observations", List.of(observation));
         return result;
     }
@@ -155,7 +155,8 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("speakerRole", role);
         result.put("score", 0);
-        result.put("description", "목업 발화에서는 강한 표현이 관찰되지 않았습니다.");
+        result.put("description", "날선 말보다는 부드럽게 받아주는 편이에요.");
+        result.put("swearWords", List.of());
         result.put("observations", List.of());
         return result;
     }
@@ -165,11 +166,11 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
         result.put("speakerRole", role);
         result.put("thinkingPercent", 50);
         result.put("feelingPercent", 50);
-        result.put("description", "정보 중심 반응과 공감 중심 반응이 함께 나타난 목업 결과입니다.");
+        result.put("description", "상황을 살피는 반응과 공감하는 반응을 함께 보여요.");
         result.put("examples", List.of(categorizedItem(
                 "MIXED",
                 "혼합 반응",
-                "내용과 감정에 함께 반응했습니다.",
+                "내용과 감정에 함께 반응해요.",
                 evidence.segmentId()
         )));
         return result;
@@ -201,7 +202,7 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
         });
         result.put("speakerRoles", source.scenario().requiredRoles().stream().sorted().toList());
         result.put("title", "함께 이어간 핵심 주제");
-        result.put("description", "두 화자가 같은 주제에 각자의 반응을 보였습니다.");
+        result.put("description", "같은 주제를 두고 서로의 생각을 나눠요.");
         result.put("evidenceSegmentIds", List.of(first.segmentId(), second.segmentId()));
         return result;
     }

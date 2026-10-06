@@ -17,18 +17,29 @@ public class LinerAnalysisResponseGrounder {
 
     private static final int MAX_PUBLIC_EXPRESSION_WORDS = 2;
     private static final int MAX_PUBLIC_EXPRESSION_LENGTH = 10;
+    private static final Set<String> LOW_VALUE_EXPRESSIONS = Set.of(
+            "나", "내가", "너", "네가", "우리", "저", "제가",
+            "거", "것", "이거", "그거", "저거"
+    );
 
     public QualitativeAnalysis ground(
             AnalysisSource source,
             QualitativeAnalysis response
     ) {
-        if (source == null || response == null || response.speakerInsights() == null) {
+        if (source == null || response == null) {
             return response;
         }
 
-        List<QualitativeAnalysis.SpeakerInsight> groundedSpeakerInsights =
-                response.speakerInsights().stream()
-                        .map(insight -> groundSpeakerInsight(source, insight))
+        List<QualitativeAnalysis.SpeakerInsight> groundedSpeakerInsights = response.speakerInsights() == null
+                ? null
+                : response.speakerInsights().stream()
+                .map(insight -> groundSpeakerInsight(source, insight))
+                .toList();
+        List<QualitativeAnalysis.SpicinessInsight> groundedSpicinessInsights =
+                response.spicinessInsights() == null
+                        ? null
+                        : response.spicinessInsights().stream()
+                        .map(insight -> groundSpicinessInsight(source, insight))
                         .toList();
 
         return new QualitativeAnalysis(
@@ -38,7 +49,7 @@ public class LinerAnalysisResponseGrounder {
                 response.characterInsights(),
                 groundedSpeakerInsights,
                 response.interestInsights(),
-                response.spicinessInsights(),
+                groundedSpicinessInsights,
                 response.reactionStyleInsights(),
                 response.scenarioInsights()
         );
@@ -109,8 +120,31 @@ public class LinerAnalysisResponseGrounder {
         return new QualitativeAnalysis.SpeakerInsight(
                 insight.speakerRole(),
                 insight.patterns(),
-                groundedExpressions.isEmpty() ? null : insight.frequentExpressionSummary(),
+                groundedExpressions.isEmpty()
+                        ? null
+                        : groundFrequentExpressionSummary(
+                                insight.frequentExpressionSummary(),
+                                groundedExpressions
+                        ),
                 groundedExpressions
+        );
+    }
+
+    private QualitativeAnalysis.FrequentExpressionSummary groundFrequentExpressionSummary(
+            QualitativeAnalysis.FrequentExpressionSummary summary,
+            List<QualitativeAnalysis.FrequentExpression> expressions
+    ) {
+        if (summary == null) {
+            return null;
+        }
+
+        LinkedHashSet<Long> evidenceSegmentIds = new LinkedHashSet<>();
+        expressions.forEach(expression ->
+                evidenceSegmentIds.addAll(expression.evidenceSegmentIds()));
+        return new QualitativeAnalysis.FrequentExpressionSummary(
+                summary.title(),
+                summary.description(),
+                List.copyOf(evidenceSegmentIds)
         );
     }
 
@@ -149,6 +183,69 @@ public class LinerAnalysisResponseGrounder {
         );
     }
 
+    private QualitativeAnalysis.SpicinessInsight groundSpicinessInsight(
+            AnalysisSource source,
+            QualitativeAnalysis.SpicinessInsight insight
+    ) {
+        if (insight == null || insight.swearWords() == null) {
+            return insight;
+        }
+
+        List<QualitativeAnalysis.SwearWordUsage> groundedSwearWords = insight.swearWords().stream()
+                .map(swearWord -> groundSwearWord(
+                        source.segments(),
+                        insight.speakerRole(),
+                        swearWord
+                ))
+                .filter(Objects::nonNull)
+                .toList();
+        List<QualitativeAnalysis.SpicinessObservation> groundedObservations =
+                insight.observations() == null
+                        ? null
+                        : insight.observations().stream()
+                        .filter(observation -> observation == null
+                                || observation.category()
+                                != QualitativeAnalysis.SpicinessCategory.SWEAR_WORD
+                                || !groundedSwearWords.isEmpty())
+                        .toList();
+
+        return new QualitativeAnalysis.SpicinessInsight(
+                insight.speakerRole(),
+                insight.score(),
+                insight.description(),
+                groundedSwearWords,
+                groundedObservations
+        );
+    }
+
+    private QualitativeAnalysis.SwearWordUsage groundSwearWord(
+            List<AnalysisSegment> segments,
+            SpeakerRole speakerRole,
+            QualitativeAnalysis.SwearWordUsage swearWord
+    ) {
+        if (swearWord == null || !StringUtils.hasText(swearWord.expression())) {
+            return null;
+        }
+
+        String expression = swearWord.expression().trim();
+        List<AnalysisSegment> matchingSegments = segments.stream()
+                .filter(segment -> segment.speakerRole() == speakerRole)
+                .filter(segment -> segment.content().contains(expression))
+                .toList();
+        int occurrenceCount = matchingSegments.stream()
+                .mapToInt(segment -> countOccurrences(segment.content(), expression))
+                .sum();
+        if (occurrenceCount == 0) {
+            return null;
+        }
+
+        return new QualitativeAnalysis.SwearWordUsage(
+                expression,
+                occurrenceCount,
+                matchingSegments.stream().map(AnalysisSegment::segmentId).toList()
+        );
+    }
+
     private int countOccurrences(String content, String expression) {
         int count = 0;
         int index = 0;
@@ -163,6 +260,9 @@ public class LinerAnalysisResponseGrounder {
             QualitativeAnalysis.FrequentExpression expression
     ) {
         String value = expression.expression().trim();
+        if (LOW_VALUE_EXPRESSIONS.contains(value)) {
+            return false;
+        }
         int wordCount = value.split("\\s+").length;
         int maxWords = expression.category()
                 == QualitativeAnalysis.FrequentExpressionCategory.WORD

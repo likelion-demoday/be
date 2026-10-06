@@ -136,10 +136,22 @@ public record QualitativeAnalysis(
             SpeakerRole speakerRole,
             int score,
             String description,
+            List<SwearWordUsage> swearWords,
             List<SpicinessObservation> observations
     ) {
         public SpicinessInsight {
+            swearWords = copy(swearWords);
             observations = copy(observations);
+        }
+    }
+
+    public record SwearWordUsage(
+            String expression,
+            int count,
+            List<Long> evidenceSegmentIds
+    ) {
+        public SwearWordUsage {
+            evidenceSegmentIds = copy(evidenceSegmentIds);
         }
     }
 

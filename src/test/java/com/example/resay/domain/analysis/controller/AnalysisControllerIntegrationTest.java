@@ -112,6 +112,10 @@ class AnalysisControllerIntegrationTest {
                         .doesNotExist())
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.topics[0].timeRanges[0].startMs")
                         .value(100))
+                .andExpect(jsonPath("$.result.report.qualitativeAnalysis.spicinessInsights[0].swearWordCount")
+                        .value(3))
+                .andExpect(jsonPath("$.result.report.qualitativeAnalysis.spicinessInsights[0].swearWords")
+                        .doesNotExist())
                 .andExpect(jsonPath("$.result.modelName").value("liner-mark-1.1"));
     }
 
@@ -211,7 +215,17 @@ class AnalysisControllerIntegrationTest {
                         List.of(),
                         List.of(),
                         List.of(),
-                        List.of(),
+                        List.of(new QualitativeAnalysis.SpicinessInsight(
+                                com.example.resay.domain.analysis.model.SpeakerRole.SELF,
+                                30,
+                                "비속어가 반복적으로 나타났어요.",
+                                List.of(new QualitativeAnalysis.SwearWordUsage(
+                                        "미친",
+                                        3,
+                                        List.of(1L)
+                                )),
+                                List.of()
+                        )),
                         List.of(),
                         List.of()
                 )

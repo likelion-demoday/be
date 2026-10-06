@@ -18,7 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class AnalysisReportAssembler {
 
-    private static final String REPORT_SCHEMA_VERSION = "analysis-report-v5";
+    private static final String REPORT_SCHEMA_VERSION = "analysis-report-v6";
 
     private final ObjectMapper objectMapper;
 

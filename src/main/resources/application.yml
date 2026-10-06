@@ -104,7 +104,7 @@ liner:
   base-url: ${LINER_BASE_URL:https://platform.liner.com}
   model: ${LINER_MODEL:liner-mark-1.1}
   connect-timeout: ${LINER_CONNECT_TIMEOUT:3s}
-  read-timeout: ${LINER_READ_TIMEOUT:120s}
+  read-timeout: ${LINER_READ_TIMEOUT:300s}
 
 openai:
   image:

@@ -16,7 +16,7 @@ class LinerPropertiesTest {
         assertThat(properties.baseUrl()).isEqualTo("https://platform.liner.com");
         assertThat(properties.model()).isEqualTo("liner-mark-1.1");
         assertThat(properties.connectTimeout()).isEqualTo(Duration.ofSeconds(3));
-        assertThat(properties.readTimeout()).isEqualTo(Duration.ofSeconds(120));
+        assertThat(properties.readTimeout()).isEqualTo(Duration.ofSeconds(300));
     }
 
     @Test
