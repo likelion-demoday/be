@@ -123,9 +123,12 @@ class AnalysisReadinessValidatorTest {
                 speakingDurationMs,
                 2,
                 transcribedCharacterCount,
+                transcribedCharacterCount,
+                10,
                 BigDecimal.valueOf(speakingRatioPercent),
                 BigDecimal.valueOf(speakingDurationMs / 2.0),
-                BigDecimal.valueOf(600)
+                BigDecimal.valueOf(600),
+                BigDecimal.ONE
         );
     }
 }

@@ -74,9 +74,12 @@ public record AnalysisReportDto(
             long speakingDurationMs,
             int utteranceCount,
             long transcribedCharacterCount,
+            long transcribedSyllableCount,
+            long transcribedWordCount,
             BigDecimal speakingRatioPercent,
             BigDecimal averageUtteranceDurationMs,
-            BigDecimal charactersPerMinute
+            BigDecimal charactersPerMinute,
+            BigDecimal syllablesPerSecond
     ) {
 
         private static SpeakerMetrics from(
@@ -87,9 +90,12 @@ public record AnalysisReportDto(
                     source.speakingDurationMs(),
                     source.utteranceCount(),
                     source.transcribedCharacterCount(),
+                    source.transcribedSyllableCount(),
+                    source.transcribedWordCount(),
                     source.speakingRatioPercent(),
                     source.averageUtteranceDurationMs(),
-                    source.charactersPerMinute()
+                    source.charactersPerMinute(),
+                    source.syllablesPerSecond()
             );
         }
     }

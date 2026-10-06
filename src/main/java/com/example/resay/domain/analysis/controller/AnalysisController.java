@@ -3,9 +3,11 @@ package com.example.resay.domain.analysis.controller;
 import com.example.resay.domain.analysis.code.AnalysisSuccessCode;
 import com.example.resay.domain.analysis.dto.AnalysisListResponseDto;
 import com.example.resay.domain.analysis.dto.AnalysisReportResponseDto;
+import com.example.resay.domain.analysis.dto.AnalysisSummaryResponseDto;
 import com.example.resay.domain.analysis.service.AnalysisDeletionService;
 import com.example.resay.domain.analysis.service.AnalysisListQueryService;
 import com.example.resay.domain.analysis.service.AnalysisReportQueryService;
+import com.example.resay.domain.analysis.service.AnalysisSummaryQueryService;
 import com.example.resay.global.apiPayload.ApiResponse;
 import com.example.resay.global.security.CurrentUserId;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,6 +31,21 @@ public class AnalysisController {
     private final AnalysisReportQueryService analysisReportQueryService;
     private final AnalysisListQueryService analysisListQueryService;
     private final AnalysisDeletionService analysisDeletionService;
+    private final AnalysisSummaryQueryService analysisSummaryQueryService;
+
+    @GetMapping("/summary")
+    @Operation(
+            summary = "개인화 대화 습관 요약 조회",
+            description = "로그인 사용자의 최근 완료 분석 5개를 기준으로 자주 쓰는 표현, "
+                    + "비속어 사용률과 말하기 비중 변화를 조회합니다."
+    )
+    public ResponseEntity<ApiResponse<AnalysisSummaryResponseDto>> getSummary(
+            @Parameter(hidden = true) @CurrentUserId Long userId
+    ) {
+        AnalysisSummaryResponseDto response = analysisSummaryQueryService.getSummary(userId);
+        return ResponseEntity.status(AnalysisSuccessCode.SUMMARY_GET.getHttpStatus())
+                .body(ApiResponse.onSuccess(AnalysisSuccessCode.SUMMARY_GET, response));
+    }
 
     @GetMapping
     @Operation(

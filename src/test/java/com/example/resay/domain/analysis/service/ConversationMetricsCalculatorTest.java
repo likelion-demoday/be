@@ -38,21 +38,27 @@ class ConversationMetricsCalculatorTest {
         assertThat(self.speakingDurationMs()).isEqualTo(40_000L);
         assertThat(self.utteranceCount()).isEqualTo(2);
         assertThat(self.transcribedCharacterCount()).isEqualTo(9L);
+        assertThat(self.transcribedSyllableCount()).isEqualTo(9L);
+        assertThat(self.transcribedWordCount()).isEqualTo(4L);
         assertThat(self.speakingRatioPercent()).isEqualByComparingTo("66.67");
         assertThat(self.averageUtteranceDurationMs()).isEqualByComparingTo("20000.00");
         assertThat(self.charactersPerMinute()).isEqualByComparingTo("13.50");
+        assertThat(self.syllablesPerSecond()).isEqualByComparingTo("0.23");
 
         assertThat(friend.speakingDurationMs()).isEqualTo(20_000L);
         assertThat(friend.utteranceCount()).isEqualTo(1);
         assertThat(friend.transcribedCharacterCount()).isEqualTo(5L);
+        assertThat(friend.transcribedSyllableCount()).isEqualTo(5L);
+        assertThat(friend.transcribedWordCount()).isEqualTo(3L);
         assertThat(friend.speakingRatioPercent()).isEqualByComparingTo("33.33");
         assertThat(friend.averageUtteranceDurationMs()).isEqualByComparingTo("20000.00");
         assertThat(friend.charactersPerMinute()).isEqualByComparingTo("15.00");
+        assertThat(friend.syllablesPerSecond()).isEqualByComparingTo("0.25");
 
         assertThat(metrics.speakingSpeedComparison()).hasValueSatisfying(comparison -> {
             assertThat(comparison.fasterSpeakerRole()).isEqualTo(SpeakerRole.FRIEND);
             assertThat(comparison.slowerSpeakerRole()).isEqualTo(SpeakerRole.SELF);
-            assertThat(comparison.percentDifference()).isEqualByComparingTo("11.11");
+            assertThat(comparison.percentDifference()).isEqualByComparingTo("8.70");
         });
     }
 
@@ -73,11 +79,23 @@ class ConversationMetricsCalculatorTest {
 
         assertThat(metrics.metricsFor(SpeakerRole.SELF).transcribedCharacterCount())
                 .isEqualTo(5L);
+        assertThat(metrics.metricsFor(SpeakerRole.SELF).transcribedSyllableCount())
+                .isEqualTo(2L);
+        assertThat(metrics.metricsFor(SpeakerRole.SELF).transcribedWordCount())
+                .isEqualTo(2L);
         assertThat(metrics.metricsFor(SpeakerRole.SELF).charactersPerMinute())
                 .isEqualByComparingTo("5.00");
+        assertThat(metrics.metricsFor(SpeakerRole.SELF).syllablesPerSecond())
+                .isEqualByComparingTo("0.03");
         assertThat(metrics.metricsFor(SpeakerRole.FRIEND).transcribedCharacterCount())
                 .isZero();
+        assertThat(metrics.metricsFor(SpeakerRole.FRIEND).transcribedSyllableCount())
+                .isZero();
+        assertThat(metrics.metricsFor(SpeakerRole.FRIEND).transcribedWordCount())
+                .isZero();
         assertThat(metrics.metricsFor(SpeakerRole.FRIEND).charactersPerMinute())
+                .isEqualByComparingTo("0.00");
+        assertThat(metrics.metricsFor(SpeakerRole.FRIEND).syllablesPerSecond())
                 .isEqualByComparingTo("0.00");
         assertThat(metrics.speakingSpeedComparison()).isEmpty();
     }

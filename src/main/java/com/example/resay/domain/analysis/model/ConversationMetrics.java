@@ -40,7 +40,7 @@ public record ConversationMetrics(
         List<SpeakerMetrics> metrics = List.copyOf(speakerMetrics.values());
         SpeakerMetrics first = metrics.get(0);
         SpeakerMetrics second = metrics.get(1);
-        int comparison = first.charactersPerMinute().compareTo(second.charactersPerMinute());
+        int comparison = first.syllablesPerSecond().compareTo(second.syllablesPerSecond());
 
         if (comparison == 0) {
             return Optional.empty();
@@ -48,14 +48,14 @@ public record ConversationMetrics(
 
         SpeakerMetrics faster = comparison > 0 ? first : second;
         SpeakerMetrics slower = comparison > 0 ? second : first;
-        if (slower.charactersPerMinute().signum() == 0) {
+        if (slower.syllablesPerSecond().signum() == 0) {
             return Optional.empty();
         }
 
-        BigDecimal percentDifference = faster.charactersPerMinute()
-                .subtract(slower.charactersPerMinute())
+        BigDecimal percentDifference = faster.syllablesPerSecond()
+                .subtract(slower.syllablesPerSecond())
                 .multiply(ONE_HUNDRED)
-                .divide(slower.charactersPerMinute(), SCALE, RoundingMode.HALF_UP);
+                .divide(slower.syllablesPerSecond(), SCALE, RoundingMode.HALF_UP);
         if (percentDifference.signum() == 0) {
             return Optional.empty();
         }

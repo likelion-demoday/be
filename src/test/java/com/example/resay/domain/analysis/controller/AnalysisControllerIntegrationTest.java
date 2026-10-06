@@ -5,6 +5,8 @@ import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
 import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
+import com.example.resay.domain.analysis.model.SpeakerMetrics;
+import com.example.resay.domain.analysis.model.SpeakerRole;
 import com.example.resay.domain.analysis.service.AnalysisService;
 import com.example.resay.domain.recording.entity.Recording;
 import com.example.resay.domain.recording.repository.RecordingRepository;
@@ -12,6 +14,7 @@ import com.example.resay.domain.user.entity.User;
 import com.example.resay.domain.user.repository.UserRepository;
 import com.example.resay.global.security.JwtTokenProvider;
 import java.util.List;
+import java.math.BigDecimal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -120,6 +123,34 @@ class AnalysisControllerIntegrationTest {
     }
 
     @Test
+    void returnsPersonalizedSummaryFromRecentCompletedAnalysis() throws Exception {
+        analysisService.start(recording.getId());
+        analysisService.complete(recording.getId(), completedResult());
+
+        mockMvc.perform(get("/api/v1/analyses/summary")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("ANALYSIS200_4"))
+                .andExpect(jsonPath("$.result.analysisCount").value(1))
+                .andExpect(jsonPath("$.result.frequentExpressions[0].expression")
+                        .value("진짜"))
+                .andExpect(jsonPath("$.result.frequentExpressions[0].count").value(3))
+                .andExpect(jsonPath("$.result.swearWordUsage.count").value(3))
+                .andExpect(jsonPath("$.result.swearWordUsage.ratePercent").value(3.0))
+                .andExpect(jsonPath("$.result.speakingSpeed.syllablesPerSecond")
+                        .value(5.79))
+                .andExpect(jsonPath("$.result.speakingSpeed.referenceSyllablesPerSecond")
+                        .value(5.79))
+                .andExpect(jsonPath("$.result.speakingSpeed.differencePercent")
+                        .value(0.0))
+                .andExpect(jsonPath("$.result.speakingSpeed.level").value("TYPICAL"))
+                .andExpect(jsonPath("$.result.speakingRatioHistory[0].recordingId")
+                        .value(recording.getId()))
+                .andExpect(jsonPath("$.result.speakingRatioHistory[0].speakingRatioPercent")
+                        .value(55));
+    }
+
+    @Test
     void returnsFailedStatusWithoutReport() throws Exception {
         analysisService.start(recording.getId());
         analysisService.fail(recording.getId(), AnalysisFailureReason.PROCESSING_ERROR);
@@ -175,6 +206,24 @@ class AnalysisControllerIntegrationTest {
         assertThat(operation.path("responses").has("200")).isTrue();
     }
 
+    @Test
+    void exposesAnalysisSummaryEndpointInOpenApiDocument() throws Exception {
+        String apiDocs = mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        var operation = objectMapper.readTree(apiDocs)
+                .path("paths")
+                .path("/api/v1/analyses/summary")
+                .path("get");
+
+        assertThat(operation.path("summary").asText())
+                .isEqualTo("개인화 대화 습관 요약 조회");
+        assertThat(operation.path("responses").has("200")).isTrue();
+    }
+
     private org.springframework.test.web.servlet.ResultActions performGet(String token)
             throws Exception {
         return mockMvc.perform(get("/api/v1/analyses/{recordingId}", recording.getId())
@@ -189,7 +238,18 @@ class AnalysisControllerIntegrationTest {
                         600_000L,
                         speakersFor(AnalysisScenario.FRIEND_DAILY)
                 ),
-                new AnalysisReport.QuantitativeAnalysis(List.of(), null),
+                new AnalysisReport.QuantitativeAnalysis(List.of(new SpeakerMetrics(
+                        SpeakerRole.SELF,
+                        300_000L,
+                        20,
+                        500,
+                        1_737,
+                        100,
+                        BigDecimal.valueOf(55),
+                        BigDecimal.valueOf(15_000),
+                        BigDecimal.valueOf(100),
+                        BigDecimal.valueOf(5.79)
+                )), null),
                 new AnalysisReport.QualitativeReport(
                         new QualitativeAnalysis.Overview(
                                 "연락 방식 조율",
@@ -213,10 +273,20 @@ class AnalysisControllerIntegrationTest {
                                 true
                         )),
                         List.of(),
-                        List.of(),
+                        List.of(new QualitativeAnalysis.SpeakerInsight(
+                                SpeakerRole.SELF,
+                                List.of(),
+                                null,
+                                List.of(new QualitativeAnalysis.FrequentExpression(
+                                        QualitativeAnalysis.FrequentExpressionCategory.WORD,
+                                        "진짜",
+                                        3,
+                                        List.of(1L)
+                                ))
+                        )),
                         List.of(),
                         List.of(new QualitativeAnalysis.SpicinessInsight(
-                                com.example.resay.domain.analysis.model.SpeakerRole.SELF,
+                                SpeakerRole.SELF,
                                 30,
                                 "비속어가 반복적으로 나타났어요.",
                                 List.of(new QualitativeAnalysis.SwearWordUsage(

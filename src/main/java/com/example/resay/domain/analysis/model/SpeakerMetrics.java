@@ -8,12 +8,18 @@ public record SpeakerMetrics(
         long speakingDurationMs,
         int utteranceCount,
         long transcribedCharacterCount,
+        long transcribedSyllableCount,
+        long transcribedWordCount,
         BigDecimal speakingRatioPercent,
         BigDecimal averageUtteranceDurationMs,
-        BigDecimal charactersPerMinute
+        BigDecimal charactersPerMinute,
+        BigDecimal syllablesPerSecond
 ) {
 
     public SpeakerMetrics {
+        if (syllablesPerSecond == null) {
+            syllablesPerSecond = BigDecimal.ZERO.setScale(2);
+        }
         if (speakerRole == null) {
             throw new IllegalArgumentException("speakerRole은 비어 있을 수 없습니다.");
         }
@@ -26,9 +32,16 @@ public record SpeakerMetrics(
         if (transcribedCharacterCount < 0) {
             throw new IllegalArgumentException("transcribedCharacterCount는 0 이상이어야 합니다.");
         }
+        if (transcribedSyllableCount < 0) {
+            throw new IllegalArgumentException("transcribedSyllableCount는 0 이상이어야 합니다.");
+        }
+        if (transcribedWordCount < 0) {
+            throw new IllegalArgumentException("transcribedWordCount는 0 이상이어야 합니다.");
+        }
         requireRange(speakingRatioPercent, "speakingRatioPercent", BigDecimal.ZERO, BigDecimal.valueOf(100));
         requirePositive(averageUtteranceDurationMs, "averageUtteranceDurationMs");
         requireNonNegative(charactersPerMinute, "charactersPerMinute");
+        requireNonNegative(syllablesPerSecond, "syllablesPerSecond");
     }
 
     private static void requireRange(

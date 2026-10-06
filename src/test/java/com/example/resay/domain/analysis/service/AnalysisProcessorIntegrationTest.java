@@ -69,7 +69,7 @@ class AnalysisProcessorIntegrationTest {
                 .contains("\"title\":\"대화 요약\"");
         assertThat(result.getModelName()).isEqualTo("fake-model");
         assertThat(result.getPromptVersion()).isEqualTo("test-v1");
-        assertThat(result.getSchemaVersion()).isEqualTo("analysis-report-v6");
+        assertThat(result.getSchemaVersion()).isEqualTo("analysis-report-v8");
         assertThat(analysisModelClient.wasTransactionActive()).isFalse();
     }
 
