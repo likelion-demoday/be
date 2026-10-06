@@ -6,15 +6,19 @@ import com.example.resay.domain.recording.entity.Recording;
 import com.example.resay.domain.recording.entity.RecordingFailureReason;
 import com.example.resay.domain.recording.entity.RecordingStatus;
 import com.example.resay.domain.recording.entity.RelationshipType;
+import com.example.resay.domain.recording.event.RecordingPaymentCompletedEvent;
 import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.global.exception.GeneralException;
 import com.example.resay.global.infrastructure.audio.AudioDurationReader;
 import com.example.resay.global.infrastructure.storage.LocalFileStorage;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -34,6 +38,8 @@ public class RecordingService {
     private final RecordingRepository recordingRepository;
     private final LocalFileStorage localFileStorage;
     private final AudioDurationReader audioDurationReader;
+    private final ApplicationEventPublisher eventPublisher;
+    private final EntityManager entityManager;
 
     @Transactional
     public RecordingUploadResponseDto upload(Long userId, MultipartFile audioFile) {
@@ -91,6 +97,24 @@ public class RecordingService {
                 .orElseThrow(() -> new GeneralException(RecordingErrorCode.RECORDING_NOT_FOUND));
 
         recording.selectType(relationshipType);
+    }
+
+    // 결제 쪽이 결제 트랜잭션 안에서 호출한다
+    // 결제가 커밋된 뒤에만 이벤트가 전달되어 전사가 시작되므로, 결제가 롤백되면 전사도 시작되지 않는다
+    // 결제 버튼을 빠르게 두 번 눌러도 한 번만 결제되도록 조건부 UPDATE로 상태를 바꾼다
+    // 결제 쪽은 크레딧 차감과 이 호출을 같은 트랜잭션에서 해야 실패 시 함께 롤백된다
+    @Transactional
+    public void completePayment(Long recordingId, Long userId) {
+        int updated = recordingRepository.markPaymentCompleted(recordingId, userId, LocalDateTime.now());
+        if (updated == 0) {
+            recordingRepository.findByIdAndUserId(recordingId, userId)
+                    .orElseThrow(() -> new GeneralException(RecordingErrorCode.RECORDING_NOT_FOUND));
+            // 유형 선택 전이거나 이미 결제된 녹음
+            throw new GeneralException(RecordingErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        // 같은 트랜잭션에서 먼저 읽어 둔 녹음이 있으면 바뀐 상태로 맞춘다
+        entityManager.refresh(entityManager.find(Recording.class, recordingId));
+        eventPublisher.publishEvent(new RecordingPaymentCompletedEvent(recordingId));
     }
 
     // 외부 전사 요청 전에 상태를 먼저 바꿔 같은 녹음이 중복 요청되지 않게 한다
@@ -153,7 +177,9 @@ public class RecordingService {
     // 결제 전에 이탈한 녹음은 남길 정보가 없어 파일과 녹음 기록을 모두 지운다
     @Transactional
     public boolean deleteAbandoned(Long recordingId) {
-        Recording recording = findRecording(recordingId);
+        // 결제와 동시에 일어나면 한쪽이 끝날 때까지 기다리도록 잠그고 읽는다
+        Recording recording = recordingRepository.findByIdForUpdate(recordingId)
+                .orElseThrow(() -> new GeneralException(RecordingErrorCode.RECORDING_NOT_FOUND));
         // 조회 이후 결제가 진행됐다면 지우지 않는다
         if (!UNPAID_STATUSES.contains(recording.getStatus())) {
             return false;
