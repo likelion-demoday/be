@@ -12,7 +12,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
-@Profile({"local", "mock"})
+@Profile("mock")
 @Component
 public class MockAnalysisSourceReader implements AnalysisSourceReader {
 

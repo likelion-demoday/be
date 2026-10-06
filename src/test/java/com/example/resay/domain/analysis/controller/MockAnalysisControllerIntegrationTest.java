@@ -22,7 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = "analysis.mock.model-enabled=true")
 @AutoConfigureMockMvc
-@ActiveProfiles("local")
+@ActiveProfiles("mock")
 class MockAnalysisControllerIntegrationTest {
 
     @Autowired

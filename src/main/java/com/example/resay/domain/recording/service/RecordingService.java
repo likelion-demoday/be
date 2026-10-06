@@ -112,6 +112,29 @@ public class RecordingService {
         return true;
     }
 
+    // 분석 결과를 녹음 상태에 반영한다 (분석 중인 녹음만, 목업 분석처럼 녹음이 없으면 건너뛴다)
+    @Transactional
+    public boolean completeAnalysis(Long recordingId) {
+        return recordingRepository.findById(recordingId)
+                .filter(recording -> recording.getStatus() == RecordingStatus.ANALYZING)
+                .map(recording -> {
+                    recording.complete();
+                    return true;
+                })
+                .orElse(false);
+    }
+
+    @Transactional
+    public boolean failAnalysis(Long recordingId) {
+        return recordingRepository.findById(recordingId)
+                .filter(recording -> recording.getStatus() == RecordingStatus.ANALYZING)
+                .map(recording -> {
+                    recording.fail(RecordingFailureReason.ANALYSIS_FAILED);
+                    return true;
+                })
+                .orElse(false);
+    }
+
     // 음성 파일만 지우고 녹음·보고서·전사 텍스트는 남긴다 (보관 기간 만료, 대화 삭제에서 사용)
     // 파일 삭제에 실패하면 기록하지 않아 다음 실행에서 다시 시도된다
     @Transactional

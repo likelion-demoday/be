@@ -192,6 +192,25 @@ class RecordingServiceTest {
     }
 
     @Test
+    void failAnalysis_분석_중이면_분석_실패로_바꾼다() {
+        Recording recording = savedRecording(RecordingStatus.ANALYZING);
+
+        assertTrue(recordingService.failAnalysis(1L));
+        assertEquals(RecordingStatus.FAILED, recording.getStatus());
+        assertEquals(RecordingFailureReason.ANALYSIS_FAILED, recording.getFailureReason());
+    }
+
+    @Test
+    void completeAnalysis_분석_중이_아니거나_녹음이_없으면_건드리지_않는다() {
+        Recording recording = savedRecording(RecordingStatus.FAILED);
+        when(recordingRepository.findById(2L)).thenReturn(Optional.empty());
+
+        assertFalse(recordingService.completeAnalysis(1L));
+        assertFalse(recordingService.completeAnalysis(2L));
+        assertEquals(RecordingStatus.FAILED, recording.getStatus());
+    }
+
+    @Test
     void deleteAudio_파일을_지우고_삭제_시각을_기록() {
         Recording recording = savedRecording(RecordingStatus.COMPLETED);
         when(localFileStorage.delete(SAVED_PATH)).thenReturn(true);
