@@ -109,7 +109,7 @@ class AnalysisReportAssemblerTest {
         assertThat(AnalysisReportDto.from(json).qualitativeAnalysis()
                 .speakerInsights().get(0).patterns().get(0).count()).isEqualTo(2);
         assertThat(report.modelName()).isEqualTo("liner-mark-1.1");
-        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v6");
+        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v8");
     }
 
     private AnalysisSource source() {

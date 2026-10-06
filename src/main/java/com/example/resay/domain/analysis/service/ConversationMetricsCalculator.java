@@ -17,6 +17,7 @@ public class ConversationMetricsCalculator {
 
     private static final BigDecimal ONE_HUNDRED = BigDecimal.valueOf(100);
     private static final BigDecimal MILLIS_PER_MINUTE = BigDecimal.valueOf(60_000);
+    private static final BigDecimal MILLIS_PER_SECOND = BigDecimal.valueOf(1_000);
     private static final int SCALE = 2;
 
     public ConversationMetrics calculate(AnalysisSource source) {
@@ -52,6 +53,24 @@ public class ConversationMetricsCalculator {
                 .count();
     }
 
+    private static long countTranscribedWords(String content) {
+        if (content == null || content.isBlank()) {
+            return 0;
+        }
+        return java.util.Arrays.stream(content.strip().split("\\s+"))
+                .filter(word -> word.codePoints().anyMatch(Character::isLetterOrDigit))
+                .count();
+    }
+
+    private static long countTranscribedSyllables(String content) {
+        if (content == null || content.isBlank()) {
+            return 0;
+        }
+        return content.codePoints()
+                .filter(codePoint -> codePoint >= 0xAC00 && codePoint <= 0xD7A3)
+                .count();
+    }
+
     private static BigDecimal divide(long dividend, long divisor) {
         return BigDecimal.valueOf(dividend)
                 .divide(BigDecimal.valueOf(divisor), SCALE, RoundingMode.HALF_UP);
@@ -62,11 +81,15 @@ public class ConversationMetricsCalculator {
         private long speakingDurationMs;
         private int utteranceCount;
         private long transcribedCharacterCount;
+        private long transcribedSyllableCount;
+        private long transcribedWordCount;
 
         private void add(AnalysisSegment segment) {
             speakingDurationMs += segment.endMs() - segment.startMs();
             utteranceCount++;
             transcribedCharacterCount += countTranscribedCharacters(segment.content());
+            transcribedSyllableCount += countTranscribedSyllables(segment.content());
+            transcribedWordCount += countTranscribedWords(segment.content());
         }
 
         private long speakingDurationMs() {
@@ -92,15 +115,25 @@ public class ConversationMetricsCalculator {
                             SCALE,
                             RoundingMode.HALF_UP
                     );
+            BigDecimal syllablesPerSecond = BigDecimal.valueOf(transcribedSyllableCount)
+                    .multiply(MILLIS_PER_SECOND)
+                    .divide(
+                            BigDecimal.valueOf(speakingDurationMs),
+                            SCALE,
+                            RoundingMode.HALF_UP
+                    );
 
             return new SpeakerMetrics(
                     speakerRole,
                     speakingDurationMs,
                     utteranceCount,
                     transcribedCharacterCount,
+                    transcribedSyllableCount,
+                    transcribedWordCount,
                     speakingRatioPercent,
                     averageUtteranceDurationMs,
-                    charactersPerMinute
+                    charactersPerMinute,
+                    syllablesPerSecond
             );
         }
     }
