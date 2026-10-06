@@ -183,6 +183,44 @@ class LinerAnalysisResponseValidatorTest {
     }
 
     @Test
+    void rejectsSwearWordCountThatDoesNotMatchTranscript() {
+        QualitativeAnalysis valid = validResponse();
+        QualitativeAnalysis response = new QualitativeAnalysis(
+                valid.overview(),
+                valid.timeline(),
+                valid.topics(),
+                valid.characterInsights(),
+                valid.speakerInsights(),
+                valid.interestInsights(),
+                List.of(
+                        new QualitativeAnalysis.SpicinessInsight(
+                                SpeakerRole.SELF,
+                                30,
+                                "비속어가 나타났어요.",
+                                List.of(new QualitativeAnalysis.SwearWordUsage(
+                                        "미친",
+                                        99,
+                                        List.of(1L)
+                                )),
+                                List.of(new QualitativeAnalysis.SpicinessObservation(
+                                        QualitativeAnalysis.SpicinessCategory.SWEAR_WORD,
+                                        "비속어 사용",
+                                        "강한 표현을 사용했어요.",
+                                        List.of(1L)
+                                ))
+                        ),
+                        spiciness(SpeakerRole.FRIEND)
+                ),
+                valid.reactionStyleInsights(),
+                valid.scenarioInsights()
+        );
+
+        assertThatThrownBy(() -> validator.validate(source(), response))
+                .isInstanceOf(LinerAnalysisException.class)
+                .hasMessageContaining("등장 횟수와 일치하지 않습니다");
+    }
+
+    @Test
     void rejectsFrequentExpressionMissingFromEvidence() {
         QualitativeAnalysis valid = validResponse();
         QualitativeAnalysis.SpeakerInsight invalidSelf = new QualitativeAnalysis.SpeakerInsight(
@@ -294,7 +332,7 @@ class LinerAnalysisResponseValidatorTest {
                 10_000L,
                 speakersFor(AnalysisScenario.FRIEND_DAILY),
                 List.of(
-                        new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "오늘 뭐 했어?"),
+                        new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "오늘 뭐 했어? 미친 미친"),
                         new AnalysisSegment(2L, SpeakerRole.FRIEND, 600L, 900L, "학교 갔다 왔어"),
                         new AnalysisSegment(3L, SpeakerRole.SELF, 1_000L, 1_400L, "재밌었어?")
                 )
@@ -440,7 +478,7 @@ class LinerAnalysisResponseValidatorTest {
                         interest(SpeakerRole.FRIEND, 2L)
                 ),
                 List.of(
-                        spiciness(SpeakerRole.SELF),
+                        spicinessWithSwearWords(),
                         spiciness(SpeakerRole.FRIEND)
                 ),
                 List.of(
@@ -492,7 +530,27 @@ class LinerAnalysisResponseValidatorTest {
                 role,
                 0,
                 "강한 표현이 관찰되지 않았어요.",
+                List.of(),
                 List.of()
+        );
+    }
+
+    private QualitativeAnalysis.SpicinessInsight spicinessWithSwearWords() {
+        return new QualitativeAnalysis.SpicinessInsight(
+                SpeakerRole.SELF,
+                30,
+                "비속어가 나타났어요.",
+                List.of(new QualitativeAnalysis.SwearWordUsage(
+                        "미친",
+                        2,
+                        List.of(1L)
+                )),
+                List.of(new QualitativeAnalysis.SpicinessObservation(
+                        QualitativeAnalysis.SpicinessCategory.SWEAR_WORD,
+                        "비속어 사용",
+                        "강한 표현을 사용했어요.",
+                        List.of(1L)
+                ))
         );
     }
 

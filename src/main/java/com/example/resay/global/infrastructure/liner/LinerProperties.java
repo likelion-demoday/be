@@ -15,7 +15,7 @@ public record LinerProperties(
     private static final String DEFAULT_BASE_URL = "https://platform.liner.com";
     private static final String DEFAULT_MODEL = "liner-mark-1.1";
     private static final Duration DEFAULT_CONNECT_TIMEOUT = Duration.ofSeconds(3);
-    private static final Duration DEFAULT_READ_TIMEOUT = Duration.ofSeconds(120);
+    private static final Duration DEFAULT_READ_TIMEOUT = Duration.ofSeconds(300);
 
     public LinerProperties {
         baseUrl = hasText(baseUrl) ? baseUrl : DEFAULT_BASE_URL;

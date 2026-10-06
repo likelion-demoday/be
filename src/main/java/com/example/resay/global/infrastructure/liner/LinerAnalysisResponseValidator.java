@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -297,8 +298,19 @@ public class LinerAnalysisResponseValidator {
         for (QualitativeAnalysis.SpicinessInsight insight : insights) {
             requireScore(insight.score(), "spicinessInsight.score");
             requireText(insight.description(), "spicinessInsight.description");
-            if (insight.observations() == null) {
-                throw invalidResponse("spicinessInsight.observations가 비어 있습니다.");
+            if (insight.swearWords() == null || insight.observations() == null) {
+                throw invalidResponse("spicinessInsight 항목이 올바르지 않습니다.");
+            }
+            validateSwearWords(insight.swearWords(), insight.speakerRole(), segmentsById);
+            boolean hasSwearWordObservation = insight.observations().stream()
+                    .filter(Objects::nonNull)
+                    .anyMatch(observation -> observation.category()
+                            == QualitativeAnalysis.SpicinessCategory.SWEAR_WORD);
+            if (insight.swearWords().isEmpty() != !hasSwearWordObservation) {
+                throw invalidResponse("비속어 후보와 SWEAR_WORD 관찰이 일치하지 않습니다.");
+            }
+            if (!insight.swearWords().isEmpty() && insight.score() == 0) {
+                throw invalidResponse("비속어가 있으면 표독력 점수는 0보다 커야 합니다.");
             }
             for (QualitativeAnalysis.SpicinessObservation observation : insight.observations()) {
                 if (observation == null || observation.category() == null) {
@@ -312,6 +324,52 @@ public class LinerAnalysisResponseValidator {
                         segmentsById,
                         "spicinessObservation"
                 );
+            }
+        }
+    }
+
+    private void validateSwearWords(
+            List<QualitativeAnalysis.SwearWordUsage> swearWords,
+            SpeakerRole speakerRole,
+            Map<Long, AnalysisSegment> segmentsById
+    ) {
+        if (swearWords.size() > 10) {
+            throw invalidResponse("swearWords는 10개 이하여야 합니다.");
+        }
+        Set<String> expressions = new HashSet<>();
+        for (QualitativeAnalysis.SwearWordUsage swearWord : swearWords) {
+            if (swearWord == null || swearWord.count() <= 0) {
+                throw invalidResponse("swearWord 항목이 올바르지 않습니다.");
+            }
+            requireText(swearWord.expression(), "swearWord.expression");
+            if (!expressions.add(swearWord.expression())) {
+                throw invalidResponse("같은 비속어 표현을 중복해서 작성할 수 없습니다.");
+            }
+            validateSpeakerEvidence(
+                    swearWord.evidenceSegmentIds(),
+                    speakerRole,
+                    segmentsById,
+                    "swearWord"
+            );
+
+            List<AnalysisSegment> matchingSegments = segmentsById.values().stream()
+                    .filter(segment -> segment.speakerRole() == speakerRole)
+                    .filter(segment -> segment.content().contains(swearWord.expression()))
+                    .toList();
+            int occurrenceCount = matchingSegments.stream()
+                    .mapToInt(segment -> countOccurrences(
+                            segment.content(),
+                            swearWord.expression()
+                    ))
+                    .sum();
+            if (swearWord.count() != occurrenceCount) {
+                throw invalidResponse("비속어 횟수가 실제 전사문의 등장 횟수와 일치하지 않습니다.");
+            }
+            Set<Long> matchingSegmentIds = matchingSegments.stream()
+                    .map(AnalysisSegment::segmentId)
+                    .collect(Collectors.toSet());
+            if (!Set.copyOf(swearWord.evidenceSegmentIds()).equals(matchingSegmentIds)) {
+                throw invalidResponse("비속어가 등장한 모든 근거 발화가 포함되어야 합니다.");
             }
         }
     }

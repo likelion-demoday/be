@@ -317,6 +317,8 @@ public record AnalysisReportDto(
     public record SpicinessInsight(
             SpeakerRole speakerRole,
             int score,
+            @Schema(description = "전사문에서 확인된 비속어 총 등장 횟수", example = "3")
+            int swearWordCount,
             String description,
             List<SpicinessObservation> observations
     ) {
@@ -325,6 +327,9 @@ public record AnalysisReportDto(
             return new SpicinessInsight(
                     source.speakerRole(),
                     source.score(),
+                    source.swearWords() == null ? 0 : source.swearWords().stream()
+                            .mapToInt(QualitativeAnalysis.SwearWordUsage::count)
+                            .sum(),
                     source.description(),
                     source.observations().stream().map(SpicinessObservation::from).toList()
             );
