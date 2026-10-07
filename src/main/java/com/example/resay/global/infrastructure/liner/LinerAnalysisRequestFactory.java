@@ -15,7 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class LinerAnalysisRequestFactory {
 
-    private static final String PROMPT_VERSION = "analysis-prompt-v9";
+    private static final String PROMPT_VERSION = "analysis-prompt-v11";
     private static final String SCHEMA_VERSION = "analysis-result-v5";
     private static final int MAX_COMPLETION_TOKENS = 32768;
     private static final String REASONING_EFFORT = "medium";
@@ -54,6 +54,10 @@ public class LinerAnalysisRequestFactory {
             비속어처럼 들릴 수 있다는 추측만으로 표현을 만들거나 완곡하게 바꿔 쓰지 마세요.
             T/F 비율은 성격 유형 검사가 아니라 이번 대화의 반응을 정보·해결 중심과 감정·공감 중심으로 나눈 비율입니다.
             characterInsights.name은 역할명이나 본인, 상대방 같은 일반 명칭이 아니라 이번 대화의 특징을 담은 짧고 재미있는 한국어 별칭으로 작성하세요.
+            characterInsights.name은 대화 특징을 나타내는 수식어와 기억에 남는 역할·사물 명사를 결합한 2~3어절의 별칭으로 작성하세요.
+            별칭은 '꼬리질문 장인', '디테일 광부', '리액션 맛집', '맞장구 자판기', '집요한 광부', '포근한 바텐더'처럼 관찰된 대화 행동이 재치 있는 비유로 연상되는 톤이어야 합니다.
+            위 별칭은 형식과 분위기를 보여주는 예시일 뿐이므로 그대로 고르지 말고, 해당 화자에게 실제로 나타난 특징에 맞춰 새롭게 작성하세요.
+            진단명, 성격 단정, 역할명만 있는 표현, 비하하거나 공격적인 표현, 뜻을 이해하기 어려운 억지 조합은 사용하지 마세요.
             자주 등장한 표현은 해당 화자의 전사문에 실제로 두 번 이상 등장한 표현 중 빈도가 높은 순서로 최대 5개를 선택하고 count와 모든 근거 발화를 작성하세요.
             '나', '내가', '너', '네가', '우리', '저', '제가', '거', '것', '이거', '그거', '저거'처럼 화자의 대화 습관을 보여주지 않는 일반 대명사와 의존명사는 자주 등장한 표현에서 제외하세요.
             자주 등장한 표현의 category는 말버릇이나 담화 표지는 SPEECH_HABIT, 의미를 강조하는 표현은 EMPHASIS, 그 외 반복되는 내용 단어는 WORD로 분류하세요.

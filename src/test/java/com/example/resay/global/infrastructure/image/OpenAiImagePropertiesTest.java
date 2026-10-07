@@ -20,7 +20,7 @@ class OpenAiImagePropertiesTest {
         assertThat(properties.size()).isEqualTo("1024x1024");
         assertThat(properties.quality()).isEqualTo("medium");
         assertThat(properties.outputFormat()).isEqualTo("png");
-        assertThat(properties.background()).isEqualTo("transparent");
+        assertThat(properties.background()).isEqualTo("opaque");
         assertThat(properties.connectTimeout()).isEqualTo(Duration.ofSeconds(3));
         assertThat(properties.readTimeout()).isEqualTo(Duration.ofSeconds(180));
     }

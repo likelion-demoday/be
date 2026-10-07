@@ -93,6 +93,21 @@ class CharacterImageProcessorTest {
         assertThat(commandCaptor.getAllValues())
                 .extracting(CharacterImageGenerationCommand::speakerRole)
                 .containsExactly(SpeakerRole.SELF, SpeakerRole.FRIEND);
+        assertThat(commandCaptor.getAllValues().get(0))
+                .extracting(
+                        CharacterImageGenerationCommand::characterName,
+                        CharacterImageGenerationCommand::characterSummary,
+                        CharacterImageGenerationCommand::mainTrait,
+                        CharacterImageGenerationCommand::secondaryTrait,
+                        CharacterImageGenerationCommand::selectionEvidence
+                )
+                .containsExactly(
+                        "차분한 탐험가",
+                        "상대의 이야기를 차분히 살피는 모습이 보여요.",
+                        "상대의 이야기를 차분히 살피는 모습이 보여요.",
+                        "꼬리 질문: 상대의 이야기를 질문으로 이어 갔어요.",
+                        "꼬리 질문: 상대의 이야기를 질문으로 이어 갔어요."
+                );
         then(characterImageService).should().complete(
                 10L,
                 SpeakerRole.SELF,
@@ -240,7 +255,32 @@ class CharacterImageProcessorTest {
                                         List.of(2L)
                                 )
                         ),
-                        List.of(),
+                        List.of(
+                                new QualitativeAnalysis.SpeakerInsight(
+                                        SpeakerRole.SELF,
+                                        List.of(new QualitativeAnalysis.SpeakerPattern(
+                                                QualitativeAnalysis.SpeakerPatternCategory
+                                                        .FOLLOW_UP_QUESTION,
+                                                "꼬리 질문",
+                                                "상대의 이야기를 질문으로 이어 갔어요.",
+                                                List.of(1L)
+                                        )),
+                                        null,
+                                        List.of()
+                                ),
+                                new QualitativeAnalysis.SpeakerInsight(
+                                        SpeakerRole.FRIEND,
+                                        List.of(new QualitativeAnalysis.SpeakerPattern(
+                                                QualitativeAnalysis.SpeakerPatternCategory
+                                                        .SHORT_RESPONSE,
+                                                "짧은 맞장구",
+                                                "짧은 반응으로 대화 흐름을 이어 갔어요.",
+                                                List.of(2L)
+                                        )),
+                                        null,
+                                        List.of()
+                                )
+                        ),
                         List.of(),
                         List.of(),
                         List.of(),
