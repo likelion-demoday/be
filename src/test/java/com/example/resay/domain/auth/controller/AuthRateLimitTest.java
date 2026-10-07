@@ -26,6 +26,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "rate-limit.login.window=10m",
         "rate-limit.signup.max-attempts-per-ip=4",
         "rate-limit.signup.window=1h",
+        "rate-limit.email-check.max-attempts-per-ip=5",
+        "rate-limit.email-check.window=10m",
         // 운영과 같이 프록시가 넘겨준 X-Forwarded-For를 접속 IP로 인식한다
         "server.forward-headers-strategy=framework"
 })
@@ -265,6 +267,37 @@ class AuthRateLimitTest {
                         .content(loginBody("cors@example.com", WRONG_PASSWORD)))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, "Retry-After"));
+    }
+
+    // 가입 여부를 알려주는 API라 한 IP에서 대량으로 조회하지 못하게 한다
+    @Test
+    void blocksEmailCheckAfterTooManyRequestsFromSameIp() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            checkEmail("10.0.17.1", "probe-" + i + "@example.com").andExpect(status().isOk());
+        }
+
+        checkEmail("10.0.17.1", "probe-new@example.com")
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("COMMON429_1"))
+                .andExpect(header().exists(HttpHeaders.RETRY_AFTER));
+        checkEmail("10.0.17.2", "probe-new@example.com").andExpect(status().isOk());
+    }
+
+    @Test
+    void emailCheckLimitDoesNotAffectSignupOrLogin() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            checkEmail("10.0.18.1", "busy-" + i + "@example.com").andExpect(status().isOk());
+        }
+        checkEmail("10.0.18.1", "busy-new@example.com").andExpect(status().isTooManyRequests());
+
+        signup("10.0.18.1", "after-checks@example.com").andExpect(status().isCreated());
+        login("10.0.18.1", "after-checks@example.com", PASSWORD).andExpect(status().isOk());
+    }
+
+    private ResultActions checkEmail(String clientIp, String email) throws Exception {
+        return mockMvc.perform(from(clientIp, post("/api/v1/auth/email/check"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"%s\"}".formatted(email)));
     }
 
     private ResultActions signup(String clientIp, String email) throws Exception {

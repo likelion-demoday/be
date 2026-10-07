@@ -1,6 +1,8 @@
 package com.example.resay.domain.auth.controller;
 
 import com.example.resay.domain.auth.code.AuthSuccessCode;
+import com.example.resay.domain.auth.dto.EmailCheckRequestDto;
+import com.example.resay.domain.auth.dto.EmailCheckResponseDto;
 import com.example.resay.domain.auth.dto.GoogleLoginRequestDto;
 import com.example.resay.domain.auth.dto.KakaoLoginRequestDto;
 import com.example.resay.domain.auth.dto.LoginRequestDto;
@@ -33,6 +35,18 @@ public class AuthController {
         TokenResponseDto response = authService.signup(request, httpRequest.getRemoteAddr());
         return ResponseEntity.status(AuthSuccessCode.SIGNUP.getHttpStatus())
                 .body(ApiResponse.onSuccess(AuthSuccessCode.SIGNUP, response));
+    }
+
+    // 가입 화면의 이메일 입력 단계에서 중복 여부를 미리 알려주기 위한 API.
+    // 이메일이 주소(URL)와 접근 로그에 남지 않도록 본문으로 받는다
+    @PostMapping("/email/check")
+    public ResponseEntity<ApiResponse<EmailCheckResponseDto>> checkEmail(
+            @Valid @RequestBody EmailCheckRequestDto request,
+            HttpServletRequest httpRequest
+    ) {
+        EmailCheckResponseDto response = authService.checkEmail(request, httpRequest.getRemoteAddr());
+        return ResponseEntity.status(AuthSuccessCode.EMAIL_CHECK.getHttpStatus())
+                .body(ApiResponse.onSuccess(AuthSuccessCode.EMAIL_CHECK, response));
     }
 
     @PostMapping("/login")

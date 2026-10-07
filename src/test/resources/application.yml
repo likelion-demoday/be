@@ -42,6 +42,9 @@ rate-limit:
   signup:
     max-attempts-per-ip: 30
     window: 1h
+  email-check:
+    max-attempts-per-ip: 60
+    window: 10m
 
 credit:
   price:
