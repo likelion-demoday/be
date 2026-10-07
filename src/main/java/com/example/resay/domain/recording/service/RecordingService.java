@@ -6,6 +6,7 @@ import com.example.resay.domain.recording.entity.Recording;
 import com.example.resay.domain.recording.entity.RecordingFailureReason;
 import com.example.resay.domain.recording.entity.RecordingStatus;
 import com.example.resay.domain.recording.entity.RelationshipType;
+import com.example.resay.domain.recording.event.RecordingFailedEvent;
 import com.example.resay.domain.recording.event.RecordingPaymentCompletedEvent;
 import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.global.exception.GeneralException;
@@ -132,7 +133,7 @@ public class RecordingService {
         if (recording.getStatus() != RecordingStatus.TRANSCRIBING) {
             return false;
         }
-        recording.fail(reason);
+        fail(recordingId, recording, reason);
         return true;
     }
 
@@ -153,10 +154,17 @@ public class RecordingService {
         return recordingRepository.findById(recordingId)
                 .filter(recording -> recording.getStatus() == RecordingStatus.ANALYZING)
                 .map(recording -> {
-                    recording.fail(reason);
+                    fail(recordingId, recording, reason);
                     return true;
                 })
                 .orElse(false);
+    }
+
+    // 녹음이 실패로 바뀌는 곳은 모두 여기를 거친다 (전사·화자 선택·분석 단계, 모두 결제 후)
+    // 크레딧 환급 쪽은 실패가 커밋된 뒤 이 이벤트를 받는다
+    private void fail(Long recordingId, Recording recording, RecordingFailureReason reason) {
+        recording.fail(reason);
+        eventPublisher.publishEvent(new RecordingFailedEvent(recordingId, reason));
     }
 
     // 음성 파일만 지우고 녹음·보고서·전사 텍스트는 남긴다 (보관 기간 만료, 대화 삭제에서 사용)
