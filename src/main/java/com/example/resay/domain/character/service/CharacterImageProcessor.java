@@ -5,6 +5,7 @@ import com.example.resay.domain.analysis.entity.AnalysisStatus;
 import com.example.resay.domain.analysis.entity.ConversationAnalysis;
 import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
+import com.example.resay.domain.analysis.model.SpeakerRole;
 import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
 import com.example.resay.domain.analysis.repository.ConversationAnalysisRepository;
 import com.example.resay.domain.character.event.CharacterImageRequestedEvent;
@@ -12,6 +13,7 @@ import com.example.resay.domain.character.model.CharacterImageGenerationCommand;
 import com.example.resay.domain.character.model.GeneratedCharacterImage;
 import com.example.resay.domain.character.port.CharacterImageGenerator;
 import com.example.resay.domain.character.port.CharacterImageStorage;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +26,7 @@ import tools.jackson.databind.ObjectMapper;
 public class CharacterImageProcessor {
 
     private static final int FAILURE_CODE_MAX_LENGTH = 100;
+    private static final int PROMPT_INPUT_MAX_LENGTH = 500;
 
     private final ConversationAnalysisRepository conversationAnalysisRepository;
     private final AnalysisResultRepository analysisResultRepository;
@@ -71,12 +74,7 @@ public class CharacterImageProcessor {
             }
             started = true;
             GeneratedCharacterImage generatedImage = characterImageGenerator.generate(
-                    new CharacterImageGenerationCommand(
-                            report.recordingInfo().scenario(),
-                            insight.speakerRole(),
-                            insight.name(),
-                            insight.description()
-                    )
+                    createGenerationCommand(report, insight)
             );
             objectKey = characterImageStorage.save(
                     analysisId,
@@ -106,6 +104,82 @@ public class CharacterImageProcessor {
             }
             return false;
         }
+    }
+
+    private CharacterImageGenerationCommand createGenerationCommand(
+            AnalysisReport report,
+            QualitativeAnalysis.CharacterInsight insight
+    ) {
+        List<String> traits = collectTraits(report.qualitativeAnalysis(), insight.speakerRole());
+        String secondaryTrait = traits.isEmpty() ? "없음" : traits.get(0);
+        String selectionEvidence = traits.isEmpty()
+                ? insight.description()
+                : String.join(" / ", traits);
+
+        return new CharacterImageGenerationCommand(
+                report.recordingInfo().scenario(),
+                insight.speakerRole(),
+                insight.name(),
+                bounded(insight.description()),
+                bounded(insight.description()),
+                bounded(secondaryTrait),
+                bounded(selectionEvidence)
+        );
+    }
+
+    private List<String> collectTraits(
+            AnalysisReport.QualitativeReport report,
+            SpeakerRole speakerRole
+    ) {
+        List<String> traits = new ArrayList<>();
+
+        report.speakerInsights().stream()
+                .filter(insight -> insight.speakerRole() == speakerRole)
+                .flatMap(insight -> insight.patterns().stream())
+                .map(pattern -> describe(pattern.title(), pattern.description()))
+                .forEach(traits::add);
+        report.interestInsights().stream()
+                .filter(insight -> insight.speakerRole() == speakerRole)
+                .flatMap(insight -> insight.observations().stream())
+                .map(observation -> describe(observation.title(), observation.description()))
+                .forEach(traits::add);
+        report.spicinessInsights().stream()
+                .filter(insight -> insight.speakerRole() == speakerRole)
+                .flatMap(insight -> insight.observations().stream())
+                .map(observation -> describe(observation.title(), observation.description()))
+                .forEach(traits::add);
+        report.reactionStyleInsights().stream()
+                .filter(insight -> insight.speakerRole() == speakerRole)
+                .flatMap(insight -> insight.examples().stream())
+                .map(example -> describe(example.title(), example.description()))
+                .forEach(traits::add);
+
+        return traits.stream()
+                .filter(this::hasText)
+                .distinct()
+                .limit(2)
+                .toList();
+    }
+
+    private String describe(String title, String description) {
+        if (!hasText(title)) {
+            return description;
+        }
+        if (!hasText(description)) {
+            return title;
+        }
+        return title + ": " + description;
+    }
+
+    private String bounded(String value) {
+        if (value.length() <= PROMPT_INPUT_MAX_LENGTH) {
+            return value;
+        }
+        return value.substring(0, PROMPT_INPUT_MAX_LENGTH);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private void deleteStoredImage(String objectKey, RuntimeException originalException) {

@@ -126,7 +126,7 @@ openai:
     size: ${OPENAI_IMAGE_SIZE:1024x1024}
     quality: ${OPENAI_IMAGE_QUALITY:medium}
     output-format: ${OPENAI_IMAGE_OUTPUT_FORMAT:png}
-    background: ${OPENAI_IMAGE_BACKGROUND:transparent}
+    background: ${OPENAI_IMAGE_BACKGROUND:opaque}
     connect-timeout: ${OPENAI_CONNECT_TIMEOUT:3s}
     read-timeout: ${OPENAI_IMAGE_READ_TIMEOUT:180s}
 

@@ -22,7 +22,7 @@ public record OpenAiImageProperties(
     private static final String DEFAULT_SIZE = "1024x1024";
     private static final String DEFAULT_QUALITY = "medium";
     private static final String DEFAULT_OUTPUT_FORMAT = "png";
-    private static final String DEFAULT_BACKGROUND = "transparent";
+    private static final String DEFAULT_BACKGROUND = "opaque";
     private static final Duration DEFAULT_CONNECT_TIMEOUT = Duration.ofSeconds(3);
     private static final Duration DEFAULT_READ_TIMEOUT = Duration.ofSeconds(180);
     private static final Set<String> QUALITIES = Set.of(

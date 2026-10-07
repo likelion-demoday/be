@@ -7,11 +7,14 @@ public record CharacterImageGenerationCommand(
         AnalysisScenario scenario,
         SpeakerRole speakerRole,
         String characterName,
-        String characterDescription
+        String characterSummary,
+        String mainTrait,
+        String secondaryTrait,
+        String selectionEvidence
 ) {
 
     private static final int NAME_MAX_LENGTH = 50;
-    private static final int DESCRIPTION_MAX_LENGTH = 500;
+    private static final int TEXT_MAX_LENGTH = 500;
 
     public CharacterImageGenerationCommand {
         if (scenario == null) {
@@ -21,15 +24,25 @@ public record CharacterImageGenerationCommand(
             throw new IllegalArgumentException("시나리오에 맞는 speakerRole이 필요합니다.");
         }
         requireText(characterName, "characterName");
-        requireText(characterDescription, "characterDescription");
+        requireText(characterSummary, "characterSummary");
+        requireText(mainTrait, "mainTrait");
+        requireText(selectionEvidence, "selectionEvidence");
+        secondaryTrait = hasText(secondaryTrait) ? secondaryTrait : "없음";
         requireMaxLength(characterName, "characterName", NAME_MAX_LENGTH);
-        requireMaxLength(characterDescription, "characterDescription", DESCRIPTION_MAX_LENGTH);
+        requireMaxLength(characterSummary, "characterSummary", TEXT_MAX_LENGTH);
+        requireMaxLength(mainTrait, "mainTrait", TEXT_MAX_LENGTH);
+        requireMaxLength(secondaryTrait, "secondaryTrait", TEXT_MAX_LENGTH);
+        requireMaxLength(selectionEvidence, "selectionEvidence", TEXT_MAX_LENGTH);
     }
 
     private static void requireText(String value, String fieldName) {
-        if (value == null || value.isBlank()) {
+        if (!hasText(value)) {
             throw new IllegalArgumentException(fieldName + "은(는) 비어 있을 수 없습니다.");
         }
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private static void requireMaxLength(String value, String fieldName, int maxLength) {

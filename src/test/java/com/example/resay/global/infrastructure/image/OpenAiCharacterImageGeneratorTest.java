@@ -25,7 +25,7 @@ class OpenAiCharacterImageGeneratorTest {
             "1024x1024",
             "medium",
             "png",
-            "transparent",
+            "opaque",
             Duration.ofSeconds(3),
             Duration.ofSeconds(180)
     );
@@ -57,7 +57,7 @@ class OpenAiCharacterImageGeneratorTest {
         assertThat(result.content()).isEqualTo(imageBytes);
         assertThat(result.mediaType()).isEqualTo("image/png");
         assertThat(result.model()).isEqualTo("gpt-image-2.5-flare");
-        assertThat(result.promptVersion()).isEqualTo("character-image-prompt-v1");
+        assertThat(result.promptVersion()).isEqualTo("character-image-prompt-v2");
     }
 
     @Test
@@ -84,7 +84,10 @@ class OpenAiCharacterImageGeneratorTest {
                 AnalysisScenario.FRIEND_DAILY,
                 SpeakerRole.SELF,
                 "질문 수집가",
-                "친구의 말을 질문으로 이어 갑니다."
+                "친구의 말을 질문으로 이어 갑니다.",
+                "질문으로 대화를 이어 가요.",
+                "짧게 맞장구쳐요.",
+                "질문과 맞장구가 반복적으로 관찰됐어요."
         );
     }
 }

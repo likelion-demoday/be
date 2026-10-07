@@ -60,6 +60,10 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("서로 다른 표기는 각각 별도 항목으로 작성하세요")
                 .contains("비속어가 없으면 swearWords는 빈 배열")
                 .contains("짧고 재미있는 한국어 별칭")
+                .contains("수식어와 기억에 남는 역할·사물 명사를 결합한 2~3어절")
+                .contains("꼬리질문 장인")
+                .contains("예시일 뿐이므로 그대로 고르지 말고")
+                .contains("비하하거나 공격적인 표현")
                 .contains("실제로 두 번 이상 등장한 표현")
                 .contains("SPEECH_HABIT")
                 .contains("frequentExpressionSummary")
@@ -76,7 +80,7 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("title과 description에는 segmentId나 근거 발화 번호를 직접 작성하지 마세요")
                 .contains("reactionStyleInsights의 examples에는 해당 화자의 반응 사례를 원문 인용 없이");
 
-        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v9");
+        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v11");
         assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v5");
 
         Map<?, ?> input = objectMapper.readValue(request.messages().get(1).content(), Map.class);
