@@ -4,6 +4,7 @@ import com.example.resay.domain.recording.code.RecordingErrorCode;
 import com.example.resay.domain.recording.entity.Recording;
 import com.example.resay.domain.recording.entity.RecordingFailureReason;
 import com.example.resay.domain.recording.entity.RecordingStatus;
+import com.example.resay.domain.recording.event.RecordingFailedEvent;
 import com.example.resay.domain.recording.event.RecordingPaymentCompletedEvent;
 import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.global.exception.GeneralException;
@@ -225,6 +226,9 @@ class RecordingServiceTest {
         assertTrue(recordingService.failTranscription(1L, RecordingFailureReason.SPEAKER_NOT_SEPARATED));
         assertEquals(RecordingStatus.FAILED, recording.getStatus());
         assertEquals(RecordingFailureReason.SPEAKER_NOT_SEPARATED, recording.getFailureReason());
+        // 크레딧 환급용 실패 이벤트
+        verify(eventPublisher).publishEvent(
+                new RecordingFailedEvent(1L, RecordingFailureReason.SPEAKER_NOT_SEPARATED));
     }
 
     @Test
@@ -233,6 +237,7 @@ class RecordingServiceTest {
 
         assertFalse(recordingService.failTranscription(1L, RecordingFailureReason.TRANSCRIPTION_TIMEOUT));
         assertEquals(RecordingStatus.ANALYZING, recording.getStatus());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -242,6 +247,17 @@ class RecordingServiceTest {
         assertTrue(recordingService.failAnalysis(1L, RecordingFailureReason.INSUFFICIENT_SPEAKER_DATA));
         assertEquals(RecordingStatus.FAILED, recording.getStatus());
         assertEquals(RecordingFailureReason.INSUFFICIENT_SPEAKER_DATA, recording.getFailureReason());
+        verify(eventPublisher).publishEvent(
+                new RecordingFailedEvent(1L, RecordingFailureReason.INSUFFICIENT_SPEAKER_DATA));
+    }
+
+    @Test
+    void failAnalysis_분석_중이_아니면_건드리지_않고_이벤트도_없다() {
+        Recording recording = savedRecording(RecordingStatus.COMPLETED);
+
+        assertFalse(recordingService.failAnalysis(1L, RecordingFailureReason.ANALYSIS_FAILED));
+        assertEquals(RecordingStatus.COMPLETED, recording.getStatus());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
