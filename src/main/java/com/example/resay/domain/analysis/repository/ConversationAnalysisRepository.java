@@ -2,15 +2,23 @@ package com.example.resay.domain.analysis.repository;
 
 import com.example.resay.domain.analysis.entity.ConversationAnalysis;
 import java.util.Optional;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ConversationAnalysisRepository extends JpaRepository<ConversationAnalysis, Long> {
 
     Optional<ConversationAnalysis> findByRecordingId(Long recordingId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from ConversationAnalysis a where a.recordingId = :recordingId")
+    Optional<ConversationAnalysis> findByRecordingIdForUpdate(
+            @Param("recordingId") Long recordingId
+    );
 
     boolean existsByRecordingId(Long recordingId);
 

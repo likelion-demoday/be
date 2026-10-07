@@ -85,6 +85,16 @@ public class CharacterImage extends BaseEntity {
         status = CharacterImageStatus.GENERATING;
     }
 
+    public void retry() {
+        requireStatus(CharacterImageStatus.FAILED);
+        this.objectKey = null;
+        this.mediaType = null;
+        this.modelName = null;
+        this.promptVersion = null;
+        this.failureCode = null;
+        this.status = CharacterImageStatus.PENDING;
+    }
+
     public void complete(
             String objectKey,
             String mediaType,

@@ -52,4 +52,16 @@ class CharacterImageTest {
 
         assertThatThrownBy(image::start).isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    void preparesFailedGenerationForRetry() {
+        CharacterImage image = CharacterImage.prepare(1L, SpeakerRole.SELF);
+        image.start();
+        image.fail("provider_error");
+
+        image.retry();
+
+        assertThat(image.getStatus()).isEqualTo(CharacterImageStatus.PENDING);
+        assertThat(image.getFailureCode()).isNull();
+    }
 }

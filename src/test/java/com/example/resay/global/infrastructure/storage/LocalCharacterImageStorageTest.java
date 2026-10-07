@@ -31,6 +31,7 @@ class LocalCharacterImageStorageTest {
 
         assertThat(objectKey).startsWith("10/self-").endsWith(".png");
         assertThat(Files.readAllBytes(tempDir.resolve(objectKey))).containsExactly(1, 2, 3);
+        assertThat(storage.load(objectKey)).containsExactly(1, 2, 3);
 
         storage.delete(objectKey);
 
@@ -51,5 +52,15 @@ class LocalCharacterImageStorageTest {
 
         assertThatThrownBy(() -> storage.save(10L, SpeakerRole.SELF, image))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void failsToLoadMissingImage() {
+        LocalCharacterImageStorage storage = new LocalCharacterImageStorage(
+                new CharacterImageStorageProperties(tempDir.toString())
+        );
+
+        assertThatThrownBy(() -> storage.load("10/missing.png"))
+                .isInstanceOf(CharacterImageStorageException.class);
     }
 }

@@ -25,6 +25,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static com.example.resay.domain.analysis.support.AnalysisTestSpeakers.speakersFor;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -121,7 +122,8 @@ class CharacterImageProcessorTest {
         given(characterImageStorage.save(10L, SpeakerRole.FRIEND, generatedImage))
                 .willReturn("10/friend.png");
 
-        processor.process(new CharacterImageRequestedEvent(10L, 1L));
+        assertThatThrownBy(() -> processor.process(new CharacterImageRequestedEvent(10L, 1L)))
+                .isInstanceOf(CharacterImageProcessingException.class);
 
         then(characterImageService).should().fail(
                 10L,
@@ -157,7 +159,8 @@ class CharacterImageProcessorTest {
         given(characterImageStorage.save(10L, SpeakerRole.FRIEND, generatedImage))
                 .willReturn("10/friend.png");
 
-        processor.process(new CharacterImageRequestedEvent(10L, 1L));
+        assertThatThrownBy(() -> processor.process(new CharacterImageRequestedEvent(10L, 1L)))
+                .isInstanceOf(CharacterImageProcessingException.class);
 
         then(characterImageService).should().complete(
                 10L,
@@ -184,7 +187,8 @@ class CharacterImageProcessorTest {
                 .given(characterImageService)
                 .complete(10L, SpeakerRole.SELF, "10/self.png", generatedImage);
 
-        processor.process(new CharacterImageRequestedEvent(10L, 1L));
+        assertThatThrownBy(() -> processor.process(new CharacterImageRequestedEvent(10L, 1L)))
+                .isInstanceOf(CharacterImageProcessingException.class);
 
         then(characterImageStorage).should().delete("10/self.png");
         then(characterImageService).should().fail(
