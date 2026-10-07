@@ -6,6 +6,7 @@ import com.example.resay.domain.character.entity.CharacterImageStatus;
 import com.example.resay.domain.character.event.CharacterImagesDeletedEvent;
 import com.example.resay.domain.character.model.GeneratedCharacterImage;
 import com.example.resay.domain.character.repository.CharacterImageRepository;
+import java.util.Collection;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -21,15 +22,31 @@ public class CharacterImageService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
+    public boolean prepare(Long analysisId, Collection<SpeakerRole> speakerRoles) {
+        boolean prepared = false;
+        for (SpeakerRole speakerRole : speakerRoles) {
+            var existing = characterImageRepository.findByAnalysisIdAndSpeakerRole(
+                    analysisId,
+                    speakerRole
+            );
+            if (existing.isEmpty()) {
+                characterImageRepository.save(CharacterImage.prepare(analysisId, speakerRole));
+                prepared = true;
+            } else if (existing.get().getStatus() == CharacterImageStatus.FAILED) {
+                existing.get().retry();
+                prepared = true;
+            }
+        }
+        return prepared;
+    }
+
+    @Transactional
     public boolean begin(Long analysisId, SpeakerRole speakerRole) {
-        if (characterImageRepository.findByAnalysisIdAndSpeakerRole(analysisId, speakerRole)
-                .isPresent()) {
+        CharacterImage characterImage = find(analysisId, speakerRole);
+        if (characterImage.getStatus() != CharacterImageStatus.PENDING) {
             return false;
         }
-
-        CharacterImage characterImage = CharacterImage.prepare(analysisId, speakerRole);
         characterImage.start();
-        characterImageRepository.saveAndFlush(characterImage);
         return true;
     }
 

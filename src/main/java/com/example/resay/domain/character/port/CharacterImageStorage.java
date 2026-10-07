@@ -7,5 +7,7 @@ public interface CharacterImageStorage {
 
     String save(Long analysisId, SpeakerRole speakerRole, GeneratedCharacterImage image);
 
+    byte[] load(String objectKey);
+
     void delete(String objectKey);
 }

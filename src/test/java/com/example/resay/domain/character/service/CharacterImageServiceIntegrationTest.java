@@ -5,6 +5,7 @@ import com.example.resay.domain.character.entity.CharacterImageStatus;
 import com.example.resay.domain.character.model.GeneratedCharacterImage;
 import com.example.resay.domain.character.repository.CharacterImageRepository;
 import com.example.resay.global.config.JpaAuditingConfig;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -24,6 +25,8 @@ class CharacterImageServiceIntegrationTest {
 
     @Test
     void persistsLifecycleAndPreventsDuplicateSpeakerWork() {
+        assertThat(characterImageService.prepare(10L, List.of(SpeakerRole.SELF))).isTrue();
+        assertThat(characterImageService.prepare(10L, List.of(SpeakerRole.SELF))).isFalse();
         assertThat(characterImageService.begin(10L, SpeakerRole.SELF)).isTrue();
         assertThat(characterImageService.begin(10L, SpeakerRole.SELF)).isFalse();
 
@@ -47,5 +50,20 @@ class CharacterImageServiceIntegrationTest {
         assertThat(saved.getObjectKey()).isEqualTo("10/self.png");
         assertThat(saved.getModelName()).isEqualTo("gpt-image");
         assertThat(characterImageRepository.findAllByAnalysisId(10L)).hasSize(1);
+    }
+
+    @Test
+    void preparesFailedSpeakerWorkForRetry() {
+        characterImageService.prepare(10L, List.of(SpeakerRole.SELF));
+        characterImageService.begin(10L, SpeakerRole.SELF);
+        characterImageService.fail(10L, SpeakerRole.SELF, "provider_error");
+
+        assertThat(characterImageService.prepare(10L, List.of(SpeakerRole.SELF))).isTrue();
+
+        var retried = characterImageRepository
+                .findByAnalysisIdAndSpeakerRole(10L, SpeakerRole.SELF)
+                .orElseThrow();
+        assertThat(retried.getStatus()).isEqualTo(CharacterImageStatus.PENDING);
+        assertThat(retried.getFailureCode()).isNull();
     }
 }

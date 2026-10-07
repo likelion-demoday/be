@@ -42,6 +42,15 @@ public class LocalCharacterImageStorage implements CharacterImageStorage {
     }
 
     @Override
+    public byte[] load(String objectKey) {
+        try {
+            return Files.readAllBytes(resolve(objectKey));
+        } catch (IOException | IllegalArgumentException exception) {
+            throw new CharacterImageStorageException("캐릭터 이미지를 읽을 수 없습니다.", exception);
+        }
+    }
+
+    @Override
     public void delete(String objectKey) {
         if (objectKey == null || objectKey.isBlank()) {
             return;

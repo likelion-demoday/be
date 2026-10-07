@@ -3,11 +3,11 @@ package com.example.resay.domain.character.service;
 import com.example.resay.domain.analysis.entity.AnalysisResult;
 import com.example.resay.domain.analysis.entity.AnalysisStatus;
 import com.example.resay.domain.analysis.entity.ConversationAnalysis;
-import com.example.resay.domain.analysis.event.AnalysisCompletedEvent;
 import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
 import com.example.resay.domain.analysis.repository.ConversationAnalysisRepository;
+import com.example.resay.domain.character.event.CharacterImageRequestedEvent;
 import com.example.resay.domain.character.model.CharacterImageGenerationCommand;
 import com.example.resay.domain.character.model.GeneratedCharacterImage;
 import com.example.resay.domain.character.port.CharacterImageGenerator;
@@ -32,7 +32,7 @@ public class CharacterImageProcessor {
     private final CharacterImageStorage characterImageStorage;
     private final ObjectMapper objectMapper;
 
-    public void process(AnalysisCompletedEvent event) {
+    public void process(CharacterImageRequestedEvent event) {
         ConversationAnalysis analysis = conversationAnalysisRepository.findById(event.analysisId())
                 .orElseThrow(() -> new IllegalStateException("완료된 분석이 존재하지 않습니다."));
         if (!event.recordingId().equals(analysis.getRecordingId())
@@ -47,12 +47,18 @@ public class CharacterImageProcessor {
 
         List<QualitativeAnalysis.CharacterInsight> insights = report.qualitativeAnalysis()
                 .characterInsights();
+        boolean failed = false;
         for (QualitativeAnalysis.CharacterInsight insight : insights) {
-            processOne(analysis.getId(), report, insight);
+            if (!processOne(analysis.getId(), report, insight)) {
+                failed = true;
+            }
+        }
+        if (failed) {
+            throw new CharacterImageProcessingException();
         }
     }
 
-    private void processOne(
+    private boolean processOne(
             Long analysisId,
             AnalysisReport report,
             QualitativeAnalysis.CharacterInsight insight
@@ -61,7 +67,7 @@ public class CharacterImageProcessor {
         boolean started = false;
         try {
             if (!characterImageService.begin(analysisId, insight.speakerRole())) {
-                return;
+                return true;
             }
             started = true;
             GeneratedCharacterImage generatedImage = characterImageGenerator.generate(
@@ -83,9 +89,10 @@ public class CharacterImageProcessor {
                     objectKey,
                     generatedImage
             );
+            return true;
         } catch (RuntimeException exception) {
             if (objectKey != null) {
-                characterImageStorage.delete(objectKey);
+                deleteStoredImage(objectKey, exception);
             }
             if (started) {
                 markFailed(analysisId, insight, exception);
@@ -97,6 +104,16 @@ public class CharacterImageProcessor {
                         exception
                 );
             }
+            return false;
+        }
+    }
+
+    private void deleteStoredImage(String objectKey, RuntimeException originalException) {
+        try {
+            characterImageStorage.delete(objectKey);
+        } catch (RuntimeException deleteException) {
+            originalException.addSuppressed(deleteException);
+            log.warn("실패한 캐릭터 이미지 파일 정리 실패: objectKey={}", objectKey, deleteException);
         }
     }
 
@@ -136,7 +153,8 @@ public class CharacterImageProcessor {
             throw new IllegalStateException("분석과 보고서의 녹음이 일치하지 않습니다.");
         }
         if (report.qualitativeAnalysis() == null
-                || report.qualitativeAnalysis().characterInsights() == null) {
+                || report.qualitativeAnalysis().characterInsights() == null
+                || report.qualitativeAnalysis().characterInsights().isEmpty()) {
             throw new IllegalStateException("캐릭터 분석 결과가 존재하지 않습니다.");
         }
     }
