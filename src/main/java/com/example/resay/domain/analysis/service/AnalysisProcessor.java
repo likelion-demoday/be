@@ -1,5 +1,6 @@
 package com.example.resay.domain.analysis.service;
 
+import com.example.resay.domain.analysis.code.AnalysisErrorCode;
 import com.example.resay.domain.analysis.dto.AnalysisResultCommand;
 import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
@@ -7,6 +8,7 @@ import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.ConversationMetrics;
 import com.example.resay.domain.analysis.port.AnalysisModelClient;
 import com.example.resay.domain.analysis.port.AnalysisSourceReader;
+import com.example.resay.global.exception.GeneralException;
 
 public class AnalysisProcessor {
 
@@ -34,9 +36,8 @@ public class AnalysisProcessor {
     }
 
     public void process(Long recordingId) {
-        analysisService.start(recordingId);
-
         try {
+            analysisService.start(recordingId);
             AnalysisSource source = analysisSourceReader.read(recordingId);
             requireMatchingRecording(recordingId, source);
 
@@ -49,6 +50,11 @@ public class AnalysisProcessor {
                     qualitativeResult
             );
             analysisService.complete(recordingId, toCommand(report));
+        } catch (GeneralException exception) {
+            if (exception.getErrorCode() != AnalysisErrorCode.ANALYSIS_ALREADY_EXISTS) {
+                markFailed(recordingId, exception);
+            }
+            throw exception;
         } catch (RuntimeException exception) {
             markFailed(recordingId, exception);
             throw exception;
@@ -75,7 +81,7 @@ public class AnalysisProcessor {
 
     private void markFailed(Long recordingId, RuntimeException originalException) {
         try {
-            analysisService.fail(recordingId, failureReason(originalException));
+            analysisService.recordFailure(recordingId, failureReason(originalException));
         } catch (RuntimeException statusException) {
             originalException.addSuppressed(statusException);
         }

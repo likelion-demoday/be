@@ -4,6 +4,7 @@ import com.example.resay.domain.analysis.code.AnalysisErrorCode;
 import com.example.resay.domain.analysis.dto.AnalysisResultCommand;
 import com.example.resay.domain.analysis.entity.AnalysisResult;
 import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
+import com.example.resay.domain.analysis.entity.AnalysisStatus;
 import com.example.resay.domain.analysis.entity.ConversationAnalysis;
 import com.example.resay.domain.analysis.event.AnalysisCompletedEvent;
 import com.example.resay.domain.analysis.event.AnalysisFailedEvent;
@@ -75,6 +76,31 @@ public class AnalysisService {
             eventPublisher.publishEvent(new AnalysisFailedEvent(recordingId, failureReason));
         } catch (IllegalStateException exception) {
             throw new GeneralException(AnalysisErrorCode.INVALID_ANALYSIS_STATUS);
+        }
+    }
+
+    @Transactional
+    public boolean recordFailure(Long recordingId, AnalysisFailureReason failureReason) {
+        Objects.requireNonNull(failureReason, "분석 실패 사유는 비어 있을 수 없습니다.");
+        var existing = conversationAnalysisRepository.findByRecordingIdForUpdate(recordingId);
+        if (existing.isPresent()) {
+            ConversationAnalysis analysis = existing.get();
+            if (analysis.getStatus() != AnalysisStatus.ANALYZING) {
+                return false;
+            }
+            analysis.fail(failureReason);
+            eventPublisher.publishEvent(new AnalysisFailedEvent(recordingId, failureReason));
+            return true;
+        }
+
+        ConversationAnalysis failedAnalysis = ConversationAnalysis.start(recordingId);
+        failedAnalysis.fail(failureReason);
+        try {
+            conversationAnalysisRepository.saveAndFlush(failedAnalysis);
+            eventPublisher.publishEvent(new AnalysisFailedEvent(recordingId, failureReason));
+            return true;
+        } catch (DataIntegrityViolationException exception) {
+            throw new GeneralException(AnalysisErrorCode.ANALYSIS_ALREADY_EXISTS);
         }
     }
 

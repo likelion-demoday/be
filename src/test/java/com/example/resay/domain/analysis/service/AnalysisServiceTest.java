@@ -109,6 +109,62 @@ class AnalysisServiceTest {
     }
 
     @Test
+    void recordsFailureForAnalyzingAnalysis() {
+        ConversationAnalysis analysis = ConversationAnalysis.start(1L);
+        given(conversationAnalysisRepository.findByRecordingIdForUpdate(1L))
+                .willReturn(Optional.of(analysis));
+
+        boolean recorded = analysisService.recordFailure(
+                1L,
+                AnalysisFailureReason.PROCESSING_ERROR
+        );
+
+        assertThat(recorded).isTrue();
+        assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.FAILED);
+        then(eventPublisher).should().publishEvent(
+                new AnalysisFailedEvent(1L, AnalysisFailureReason.PROCESSING_ERROR)
+        );
+    }
+
+    @Test
+    void createsFailedAnalysisWhenFailureOccursBeforeStart() {
+        given(conversationAnalysisRepository.findByRecordingIdForUpdate(1L))
+                .willReturn(Optional.empty());
+
+        boolean recorded = analysisService.recordFailure(
+                1L,
+                AnalysisFailureReason.PROCESSING_ERROR
+        );
+
+        assertThat(recorded).isTrue();
+        ArgumentCaptor<ConversationAnalysis> captor =
+                ArgumentCaptor.forClass(ConversationAnalysis.class);
+        then(conversationAnalysisRepository).should().saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(AnalysisStatus.FAILED);
+        assertThat(captor.getValue().getFailureReason())
+                .isEqualTo(AnalysisFailureReason.PROCESSING_ERROR);
+        then(eventPublisher).should().publishEvent(
+                new AnalysisFailedEvent(1L, AnalysisFailureReason.PROCESSING_ERROR)
+        );
+    }
+
+    @Test
+    void doesNotPublishDuplicateFailureForTerminalAnalysis() {
+        ConversationAnalysis analysis = ConversationAnalysis.start(1L);
+        analysis.fail(AnalysisFailureReason.PROCESSING_ERROR);
+        given(conversationAnalysisRepository.findByRecordingIdForUpdate(1L))
+                .willReturn(Optional.of(analysis));
+
+        boolean recorded = analysisService.recordFailure(
+                1L,
+                AnalysisFailureReason.PROCESSING_ERROR
+        );
+
+        assertThat(recorded).isFalse();
+        then(eventPublisher).shouldHaveNoInteractions();
+    }
+
+    @Test
     void rejectsMissingAnalysis() {
         given(conversationAnalysisRepository.findByRecordingId(1L)).willReturn(Optional.empty());
 
