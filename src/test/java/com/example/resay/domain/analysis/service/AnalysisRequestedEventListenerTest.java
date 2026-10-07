@@ -1,6 +1,7 @@
 package com.example.resay.domain.analysis.service;
 
 import com.example.resay.domain.analysis.code.AnalysisErrorCode;
+import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
 import com.example.resay.domain.analysis.event.AnalysisRequestedEvent;
 import com.example.resay.global.exception.GeneralException;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,9 @@ class AnalysisRequestedEventListenerTest {
     @Mock
     private AnalysisProcessor analysisProcessor;
 
+    @Mock
+    private AnalysisService analysisService;
+
     @Test
     void startsAnalysis() {
         given(analysisProcessorProvider.getIfAvailable()).willReturn(analysisProcessor);
@@ -43,10 +47,12 @@ class AnalysisRequestedEventListenerTest {
 
         assertThatCode(() -> listener.handle(new AnalysisRequestedEvent(1L)))
                 .doesNotThrowAnyException();
+
+        then(analysisService).shouldHaveNoInteractions();
     }
 
     @Test
-    void isolatesAnalysisFailureFromEventPublisher() {
+    void recordsFailureWhenProcessorThrowsUnexpectedException() {
         given(analysisProcessorProvider.getIfAvailable()).willReturn(analysisProcessor);
         willThrow(new IllegalStateException("분석 실패"))
                 .given(analysisProcessor)
@@ -55,10 +61,15 @@ class AnalysisRequestedEventListenerTest {
 
         assertThatCode(() -> listener.handle(new AnalysisRequestedEvent(1L)))
                 .doesNotThrowAnyException();
+
+        then(analysisService).should().recordFailure(
+                1L,
+                AnalysisFailureReason.PROCESSING_ERROR
+        );
     }
 
     @Test
-    void doesNothingWhenProcessorIsUnavailable() {
+    void recordsFailureWhenProcessorIsUnavailable() {
         given(analysisProcessorProvider.getIfAvailable()).willReturn(null);
         AnalysisRequestedEventListener listener = listener();
 
@@ -66,9 +77,13 @@ class AnalysisRequestedEventListenerTest {
                 .doesNotThrowAnyException();
 
         then(analysisProcessor).shouldHaveNoInteractions();
+        then(analysisService).should().recordFailure(
+                1L,
+                AnalysisFailureReason.PROCESSING_ERROR
+        );
     }
 
     private AnalysisRequestedEventListener listener() {
-        return new AnalysisRequestedEventListener(analysisProcessorProvider);
+        return new AnalysisRequestedEventListener(analysisProcessorProvider, analysisService);
     }
 }

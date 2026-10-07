@@ -1,12 +1,14 @@
 package com.example.resay.domain.transcription.controller;
 
 import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
+import com.example.resay.domain.analysis.entity.AnalysisStatus;
 import com.example.resay.domain.analysis.event.AnalysisCompletedEvent;
 import com.example.resay.domain.analysis.event.AnalysisFailedEvent;
 import com.example.resay.domain.analysis.event.AnalysisRequestedEvent;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import com.example.resay.domain.analysis.port.AnalysisSourceReader;
+import com.example.resay.domain.analysis.repository.ConversationAnalysisRepository;
 import com.example.resay.domain.analysis.service.AnalysisProcessor;
 import com.example.resay.domain.recording.entity.Recording;
 import com.example.resay.domain.recording.entity.RecordingFailureReason;
@@ -37,8 +39,10 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -66,6 +70,9 @@ class SpeakerMappingIntegrationTest {
     private TranscriptSegmentRepository transcriptSegmentRepository;
 
     @Autowired
+    private ConversationAnalysisRepository conversationAnalysisRepository;
+
+    @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
     @Autowired
@@ -91,6 +98,8 @@ class SpeakerMappingIntegrationTest {
     @AfterEach
     void tearDown() {
         if (recording != null) {
+            conversationAnalysisRepository.findByRecordingId(recording.getId())
+                    .ifPresent(conversationAnalysisRepository::delete);
             transcriptSegmentRepository.deleteAll(
                     transcriptSegmentRepository.findByRecordingIdOrderBySegmentNo(recording.getId()));
             transcriptionRepository.findByRecordingId(recording.getId()).ifPresent(transcriptionRepository::delete);
@@ -127,6 +136,33 @@ class SpeakerMappingIntegrationTest {
         assertThat(source.segments()).extracting(segment -> segment.speakerRole())
                 .containsExactly(SpeakerRole.FRIEND, SpeakerRole.SELF);
         assertThat(source.segments().get(0).content()).isEqualTo("오늘 하루는 어땠어?");
+    }
+
+    @Test
+    void 분석_프로세서가_예상하지_못한_예외로_끝나도_실패_상태를_반영한다() throws Exception {
+        transcribed(RelationshipType.FRIEND_DAILY);
+        doThrow(new IllegalStateException("분석 시작 단계 오류"))
+                .when(analysisProcessor)
+                .process(recording.getId());
+
+        mockMvc.perform(post("/api/v1/recordings/{id}/speaker-mapping", recording.getId())
+                        .header("Authorization", "Bearer " + token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"selfSpeakerLabel":"SPEAKER_1","partnerNickname":"호석"}
+                                """))
+                .andExpect(status().isOk());
+
+        awaitUnexpectedFailure();
+
+        var analysis = conversationAnalysisRepository.findByRecordingId(recording.getId())
+                .orElseThrow();
+        Recording failedRecording = recordingRepository.findById(recording.getId()).orElseThrow();
+        assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.FAILED);
+        assertThat(analysis.getFailureReason()).isEqualTo(AnalysisFailureReason.PROCESSING_ERROR);
+        assertThat(failedRecording.getStatus()).isEqualTo(RecordingStatus.FAILED);
+        assertThat(failedRecording.getFailureReason())
+                .isEqualTo(RecordingFailureReason.ANALYSIS_FAILED);
     }
 
     @Test
@@ -269,5 +305,23 @@ class SpeakerMappingIntegrationTest {
 
     private String token() {
         return jwtTokenProvider.issueAccessToken(user.getId(), user.getRole().name()).value();
+    }
+
+    private void awaitUnexpectedFailure() throws InterruptedException {
+        long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+        while (System.nanoTime() < deadline) {
+            boolean analysisFailed = conversationAnalysisRepository
+                    .findByRecordingId(recording.getId())
+                    .map(analysis -> analysis.getStatus() == AnalysisStatus.FAILED)
+                    .orElse(false);
+            boolean recordingFailed = recordingRepository.findById(recording.getId())
+                    .map(found -> found.getStatus() == RecordingStatus.FAILED)
+                    .orElse(false);
+            if (analysisFailed && recordingFailed) {
+                return;
+            }
+            Thread.sleep(50);
+        }
+        throw new AssertionError("예상하지 못한 분석 실패가 제한 시간 안에 반영되지 않았습니다.");
     }
 }

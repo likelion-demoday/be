@@ -1,5 +1,6 @@
 package com.example.resay.domain.analysis.service;
 
+import com.example.resay.domain.analysis.code.AnalysisErrorCode;
 import com.example.resay.domain.analysis.dto.AnalysisResultCommand;
 import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
@@ -9,6 +10,7 @@ import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import com.example.resay.domain.analysis.port.AnalysisModelClient;
 import com.example.resay.domain.analysis.port.AnalysisSourceReader;
+import com.example.resay.global.exception.GeneralException;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -77,6 +79,10 @@ class AnalysisProcessorTest {
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any()
         );
+        then(analysisService).should(never()).recordFailure(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()
+        );
     }
 
     @Test
@@ -89,7 +95,10 @@ class AnalysisProcessorTest {
         assertThatThrownBy(() -> analysisProcessor.process(1L))
                 .isSameAs(modelException);
 
-        then(analysisService).should().fail(1L, AnalysisFailureReason.PROCESSING_ERROR);
+        then(analysisService).should().recordFailure(
+                1L,
+                AnalysisFailureReason.PROCESSING_ERROR
+        );
         then(analysisService).should(never()).complete(
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any()
@@ -97,7 +106,7 @@ class AnalysisProcessorTest {
     }
 
     @Test
-    void doesNotFailExistingAnalysisWhenStartFails() {
+    void recordsFailureWhenAnalysisStartFailsUnexpectedly() {
         RuntimeException startException = new RuntimeException("분석 시작 실패");
         willThrow(startException).given(analysisService).start(1L);
 
@@ -106,7 +115,23 @@ class AnalysisProcessorTest {
 
         then(analysisSourceReader).shouldHaveNoInteractions();
         then(analysisModelClient).shouldHaveNoInteractions();
-        then(analysisService).should(never()).fail(
+        then(analysisService).should().recordFailure(
+                1L,
+                AnalysisFailureReason.PROCESSING_ERROR
+        );
+    }
+
+    @Test
+    void doesNotFailAnalysisWhenRequestIsDuplicated() {
+        GeneralException duplicateException =
+                new GeneralException(AnalysisErrorCode.ANALYSIS_ALREADY_EXISTS);
+        willThrow(duplicateException).given(analysisService).start(1L);
+
+        assertThatThrownBy(() -> analysisProcessor.process(1L))
+                .isSameAs(duplicateException);
+
+        then(analysisSourceReader).shouldHaveNoInteractions();
+        then(analysisService).should(never()).recordFailure(
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any()
         );
@@ -120,7 +145,10 @@ class AnalysisProcessorTest {
                 .isInstanceOf(IllegalStateException.class);
 
         then(analysisModelClient).shouldHaveNoInteractions();
-        then(analysisService).should().fail(1L, AnalysisFailureReason.PROCESSING_ERROR);
+        then(analysisService).should().recordFailure(
+                1L,
+                AnalysisFailureReason.PROCESSING_ERROR
+        );
     }
 
     @Test
@@ -131,7 +159,7 @@ class AnalysisProcessorTest {
         given(analysisSourceReader.read(1L)).willReturn(source);
         given(analysisModelClient.analyze(source)).willThrow(modelException);
         willThrow(statusException).given(analysisService)
-                .fail(1L, AnalysisFailureReason.PROCESSING_ERROR);
+                .recordFailure(1L, AnalysisFailureReason.PROCESSING_ERROR);
 
         assertThatThrownBy(() -> analysisProcessor.process(1L))
                 .isSameAs(modelException)
@@ -155,7 +183,7 @@ class AnalysisProcessorTest {
                 .isSameAs(readinessException);
 
         then(analysisModelClient).shouldHaveNoInteractions();
-        then(analysisService).should().fail(
+        then(analysisService).should().recordFailure(
                 1L,
                 AnalysisFailureReason.INSUFFICIENT_SPEAKER_DATA
         );
