@@ -1,6 +1,8 @@
 package com.example.resay.domain.auth.service;
 
 import com.example.resay.domain.auth.code.AuthErrorCode;
+import com.example.resay.domain.auth.dto.EmailCheckRequestDto;
+import com.example.resay.domain.auth.dto.EmailCheckResponseDto;
 import com.example.resay.domain.auth.dto.GoogleLoginRequestDto;
 import com.example.resay.domain.auth.dto.KakaoLoginRequestDto;
 import com.example.resay.domain.auth.dto.LoginRequestDto;
@@ -61,6 +63,13 @@ public class AuthService {
             throw new GeneralException(AuthErrorCode.DUPLICATE_EMAIL);
         }
         return issueToken(user);
+    }
+
+    // 가입(signup)과 같은 기준으로 판단한다: 대소문자 · 앞뒤 공백을 무시하고, 소셜 계정이 쓰는 이메일도 사용 중으로 본다.
+    // 가입 여부를 알려주는 API라 대량 조회를 막기 위해 IP별 횟수를 제한한다
+    public EmailCheckResponseDto checkEmail(EmailCheckRequestDto request, String clientIp) {
+        authRateLimiter.checkEmailCheck(clientIp);
+        return new EmailCheckResponseDto(!userRepository.existsByEmail(normalizeEmail(request.email())));
     }
 
     // 시도 횟수 제한에 걸린 동안에는 맞는 비밀번호도 통과시키지 않는다 (비밀번호를 확인하기 전에 막는다)

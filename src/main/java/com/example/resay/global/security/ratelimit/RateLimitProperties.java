@@ -12,7 +12,8 @@ import org.springframework.validation.annotation.Validated;
 public record RateLimitProperties(
         boolean enabled,
         @NotNull @Valid Login login,
-        @NotNull @Valid Signup signup
+        @NotNull @Valid Signup signup,
+        @NotNull @Valid EmailCheck emailCheck
 ) {
 
     public record Login(
@@ -23,6 +24,12 @@ public record RateLimitProperties(
     }
 
     public record Signup(
+            @Min(1) int maxAttemptsPerIp,
+            @NotNull Duration window
+    ) {
+    }
+
+    public record EmailCheck(
             @Min(1) int maxAttemptsPerIp,
             @NotNull Duration window
     ) {

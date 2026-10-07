@@ -25,6 +25,7 @@ public class SecurityConfig {
     private static final String[] PUBLIC_ENDPOINTS = {
             "/api/v1/auth/signup",
             "/api/v1/auth/login",
+            "/api/v1/auth/email/check",
             // Access Token이 만료된 상태에서 호출하므로 인증 없이 허용하고 Refresh Token으로 검증한다
             "/api/v1/auth/reissue",
             "/api/v1/auth/logout",

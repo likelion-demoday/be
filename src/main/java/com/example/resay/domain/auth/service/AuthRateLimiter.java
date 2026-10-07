@@ -20,6 +20,7 @@ public class AuthRateLimiter {
     private final SlidingWindowRateLimiter loginFailuresByIp;
     private final SlidingWindowRateLimiter loginFailuresByEmail;
     private final SlidingWindowRateLimiter signupAttemptsByIp;
+    private final SlidingWindowRateLimiter emailChecksByIp;
 
     public AuthRateLimiter(RateLimitProperties properties) {
         Clock clock = Clock.systemUTC();
@@ -30,6 +31,8 @@ public class AuthRateLimiter {
                 properties.login().maxFailuresPerEmail(), properties.login().window(), clock);
         this.signupAttemptsByIp = new SlidingWindowRateLimiter(
                 properties.signup().maxAttemptsPerIp(), properties.signup().window(), clock);
+        this.emailChecksByIp = new SlidingWindowRateLimiter(
+                properties.emailCheck().maxAttemptsPerIp(), properties.emailCheck().window(), clock);
     }
 
     /**
@@ -63,6 +66,17 @@ public class AuthRateLimiter {
             return;
         }
         Duration retryAfter = signupAttemptsByIp.tryAcquire(clientIp);
+        if (!retryAfter.isZero()) {
+            throw new RateLimitExceededException(retryAfter);
+        }
+    }
+
+    /** 이메일 중복 확인은 결과와 관계없이 요청 자체를 센다. */
+    public void checkEmailCheck(String clientIp) {
+        if (!enabled) {
+            return;
+        }
+        Duration retryAfter = emailChecksByIp.tryAcquire(clientIp);
         if (!retryAfter.isZero()) {
             throw new RateLimitExceededException(retryAfter);
         }
