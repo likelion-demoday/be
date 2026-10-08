@@ -10,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,6 +23,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(
         name = "credit_ledger",
+        uniqueConstraints = @UniqueConstraint(name = "uk_credit_ledger_unique_key", columnNames = "unique_key"),
         indexes = @Index(name = "idx_credit_ledger_user_id_id", columnList = "user_id, id")
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -59,6 +61,15 @@ public class CreditLedgerEntry extends BaseEntity {
     @Column(name = "recording_id", updatable = false)
     private Long recordingId;
 
+    // 충전이면 어떤 결제 주문 때문인지
+    @Column(name = "payment_id", updatable = false)
+    private Long paymentId;
+
+    // "결제 주문 하나에 충전은 한 번"을 DB가 보장하게 하는 값. 충전일 때만 값이 있다.
+    // 유니크 제약은 null끼리는 겹친다고 보지 않으므로 다른 종류의 줄에는 영향이 없다
+    @Column(name = "unique_key", updatable = false, length = 50)
+    private String uniqueKey;
+
     // 운영자 조정 사유 (사용자에게는 보여주지 않는다)
     @Column(updatable = false, length = MEMO_MAX_LENGTH)
     private String memo;
@@ -72,6 +83,14 @@ public class CreditLedgerEntry extends BaseEntity {
         this.type = type;
         this.amount = amount;
         this.balanceAfter = balanceAfter;
+    }
+
+    /** @param chargedAmount 결제로 충전한 크레딧 (양수) */
+    public static CreditLedgerEntry charge(Long userId, Long paymentId, int chargedAmount, int balanceAfter) {
+        CreditLedgerEntry entry = new CreditLedgerEntry(userId, CreditLedgerType.CHARGE, chargedAmount, balanceAfter);
+        entry.paymentId = paymentId;
+        entry.uniqueKey = CreditLedgerType.CHARGE.name() + ":" + paymentId;
+        return entry;
     }
 
     /** @param usedAmount 차감한 크레딧 (양수 또는 무료면 0). 장부에는 음수로 적힌다 */

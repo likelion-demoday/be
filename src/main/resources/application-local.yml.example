@@ -24,6 +24,12 @@ logging:
     org.hibernate.SQL: debug
     org.hibernate.orm.jdbc.bind: trace
 
+# 나이스페이 테스트 상점 키 (개발자 사이트 가입 → 테스트 상점 → 개발정보. Server 승인 / Basic 인증으로 발급)
+# 충전 기능을 로컬에서 돌려 볼 때만 채운다. 비워 두면 충전 주문 생성이 503으로 응답한다
+nicepay:
+  client-key:
+  secret-key:
+
 # true면 LINER 크레딧 없이 고정된 정성 분석 결과를 사용한다.
 # 실제 LINER 연결을 확인할 때만 false로 변경하고 LINER_API_KEY를 설정한다.
 analysis:

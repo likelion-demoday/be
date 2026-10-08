@@ -52,6 +52,35 @@ credit:
     analysis-conflict: 2000
     character: 500
 
+payment:
+  products:
+    - code: CREDIT_1000
+      amount: 1000
+      credits: 1000
+    - code: CREDIT_3000
+      amount: 3000
+      credits: 3000
+    - code: CREDIT_5000
+      amount: 5000
+      credits: 5000
+    - code: CREDIT_10000
+      amount: 10000
+      credits: 10000
+  order-expiration: 30m
+  approval-grace-period: 3m
+  # 테스트가 느려지지 않게 짧게 둔다 (다시 요청하는 횟수는 2번)
+  approval-retry-delays: 1ms, 1ms
+  sandbox-admin-only: false
+
+# 테스트 전용 나이스페이 키 (실제 상점 키가 아니다). 통합 테스트에서는 API 호출을 목으로 대체한다
+nicepay:
+  client-key: S2_test-client-key
+  secret-key: test-secret-key
+  api-base-url: http://127.0.0.1:1/unused
+  return-url: http://localhost:8080/api/v1/payments/nicepay/return
+  connect-timeout: 5s
+  read-timeout: 30s
+
 oauth:
   kakao:
     client-id: test-kakao-client-id
