@@ -6,11 +6,17 @@ import java.util.List;
 public record RecognitionResult(
         boolean completed,
         String jobToken,
+        // 실패했을 때 외부 서비스가 알려 준 사유 (원인 확인용으로 로그에만 남긴다)
+        String failureMessage,
         List<RecognizedSegment> segments
 ) {
 
     public RecognitionResult {
         segments = segments == null ? List.of() : List.copyOf(segments);
+    }
+
+    public RecognitionResult(boolean completed, String jobToken, List<RecognizedSegment> segments) {
+        this(completed, jobToken, null, segments);
     }
 
     public record RecognizedSegment(
