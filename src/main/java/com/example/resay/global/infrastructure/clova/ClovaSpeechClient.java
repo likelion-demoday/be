@@ -127,7 +127,9 @@ public class ClovaSpeechClient implements SpeechRecognitionClient {
                         segment.end(),
                         segment.text()))
                 .toList();
-        return new RecognitionResult(COMPLETED.equals(response.result()), response.token(), segments);
+        boolean completed = COMPLETED.equals(response.result());
+        String failureMessage = completed ? null : response.result() + ": " + response.message();
+        return new RecognitionResult(completed, response.token(), failureMessage, segments);
     }
 
     private String extractToken(ClovaSpeechJobResponse response) {

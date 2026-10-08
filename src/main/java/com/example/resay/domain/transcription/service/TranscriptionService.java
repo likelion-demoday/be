@@ -90,6 +90,8 @@ public class TranscriptionService {
         verifyJobToken(transcription, result.jobToken());
 
         if (!result.completed()) {
+            // 무료 사용량 초과, 지원하지 않는 파일 등 실패 원인은 외부 서비스의 메시지로만 알 수 있다
+            log.warn("전사 서비스가 실패를 알렸습니다. recordingId={}, message={}", recordingId, result.failureMessage());
             failTranscription(transcription, RecordingFailureReason.TRANSCRIPTION_FAILED);
             return;
         }

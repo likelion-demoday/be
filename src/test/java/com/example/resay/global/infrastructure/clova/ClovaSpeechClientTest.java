@@ -94,6 +94,7 @@ class ClovaSpeechClientTest {
 
         assertThat(result.completed()).isFalse();
         assertThat(result.segments()).isEmpty();
+        assertThat(result.failureMessage()).isEqualTo("FAILED: Failed"); // 실패 원인 확인용 로그에 쓴다
     }
 
     @Test
