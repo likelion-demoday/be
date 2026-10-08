@@ -60,6 +60,14 @@ public record NicepayTransaction(
         return isSuccess() && STATUS_CANCELLED.equals(status);
     }
 
+    /**
+     * 나이스페이가 요청한 대상(tid)을 찾지 못했다고 답했는지 (HTTP 404).
+     * 승인 요청에서는 "그런 인증 내역이 없다"(U121)는 뜻이다. 인증 직후에는 내역이 아직 보이지 않아 이 답이 올 수 있다.
+     */
+    public boolean isMissing() {
+        return httpStatus == HTTP_NOT_FOUND;
+    }
+
     // 그런 거래가 없다 (샌드박스에서 확인: HTTP 404 + 결과 코드 U107).
     // 404만으로 판단하지 않는다. 주소 설정이 틀려서 나는 404(페이지 없음)를 "결제되지 않음"으로 읽으면 결제된 주문을 실패로 끝내게 된다
     public boolean isNotFound() {

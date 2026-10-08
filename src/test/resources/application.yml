@@ -68,6 +68,8 @@ payment:
       credits: 10000
   order-expiration: 30m
   approval-grace-period: 3m
+  # 테스트가 느려지지 않게 짧게 둔다 (다시 요청하는 횟수는 2번)
+  approval-retry-delays: 1ms, 1ms
   sandbox-admin-only: false
 
 # 테스트 전용 나이스페이 키 (실제 상점 키가 아니다). 통합 테스트에서는 API 호출을 목으로 대체한다

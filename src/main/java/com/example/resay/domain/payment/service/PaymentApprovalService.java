@@ -2,6 +2,7 @@ package com.example.resay.domain.payment.service;
 
 import com.example.resay.domain.credit.service.CreditService;
 import com.example.resay.domain.payment.code.PaymentErrorCode;
+import com.example.resay.domain.payment.config.PaymentProperties;
 import com.example.resay.domain.payment.dto.NicepayReturnRequestDto;
 import com.example.resay.domain.payment.entity.Payment;
 import com.example.resay.domain.payment.entity.PaymentStatus;
@@ -13,6 +14,7 @@ import com.example.resay.global.infrastructure.nicepay.NicepaySignature;
 import com.example.resay.global.infrastructure.nicepay.NicepayTransaction;
 import com.example.resay.global.infrastructure.nicepay.NicepayUnknownResultException;
 import java.net.URI;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -69,6 +71,7 @@ public class PaymentApprovalService {
     private final NicepayClient nicepayClient;
     private final NicepaySignature nicepaySignature;
     private final NicepayProperties nicepayProperties;
+    private final PaymentProperties paymentProperties;
     private final CreditService creditService;
     private final TransactionTemplate transactionTemplate;
 
@@ -132,7 +135,7 @@ public class PaymentApprovalService {
 
         NicepayTransaction approval;
         try {
-            approval = nicepayClient.approve(authResult.tid(), payment.getAmount());
+            approval = approve(payment, authResult.tid());
         } catch (NicepayUnknownResultException exception) {
             cancelUnknownApproval(payment);
             return;
@@ -147,6 +150,33 @@ public class PaymentApprovalService {
         } else {
             settleRejectedApproval(payment, authResult.tid(), approval);
         }
+    }
+
+    /**
+     * 승인을 요청한다. "그런 인증 내역이 없다"는 답이면 잠깐 기다렸다 다시 요청한다.
+     *
+     * 인증 결과를 받자마자 승인을 요청하면 나이스페이가 인증 내역을 아직 찾지 못할 때가 있다
+     * (샌드박스에서 확인: 인증 직후에는 404 U121, 같은 요청을 얼마 뒤에 보내니 승인됐다).
+     * 여기까지 온 인증 결과는 서명을 확인한 것이므로 내역이 곧 보일 것으로 보고 기다린다.
+     * 이 답은 아무것도 승인되지 않았다는 뜻이라 다시 요청해도 두 번 결제되지 않는다.
+     */
+    private NicepayTransaction approve(Payment payment, String tid) {
+        long startedAt = System.nanoTime();
+        NicepayTransaction approval = nicepayClient.approve(tid, payment.getAmount());
+        int retries = 0;
+        for (Duration delay : paymentProperties.approvalRetryDelays()) {
+            if (!approval.isMissing() || !sleep(delay)) {
+                break;
+            }
+            retries++;
+            approval = nicepayClient.approve(tid, payment.getAmount());
+        }
+        if (retries > 0) {
+            log.info("승인 요청을 {}번 다시 보냈습니다: orderId={}, resultCode={}, 걸린 시간={}ms",
+                    retries, payment.getOrderId(), approval.resultCode(),
+                    Duration.ofNanos(System.nanoTime() - startedAt).toMillis());
+        }
+        return approval;
     }
 
     // 금액은 주문에 저장된 값으로, 서명은 우리 시크릿 키로 다시 계산해 비교한다.
@@ -307,6 +337,17 @@ public class PaymentApprovalService {
     // 로그인 없이 받은 코드는 나이스페이 결과 코드 형식일 때만 쓴다 (로그에 엉뚱한 줄을 만들거나 우리 코드를 흉내 내지 못하게)
     private static String pgCodeOr(String code, String fallback) {
         return code != null && RESULT_CODE_PATTERN.matcher(code).matches() ? code : fallback;
+    }
+
+    // @return 다 기다렸으면 true. 기다리는 중에 중단 요청(서버 종료 등)이 오면 false
+    private static boolean sleep(Duration delay) {
+        try {
+            Thread.sleep(delay.toMillis());
+            return true;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 
     private static String truncate(String value, int maxLength) {

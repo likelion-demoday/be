@@ -110,11 +110,14 @@ public class PaymentReconciler {
         if (nicepayProperties.connectTimeout() == null || nicepayProperties.readTimeout() == null) {
             return;
         }
-        // 승인 1번 + 망취소 1번
+        // 승인 1번 + 망취소 1번 + 승인을 다시 요청하기 전에 기다리는 시간
         Duration slowestApproval = nicepayProperties.connectTimeout().plus(nicepayProperties.readTimeout()).multipliedBy(2);
+        for (Duration retryDelay : paymentProperties.approvalRetryDelays()) {
+            slowestApproval = slowestApproval.plus(retryDelay);
+        }
         if (paymentProperties.approvalGracePeriod().compareTo(slowestApproval) <= 0) {
             throw new IllegalStateException(
-                    "payment.approval-grace-period(%s)는 나이스페이 타임아웃 합의 두 배(%s)보다 길어야 합니다."
+                    "payment.approval-grace-period(%s)는 승인에 걸릴 수 있는 시간(%s: 타임아웃 합의 두 배 + 재요청 대기)보다 길어야 합니다."
                             .formatted(paymentProperties.approvalGracePeriod(), slowestApproval));
         }
     }

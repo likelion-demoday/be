@@ -24,16 +24,37 @@ class PaymentReconcilerSettingsTest {
                 .isInstanceOf(IllegalStateException.class);
     }
 
+    // 승인을 다시 요청하며 기다리는 시간도 승인에 걸리는 시간이다
+    @Test
+    void countsApprovalRetryDelaysTowardGracePeriod() {
+        List<Duration> longRetries = List.of(Duration.ofSeconds(60), Duration.ofSeconds(60));
+
+        assertThatThrownBy(() -> reconciler(
+                Duration.ofMinutes(3), Duration.ofSeconds(5), Duration.ofSeconds(30), longRetries))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
     @Test
     void startsWithDefaultSettings() {
-        assertThatCode(() -> reconciler(Duration.ofMinutes(3), Duration.ofSeconds(5), Duration.ofSeconds(30)))
+        List<Duration> defaultRetries = List.of(
+                Duration.ofMillis(500), Duration.ofSeconds(1), Duration.ofSeconds(2), Duration.ofSeconds(3),
+                Duration.ofSeconds(4));
+
+        assertThatCode(() -> reconciler(
+                Duration.ofMinutes(3), Duration.ofSeconds(5), Duration.ofSeconds(30), defaultRetries))
                 .doesNotThrowAnyException();
     }
 
     private static PaymentReconciler reconciler(Duration gracePeriod, Duration connectTimeout, Duration readTimeout) {
+        return reconciler(gracePeriod, connectTimeout, readTimeout, List.of());
+    }
+
+    private static PaymentReconciler reconciler(
+            Duration gracePeriod, Duration connectTimeout, Duration readTimeout, List<Duration> retryDelays
+    ) {
         PaymentProperties paymentProperties = new PaymentProperties(
                 List.of(new PaymentProperties.Product("CREDIT_1000", 1000, 1000)),
-                Duration.ofMinutes(30), gracePeriod, false);
+                Duration.ofMinutes(30), gracePeriod, retryDelays, false);
         NicepayProperties nicepayProperties = new NicepayProperties(
                 "S2_client-key", "secret-key", "", "http://localhost:8080/api/v1/payments/nicepay/return",
                 connectTimeout, readTimeout);

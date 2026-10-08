@@ -34,6 +34,10 @@ class PaymentPropertiesTest {
                 assertThat(product.credits()).isEqualTo(product.amount()));
         assertThat(properties.orderExpiration()).isEqualTo(Duration.ofMinutes(30));
         assertThat(properties.approvalGracePeriod()).isEqualTo(Duration.ofMinutes(3));
+        // 인증 직후 "인증 내역 없음" 응답에 대비해 다시 요청한다. 사용자가 기다리는 시간이므로 다 합쳐도 길지 않아야 한다
+        assertThat(properties.approvalRetryDelays()).isNotEmpty();
+        assertThat(properties.approvalRetryDelays().stream().reduce(Duration.ZERO, Duration::plus))
+                .isLessThanOrEqualTo(Duration.ofSeconds(15));
         assertThat(VALIDATOR.validate(properties)).isEmpty();
     }
 
@@ -42,7 +46,7 @@ class PaymentPropertiesTest {
     void rejectsProductBelowCardMinimum() {
         PaymentProperties properties = new PaymentProperties(
                 List.of(new PaymentProperties.Product("CREDIT_500", 500, 500)),
-                Duration.ofMinutes(30), Duration.ofMinutes(3), false);
+                Duration.ofMinutes(30), Duration.ofMinutes(3), List.of(), false);
 
         assertThat(VALIDATOR.validate(properties)).isNotEmpty();
     }
@@ -53,7 +57,7 @@ class PaymentPropertiesTest {
         PaymentProperties properties = new PaymentProperties(
                 List.of(new PaymentProperties.Product("CREDIT_1000", 1000, 1000),
                         new PaymentProperties.Product("CREDIT_1000", 3000, 3000)),
-                Duration.ofMinutes(30), Duration.ofMinutes(3), false);
+                Duration.ofMinutes(30), Duration.ofMinutes(3), List.of(), false);
 
         assertThat(VALIDATOR.validate(properties))
                 .extracting(violation -> violation.getMessage())

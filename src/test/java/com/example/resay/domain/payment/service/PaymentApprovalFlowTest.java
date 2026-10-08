@@ -347,6 +347,66 @@ class PaymentApprovalFlowTest {
         assertThat(failed.getTid()).isEqualTo(tid);
         assertThat(balance()).isZero();
         verify(nicepayClient, never()).netCancel(anyString());
+        // 카드사 거절은 다시 요청한다고 달라지지 않는다. 다시 요청하는 것은 "인증 내역 없음" 응답뿐이다
+        verify(nicepayClient, times(1)).approve(tid, 3000);
+    }
+
+    // 인증 결과를 받자마자 승인을 요청하면 나이스페이가 인증 내역을 아직 찾지 못할 때가 있다 (샌드박스에서 실제로 겪음).
+    // 잠깐 기다렸다 다시 요청해서 승인되면 정상 결제다
+    @Test
+    void retriesApprovalWhenAuthIsNotVisibleYet() throws Exception {
+        Payment order = order(3000);
+        String tid = newTid();
+        when(nicepayClient.approve(tid, 3000))
+                .thenReturn(authNotFound())
+                .thenReturn(paid(order, tid));
+
+        postAuthResult(order, tid)
+                .andExpect(status().isSeeOther())
+                .andExpect(header().string(HttpHeaders.LOCATION,
+                        FRONT_ORIGIN + "/payments/success?orderId=" + order.getOrderId()));
+
+        verify(nicepayClient, times(2)).approve(tid, 3000);
+        assertThat(reload(order).getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(balance()).isEqualTo(3000);
+        assertThat(ledgerRepository.findByUserIdOrderByIdAsc(userId)).hasSize(1);
+    }
+
+    // 정해진 횟수만큼 다시 요청해도 인증 내역이 없으면 결제되지 않은 것으로 끝낸다 (테스트 설정은 다시 요청 2번)
+    @Test
+    void failsOrderWhenAuthNeverBecomesVisible() throws Exception {
+        Payment order = order(3000);
+        String tid = newTid();
+        when(nicepayClient.approve(tid, 3000)).thenReturn(authNotFound());
+        when(nicepayClient.find(tid)).thenReturn(notFound());
+
+        postAuthResult(order, tid)
+                .andExpect(status().isSeeOther())
+                .andExpect(header().string(HttpHeaders.LOCATION,
+                        FRONT_ORIGIN + "/payments/fail?orderId=" + order.getOrderId()));
+
+        verify(nicepayClient, times(3)).approve(tid, 3000);
+        Payment failed = reload(order);
+        assertThat(failed.getStatus()).isEqualTo(PaymentStatus.FAILED);
+        assertThat(failed.getFailCode()).isEqualTo("U121");
+        assertThat(balance()).isZero();
+    }
+
+    // 다시 요청하는 도중에 응답을 받지 못하면 결제됐을 수도 있으므로 망취소로 넘어간다
+    @Test
+    void netCancelsWhenRetriedApprovalGetsNoAnswer() throws Exception {
+        Payment order = order(3000);
+        String tid = newTid();
+        when(nicepayClient.approve(tid, 3000))
+                .thenReturn(authNotFound())
+                .thenThrow(new NicepayUnknownResultException("timeout", null));
+        when(nicepayClient.netCancel(order.getOrderId())).thenReturn(found(order, tid, "cancelled"));
+
+        postAuthResult(order, tid).andExpect(status().isSeeOther());
+
+        Payment failed = reload(order);
+        assertThat(failed.getStatus()).isEqualTo(PaymentStatus.FAILED);
+        assertThat(failed.getFailCode()).isEqualTo("NET_CANCELLED");
     }
 
     // 승인 API가 오류로 답했는데 카드 승인은 난 경우. 조회에서 결제 완료가 확인되면 지급한다
@@ -896,6 +956,12 @@ class PaymentApprovalFlowTest {
 
     private NicepayTransaction rejected(String resultCode, String resultMsg) {
         return new NicepayTransaction(200, resultCode, resultMsg, "", "", "", 0, null, null, Signature.MISSING);
+    }
+
+    // 승인 요청에 "그런 인증 내역이 없다"는 답 (샌드박스에서 확인한 형식: HTTP 404 + U121)
+    private NicepayTransaction authNotFound() {
+        return new NicepayTransaction(
+                404, "U121", "인증 요청내역이 존재하지 않습니다.", "", "", "", 0, null, null, Signature.MISSING);
     }
 
     private NicepayTransaction notFound() {

@@ -162,7 +162,7 @@ class PaymentOrderServiceTest {
     private PaymentOrderService service(NicepayProperties nicepayProperties, boolean sandboxAdminOnly, String allowedOrigin) {
         PaymentProperties paymentProperties = new PaymentProperties(
                 List.of(new PaymentProperties.Product("CREDIT_1000", 1000, 1000)),
-                Duration.ofMinutes(30), Duration.ofMinutes(3), sandboxAdminOnly);
+                Duration.ofMinutes(30), Duration.ofMinutes(3), List.of(), sandboxAdminOnly);
         return new PaymentOrderService(
                 paymentRepository, paymentProperties, nicepayProperties,
                 new CorsProperties(List.of(allowedOrigin)), userRepository);
