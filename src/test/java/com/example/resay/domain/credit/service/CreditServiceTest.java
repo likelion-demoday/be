@@ -21,6 +21,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -453,6 +454,89 @@ class CreditServiceTest {
         assertThat(balanceOf(userId)).isEqualTo(3500);
         assertThat(usageRepository.count()).isEqualTo(1);
         assertLedgerMatchesBalance(userId);
+    }
+
+    @Test
+    void chargeAddsCreditsAndRecordsLedgerEntry() {
+        Long userId = userWithCredits(500);
+
+        assertThat(creditService.charge(userId, 77L, 3000)).isEqualTo(3500);
+
+        assertThat(balanceOf(userId)).isEqualTo(3500);
+        CreditLedgerEntry entry = lastLedgerEntry(userId);
+        assertThat(entry.getType()).isEqualTo(CreditLedgerType.CHARGE);
+        assertThat(entry.getAmount()).isEqualTo(3000);
+        assertThat(entry.getBalanceAfter()).isEqualTo(3500);
+        assertThat(entry.getPaymentId()).isEqualTo(77L);
+        assertThat(entry.getUsageId()).isNull();
+        assertLedgerMatchesBalance(userId);
+    }
+
+    // 지갑이 아직 없는 사용자의 첫 충전
+    @Test
+    void chargeCreatesWalletForUserWhoNeverHadCredits() {
+        Long userId = newUser();
+
+        assertThat(creditService.charge(userId, 78L, 1000)).isEqualTo(1000);
+
+        assertThat(balanceOf(userId)).isEqualTo(1000);
+        assertLedgerMatchesBalance(userId);
+    }
+
+    // 결제 주문 하나에 충전은 한 번이다. 두 번째 호출은 DB 제약에 걸려 실패하고 잔액도 그대로다
+    @Test
+    void chargeForSamePaymentHappensOnlyOnce() {
+        Long userId = newUser();
+        creditService.charge(userId, 79L, 5000);
+
+        assertThatThrownBy(() -> creditService.charge(userId, 79L, 5000))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        assertThat(balanceOf(userId)).isEqualTo(5000);
+        assertThat(ledgerRepository.findByUserIdOrderByIdAsc(userId)).hasSize(1);
+        assertLedgerMatchesBalance(userId);
+    }
+
+    // 다른 주문의 충전과 운영자 조정 · 사용 기록은 유니크 제약에 걸리지 않는다
+    @Test
+    void chargeUniquenessDoesNotAffectOtherEntries() {
+        Long userId = newUser();
+
+        creditService.charge(userId, 80L, 3000);
+        creditService.charge(userId, 81L, 3000);
+        creditService.adjust(userId, 100, "보상", ADMIN_ID);
+        creditService.adjust(userId, 100, "보상", ADMIN_ID);
+        creditService.useForAnalysis(userId, 1L, AnalysisCategory.DAILY);
+        creditService.useForAnalysis(userId, 2L, AnalysisCategory.DAILY);
+
+        assertThat(balanceOf(userId)).isEqualTo(6200 - 3000);
+        assertLedgerMatchesBalance(userId);
+    }
+
+    // 주문을 결제 완료로 바꾸는 쪽 트랜잭션이 실패하면 충전도 함께 취소된다
+    @Test
+    void chargeIsRolledBackTogetherWithCallerTransaction() {
+        Long userId = userWithCredits(1000);
+
+        assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
+            creditService.charge(userId, 82L, 3000);
+            throw new IllegalStateException("결제 완료 전환 실패");
+        })).isInstanceOf(IllegalStateException.class);
+
+        assertThat(balanceOf(userId)).isEqualTo(1000);
+        assertLedgerMatchesBalance(userId);
+        // 취소됐으므로 같은 주문으로 다시 충전할 수 있다
+        assertThat(creditService.charge(userId, 82L, 3000)).isEqualTo(4000);
+    }
+
+    @Test
+    void chargeRejectsNonPositiveAmount() {
+        Long userId = newUser();
+
+        assertThatThrownBy(() -> creditService.charge(userId, 83L, 0)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> creditService.charge(userId, 83L, -1000)).isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(balanceOf(userId)).isZero();
     }
 
     private Long userWithCredits(int credits) {

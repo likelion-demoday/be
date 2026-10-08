@@ -86,6 +86,45 @@ credit:
     analysis-conflict: 2000
     character: 500
 
+# 크레딧 충전 (카드 결제). 1원 = 1크레딧
+payment:
+  # 금액은 프론트가 아니라 여기서 정한다. code는 주문에 기록되므로, 금액을 바꿀 때는 기존 code를 고치지 말고 새 code를 만든다
+  products:
+    - code: CREDIT_1000
+      amount: 1000
+      credits: 1000
+    - code: CREDIT_3000
+      amount: 3000
+      credits: 3000
+    - code: CREDIT_5000
+      amount: 5000
+      credits: 5000
+    - code: CREDIT_10000
+      amount: 10000
+      credits: 10000
+  # 결제창을 닫는 등 결제하지 않은 주문은 이 시간이 지나면 만료 처리한다
+  order-expiration: 30m
+  # 승인을 요청한 주문이 이 시간이 지나도 확정되지 않으면 정리 작업이 나이스페이에 조회해 맞춘다.
+  # 승인 · 망취소 요청이 끝나기 전에 끼어들지 않도록 두 요청의 타임아웃을 더한 것보다 길어야 한다 (짧으면 서버가 뜨지 않는다)
+  approval-grace-period: 3m
+  # 테스트 상점 키로 동작하는 동안 운영자(ADMIN)만 충전할 수 있게 할지. 테스트 결제는 돈이 나가지 않는데 크레딧은 지급된다.
+  # 로컬에서는 끄고, 누구나 가입할 수 있는 서버(application-prod.yml)에서는 켠다. 운영 상점 키를 넣으면 이 값과 무관하게 모두 충전할 수 있다
+  sandbox-admin-only: ${PAYMENT_SANDBOX_ADMIN_ONLY:false}
+
+# 나이스페이 (결제창 Server 승인 · Basic 인증)
+# 키가 없어도 서버는 뜬다. 충전 주문을 만들 때 설정을 확인한다.
+nicepay:
+  # Server 승인 방식으로 발급한 키만 동작한다: 테스트 상점은 S2_, 운영 상점은 R2_로 시작한다 (S1_ · R1_은 Client 승인 키라 주문을 받지 않는다)
+  client-key: ${NICEPAY_CLIENT_KEY:}
+  secret-key: ${NICEPAY_SECRET_KEY:}
+  # 비워 두면 키에 맞는 주소를 쓴다: 운영 상점 키(R로 시작) → https://api.nicepay.co.kr, 그 외(테스트 상점 키) → 샌드박스
+  api-base-url: ${NICEPAY_API_BASE_URL:}
+  # 결제창이 인증 결과를 보내는 백엔드 주소 (운영 값은 application-prod.yml)
+  return-url: ${NICEPAY_RETURN_URL:http://localhost:8080/api/v1/payments/nicepay/return}
+  # 나이스페이 권장값. 응답을 못 받은 승인은 망취소를 요청한다
+  connect-timeout: 5s
+  read-timeout: 30s
+
 # 소셜 로그인
 # 키가 없어도 서버는 뜬다. 해당 소셜 로그인 API를 호출할 때만 설정을 확인한다.
 oauth:

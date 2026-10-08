@@ -105,6 +105,27 @@ public class CreditService {
     }
 
     /**
+     * 결제된 충전 주문의 크레딧을 더한다. 주문을 "결제 완료"로 바꾸는 트랜잭션 안에서 호출한다.
+     * 주문 하나에 한 번만 지급된다. 같은 주문으로 다시 호출하면 장부의 유니크 제약에 걸려 예외가 나고
+     * 호출한 쪽 트랜잭션 전체가 되돌아간다.
+     * 차감과 달리 일반 조회(트랜잭션이 처음 읽은 시점을 보는 SELECT)를 쓰지 않으므로, 호출한 쪽 트랜잭션 안에서의 순서는 상관없다.
+     *
+     * @return 충전 후 잔액
+     */
+    @Transactional
+    public int charge(Long userId, Long paymentId, int credits) {
+        if (credits <= 0) {
+            throw new IllegalArgumentException("충전할 크레딧은 0보다 커야 합니다.");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        int balance = creditJdbcRepository.lockWallet(userId, now).balance();
+        creditJdbcRepository.changeBalance(userId, credits, now);
+        ledgerRepository.save(CreditLedgerEntry.charge(userId, paymentId, credits, balance + credits));
+        return balance + credits;
+    }
+
+    /**
      * 운영자가 크레딧을 직접 더하거나 뺀다 (일부 사용한 충전의 수동 환불, 보상 지급 등).
      *
      * @param amount 더할 값. 음수면 뺀다. 잔액보다 많이 뺄 수는 없다
