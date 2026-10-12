@@ -25,7 +25,16 @@ public class CorsConfig {
         configuration.setAllowCredentials(false);
         configuration.setMaxAge(Duration.ofHours(1));
 
+        // 나이스페이 결제창은 인증 결과를 사용자의 브라우저에서 form으로 POST한다. 이 요청의 출처는 PC에서는 프론트 주소지만
+        // 모바일에서는 나이스페이 · 카드사 주소(또는 null)라, 허용 목록으로 검사하면 403으로 막혀 결제를 끝낼 수 없다.
+        // 이 주소만 출처를 가리지 않는다 (주문 · 금액 · 서명으로 확인한다)
+        CorsConfiguration paymentReturn = new CorsConfiguration();
+        paymentReturn.addAllowedOriginPattern(CorsConfiguration.ALL);
+        paymentReturn.setAllowedMethods(List.of("POST"));
+
+        // 먼저 등록한 주소부터 맞춰 보므로 예외를 "/**"보다 앞에 둔다
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/v1/payments/nicepay/return", paymentReturn);
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }

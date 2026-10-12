@@ -29,6 +29,15 @@ logging:
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:}
 
+# 나이스페이 결제창이 인증 결과를 보내는 주소. 운영 서버의 공개 주소여야 한다
+nicepay:
+  return-url: ${NICEPAY_RETURN_URL:https://api.resay.site/api/v1/payments/nicepay/return}
+
+# 테스트 상점 키가 들어 있는 동안에는 운영자(ADMIN)만 충전할 수 있다 (누구나 가입해 돈 없이 크레딧을 얻지 못하게).
+# 운영 상점 키로 바꾸면 자동으로 풀린다
+payment:
+  sandbox-admin-only: ${PAYMENT_SANDBOX_ADMIN_ONLY:true}
+
 # Swagger는 운영에서 기본적으로 끈다. 런칭 전 테스트 서버에서만 SWAGGER_ENABLED=true로 켠다
 springdoc:
   api-docs:

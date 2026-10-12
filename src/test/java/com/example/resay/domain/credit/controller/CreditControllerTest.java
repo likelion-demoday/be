@@ -30,6 +30,7 @@ class CreditControllerTest {
     private static final String HISTORY_URL = "/api/v1/credits/history";
     private static final String PRICES_URL = "/api/v1/credits/prices";
     private static final Long ADMIN_ID = 999_999L;
+    private static final Long PAYMENT_ID = 777L;
 
     @Autowired
     private MockMvc mockMvc;
@@ -111,6 +112,29 @@ class CreditControllerTest {
                 // 운영자 조정 사유와 처리자는 사용자에게 내려가지 않는다
                 .andExpect(jsonPath("$.result.items[2].memo").doesNotExist())
                 .andExpect(jsonPath("$.result.items[2].createdBy").doesNotExist());
+    }
+
+    // 충전은 내역에 CHARGE로 나온다. 사용 건이 아니므로 용도 · 녹음은 비어 있다
+    @Test
+    void showsChargeInHistory() throws Exception {
+        creditService.charge(user.getId(), PAYMENT_ID, 3000);
+        creditService.useForAnalysis(user.getId(), 21L, AnalysisCategory.DAILY);
+
+        mockMvc.perform(get(HISTORY_URL).header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.items", hasSize(2)))
+                .andExpect(jsonPath("$.result.items[0].type").value("USE"))
+                .andExpect(jsonPath("$.result.items[0].balanceAfter").value(1500))
+                .andExpect(jsonPath("$.result.items[1].type").value("CHARGE"))
+                .andExpect(jsonPath("$.result.items[1].amount").value(3000))
+                .andExpect(jsonPath("$.result.items[1].balanceAfter").value(3000))
+                .andExpect(jsonPath("$.result.items[1].purpose", nullValue()))
+                .andExpect(jsonPath("$.result.items[1].recordingId", nullValue()))
+                // 내부 식별자는 내려가지 않는다
+                .andExpect(jsonPath("$.result.items[1].paymentId").doesNotExist())
+                .andExpect(jsonPath("$.result.items[1].uniqueKey").doesNotExist());
+        mockMvc.perform(get(SUMMARY_URL).header("Authorization", "Bearer " + accessToken))
+                .andExpect(jsonPath("$.result.balance").value(1500));
     }
 
     @Test

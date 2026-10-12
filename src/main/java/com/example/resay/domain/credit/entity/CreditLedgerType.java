@@ -1,6 +1,8 @@
 package com.example.resay.domain.credit.entity;
 
 public enum CreditLedgerType {
+    // 결제로 충전
+    CHARGE,
     // 분석 · 캐릭터 생성에 사용
     USE,
     // 사용한 건이 실패해서 되돌려 줌

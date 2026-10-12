@@ -24,11 +24,14 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       DB_URL: jdbc:mysql://mysql:3306/resay?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
       STORAGE_BASE_PATH: /app/storage
+      # jdk.httpclient.keepalive.timeout: 외부 API와 맺은 연결을 쉬는 채로 20초 넘게 들고 있지 않는다 (기본값은 20분).
+      # 오래 쉰 연결은 상대 쪽에서 이미 끊겼을 수 있고, 그 연결로 나간 결제 승인 요청은 "결과를 알 수 없음"이 된다
       JAVA_TOOL_OPTIONS: >-
         -Xms256m -Xmx512m
         -XX:MaxMetaspaceSize=192m
         -XX:+UseSerialGC
         -XX:+ExitOnOutOfMemoryError
+        -Djdk.httpclient.keepalive.timeout=20
       # 아래는 값을 적지 않으면 deploy/.env.prod 에 있는 같은 이름의 값이 전달된다.
       # .env.prod 를 통째로 넘기지 않고 앱에 필요한 것만 적는다. (DB root 비밀번호 같은 값이 앱 컨테이너에 들어가지 않게)
       # 앱에 새 환경변수가 필요해지면 여기와 deploy/.env.prod.example 에 같이 추가한다.
@@ -48,6 +51,11 @@ services:
       CLOVA_SPEECH_CALLBACK_BASE_URL:
       LINER_API_KEY:
       OPENAI_API_KEY:
+      NICEPAY_CLIENT_KEY:
+      NICEPAY_SECRET_KEY:
+      NICEPAY_API_BASE_URL:
+      NICEPAY_RETURN_URL:
+      PAYMENT_SANDBOX_ADMIN_ONLY:
       SPRING_JPA_HIBERNATE_DDL_AUTO:
       SWAGGER_ENABLED:
       RATE_LIMIT_ENABLED:
