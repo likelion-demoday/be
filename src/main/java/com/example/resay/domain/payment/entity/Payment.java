@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
  * 크레딧 충전 주문 (결제 시도 1번 = 주문 1건).
  * 카드 번호 같은 결제 수단 정보는 저장하지 않는다.
  *
- * 상태는 여러 요청이 동시에 바꾸려 할 수 있어(같은 인증 결과가 두 번 도착, 정리 작업과 겹침)
+ * 상태는 여러 요청이 동시에 바꾸려 할 수 있어(같은 인증 결과가 두 번 도착, 정리 작업 · 웹훅과 겹침)
  * 엔티티를 고쳐 저장하지 않고 PaymentRepository의 "지금 상태가 맞을 때만 바꾸는" UPDATE로만 바꾼다.
  */
 @Getter
@@ -85,6 +85,10 @@ public class Payment extends BaseEntity {
 
     @Column(name = "receipt_url", length = 200)
     private String receiptUrl;
+
+    // 환불(결제 취소)된 시각. 환불 시도 하나하나의 기록은 PaymentCancel에 있다
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
 
     @Column(name = "fail_code", length = FAIL_CODE_MAX_LENGTH)
     private String failCode;

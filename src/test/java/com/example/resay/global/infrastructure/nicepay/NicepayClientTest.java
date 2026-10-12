@@ -67,6 +67,8 @@ class NicepayClientTest {
         assertThat(transaction.orderId()).isEqualTo(ORDER_ID);
         assertThat(transaction.amount()).isEqualTo(3000);
         assertThat(transaction.paidAt()).isEqualTo(LocalDateTime.of(2026, 10, 8, 15, 30, 12));
+        // 취소되지 않은 거래는 취소 시각이 "0"으로 온다
+        assertThat(transaction.cancelledAt()).isNull();
         assertThat(transaction.receiptUrl()).isEqualTo("https://npg.nicepay.co.kr/issue/IssueLoader.do?TID=" + TID);
         assertThat(transaction.signature()).isEqualTo(Signature.VALID);
         assertThat(transaction.httpStatus()).isEqualTo(200);
@@ -251,6 +253,8 @@ class NicepayClientTest {
                 nicepayClient.cancel(TID, "RC0123456789abcdef0123456789abcdef", "주문 정보 불일치");
 
         assertThat(transaction.isCancelled()).isTrue();
+        assertThat(transaction.tid()).isEqualTo(TID);
+        assertThat(transaction.cancelledAt()).isEqualTo(LocalDateTime.of(2026, 10, 8, 15, 31, 0));
         nicepayServer.verify();
     }
 

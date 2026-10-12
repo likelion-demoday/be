@@ -61,12 +61,12 @@ public class CreditLedgerEntry extends BaseEntity {
     @Column(name = "recording_id", updatable = false)
     private Long recordingId;
 
-    // 충전이면 어떤 결제 주문 때문인지
+    // 충전 · 환불이면 어떤 결제 주문 때문인지
     @Column(name = "payment_id", updatable = false)
     private Long paymentId;
 
-    // "결제 주문 하나에 충전은 한 번"을 DB가 보장하게 하는 값. 충전일 때만 값이 있다.
-    // 유니크 제약은 null끼리는 겹친다고 보지 않으므로 다른 종류의 줄에는 영향이 없다
+    // "결제 주문 하나에 충전은 한 번", "환불 시도 하나에 회수 · 되돌리기는 각각 한 번"을 DB가 보장하게 하는 값.
+    // 충전과 환불 관련 줄에만 값이 있다. 유니크 제약은 null끼리는 겹친다고 보지 않으므로 다른 종류의 줄에는 영향이 없다
     @Column(name = "unique_key", updatable = false, length = 50)
     private String uniqueKey;
 
@@ -93,6 +93,25 @@ public class CreditLedgerEntry extends BaseEntity {
         return entry;
     }
 
+    /**
+     * @param cancelId        환불 시도(취소 기록)의 ID
+     * @param collectedAmount 환불하면서 회수한 크레딧 (양수). 장부에는 음수로 적힌다
+     */
+    public static CreditLedgerEntry chargeRefund(
+            Long userId, Long paymentId, Long cancelId, int collectedAmount, int balanceAfter
+    ) {
+        return ofChargeRefund(
+                CreditLedgerType.CHARGE_REFUND, userId, paymentId, cancelId, -collectedAmount, balanceAfter);
+    }
+
+    /** @param restoredAmount 환불이 되지 않아 되돌려 준 크레딧 (양수) */
+    public static CreditLedgerEntry chargeRefundUndo(
+            Long userId, Long paymentId, Long cancelId, int restoredAmount, int balanceAfter
+    ) {
+        return ofChargeRefund(
+                CreditLedgerType.CHARGE_REFUND_UNDO, userId, paymentId, cancelId, restoredAmount, balanceAfter);
+    }
+
     /** @param usedAmount 차감한 크레딧 (양수 또는 무료면 0). 장부에는 음수로 적힌다 */
     public static CreditLedgerEntry use(
             Long userId, Long usageId, UsagePurpose purpose, Long recordingId, int usedAmount, int balanceAfter
@@ -116,6 +135,15 @@ public class CreditLedgerEntry extends BaseEntity {
         CreditLedgerEntry entry = new CreditLedgerEntry(userId, CreditLedgerType.ADJUST, amount, balanceAfter);
         entry.memo = memo;
         entry.createdBy = adminId;
+        return entry;
+    }
+
+    private static CreditLedgerEntry ofChargeRefund(
+            CreditLedgerType type, Long userId, Long paymentId, Long cancelId, int amount, int balanceAfter
+    ) {
+        CreditLedgerEntry entry = new CreditLedgerEntry(userId, type, amount, balanceAfter);
+        entry.paymentId = paymentId;
+        entry.uniqueKey = type.name() + ":" + cancelId;
         return entry;
     }
 

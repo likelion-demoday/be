@@ -14,6 +14,8 @@ record NicepayPaymentResponse(
         String status,
         // ISO 8601 형식. 결제 완료가 아니면 "0"
         String paidAt,
+        // ISO 8601 형식. 취소되지 않았으면 "0"
+        String cancelledAt,
         Integer amount,
         String receiptUrl
 ) {

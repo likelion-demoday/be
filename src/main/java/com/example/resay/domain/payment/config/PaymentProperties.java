@@ -18,7 +18,8 @@ import org.springframework.validation.annotation.Validated;
  * @param orderExpiration     결제하지 않은 주문을 만료 처리하기까지의 시간
  * @param approvalGracePeriod 승인을 요청한 주문을 정리 작업이 건드리기 전까지 기다리는 시간.
  *                            승인 · 망취소 요청이 끝나기 전에 끼어들지 않도록 두 요청의 타임아웃 합보다 길어야 한다
- *                            (서버가 뜰 때 PaymentReconciler가 확인한다)
+ *                            (서버가 뜰 때 PaymentReconciler가 확인한다).
+ *                            환불(결제 취소)을 요청한 주문에도 같은 시간을 쓴다
  * @param approvalRetryDelays 승인 요청에 "그런 인증 내역이 없다"는 답이 왔을 때 다시 요청하기 전에 기다리는 시간들.
  *                            인증 결과를 받자마자 승인을 요청하면 나이스페이 쪽에 인증 내역이 아직 보이지 않을 때가 있다
  * @param sandboxAdminOnly    테스트 상점 키로 동작하는 동안 운영자(ADMIN)만 충전할 수 있게 할지.

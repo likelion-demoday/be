@@ -1,5 +1,6 @@
 package com.example.resay.domain.credit.service;
 
+import com.example.resay.domain.credit.code.CreditErrorCode;
 import com.example.resay.domain.credit.entity.CreditLedgerEntry;
 import com.example.resay.domain.credit.entity.CreditLedgerType;
 import com.example.resay.domain.credit.entity.CreditUsage;
@@ -537,6 +538,131 @@ class CreditServiceTest {
         assertThatThrownBy(() -> creditService.charge(userId, 83L, -1000)).isInstanceOf(IllegalArgumentException.class);
 
         assertThat(balanceOf(userId)).isZero();
+    }
+
+    @Test
+    void collectChargeRefundTakesCreditsBackAndRecordsLedgerEntry() {
+        Long userId = newUser();
+        creditService.charge(userId, 84L, 3000);
+        creditService.adjust(userId, 500, "보상", ADMIN_ID);
+
+        assertThat(creditService.collectChargeRefund(userId, 84L, 1L, 3000)).isEqualTo(500);
+
+        assertThat(balanceOf(userId)).isEqualTo(500);
+        CreditLedgerEntry entry = lastLedgerEntry(userId);
+        assertThat(entry.getType()).isEqualTo(CreditLedgerType.CHARGE_REFUND);
+        assertThat(entry.getAmount()).isEqualTo(-3000);
+        assertThat(entry.getBalanceAfter()).isEqualTo(500);
+        assertThat(entry.getPaymentId()).isEqualTo(84L);
+        assertLedgerMatchesBalance(userId);
+    }
+
+    // 충전한 크레딧을 이미 썼으면 회수하지 않는다. 잔액이 0 아래로 내려가는 일은 없다
+    @Test
+    void collectChargeRefundRejectsWhenBalanceIsNotEnough() {
+        Long userId = newUser();
+        creditService.charge(userId, 85L, 3000);
+        creditService.useForAnalysis(userId, 1L, AnalysisCategory.DAILY);
+
+        assertThatThrownBy(() -> creditService.collectChargeRefund(userId, 85L, 2L, 3000))
+                .isInstanceOfSatisfying(GeneralException.class, exception -> {
+                    assertThat(exception.getErrorCode()).isEqualTo(CreditErrorCode.REFUND_EXCEEDS_BALANCE);
+                    assertThat(exception.getDetail()).isEqualTo(Map.of("required", 3000, "balance", 1500));
+                });
+
+        assertThat(balanceOf(userId)).isEqualTo(1500);
+        assertThat(lastLedgerEntry(userId).getType()).isEqualTo(CreditLedgerType.USE);
+        assertLedgerMatchesBalance(userId);
+    }
+
+    // 환불 시도 하나에 회수는 한 번이다. 두 번째 호출은 DB 제약에 걸려 실패하고 잔액도 그대로다
+    @Test
+    void collectChargeRefundForSameCancelHappensOnlyOnce() {
+        Long userId = newUser();
+        creditService.charge(userId, 86L, 3000);
+        creditService.charge(userId, 87L, 3000);
+        creditService.collectChargeRefund(userId, 86L, 3L, 3000);
+
+        assertThatThrownBy(() -> creditService.collectChargeRefund(userId, 86L, 3L, 3000))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> creditService.collectAvailableChargeRefund(userId, 86L, 3L, 3000))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        assertThat(balanceOf(userId)).isEqualTo(3000);
+        assertLedgerMatchesBalance(userId);
+    }
+
+    // 회수하는 쪽 트랜잭션(주문을 환불 중으로 바꾸는 것)이 실패하면 회수도 함께 취소된다
+    @Test
+    void collectChargeRefundIsRolledBackTogetherWithCallerTransaction() {
+        Long userId = newUser();
+        creditService.charge(userId, 88L, 3000);
+
+        assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
+            creditService.collectChargeRefund(userId, 88L, 4L, 3000);
+            throw new IllegalStateException("환불 시작 실패");
+        })).isInstanceOf(IllegalStateException.class);
+
+        assertThat(balanceOf(userId)).isEqualTo(3000);
+        assertLedgerMatchesBalance(userId);
+    }
+
+    // 이미 환불된 결제의 크레딧을 뒤늦게 회수할 때는 남아 있는 만큼만 가져간다
+    @Test
+    void collectAvailableChargeRefundTakesOnlyWhatIsLeft() {
+        Long userId = newUser();
+        creditService.charge(userId, 89L, 3000);
+        creditService.useForAnalysis(userId, 1L, AnalysisCategory.CONFLICT);
+
+        assertThat(creditService.collectAvailableChargeRefund(userId, 89L, 5L, 3000)).isEqualTo(1000);
+
+        assertThat(balanceOf(userId)).isZero();
+        assertThat(lastLedgerEntry(userId).getAmount()).isEqualTo(-1000);
+        assertLedgerMatchesBalance(userId);
+
+        // 남은 것이 없으면 아무것도 바꾸지 않고 장부에도 적지 않는다
+        long entries = ledgerRepository.count();
+        assertThat(creditService.collectAvailableChargeRefund(userId, 89L, 6L, 3000)).isZero();
+        assertThat(ledgerRepository.count()).isEqualTo(entries);
+    }
+
+    @Test
+    void undoChargeRefundGivesCollectedCreditsBack() {
+        Long userId = newUser();
+        creditService.charge(userId, 90L, 3000);
+        creditService.collectChargeRefund(userId, 90L, 7L, 3000);
+
+        assertThat(creditService.undoChargeRefund(userId, 90L, 7L, 3000)).isEqualTo(3000);
+
+        assertThat(balanceOf(userId)).isEqualTo(3000);
+        CreditLedgerEntry entry = lastLedgerEntry(userId);
+        assertThat(entry.getType()).isEqualTo(CreditLedgerType.CHARGE_REFUND_UNDO);
+        assertThat(entry.getAmount()).isEqualTo(3000);
+        assertThat(entry.getBalanceAfter()).isEqualTo(3000);
+        assertThat(entry.getPaymentId()).isEqualTo(90L);
+        assertLedgerMatchesBalance(userId);
+
+        // 환불 시도 하나에 되돌리기도 한 번이다
+        assertThatThrownBy(() -> creditService.undoChargeRefund(userId, 90L, 7L, 3000))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(balanceOf(userId)).isEqualTo(3000);
+        // 되돌린 뒤 다시 환불을 시도하면 새 취소 기록으로 회수한다
+        assertThat(creditService.collectChargeRefund(userId, 90L, 8L, 3000)).isZero();
+        assertLedgerMatchesBalance(userId);
+    }
+
+    @Test
+    void chargeRefundRejectsNonPositiveAmount() {
+        Long userId = userWithCredits(1000);
+
+        assertThatThrownBy(() -> creditService.collectChargeRefund(userId, 91L, 9L, 0))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> creditService.collectAvailableChargeRefund(userId, 91L, 9L, -1))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> creditService.undoChargeRefund(userId, 91L, 9L, 0))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(balanceOf(userId)).isEqualTo(1000);
     }
 
     private Long userWithCredits(int credits) {

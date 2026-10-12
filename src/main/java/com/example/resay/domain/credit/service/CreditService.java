@@ -126,6 +126,64 @@ public class CreditService {
     }
 
     /**
+     * 환불(결제 취소)할 충전의 크레딧을 회수한다. 나이스페이에 취소를 요청하기 "전에" 호출한다
+     * (반대 순서면 돈은 돌려받고 크레딧은 남는 틈이 생긴다).
+     * 잔액이 회수할 크레딧보다 적으면 REFUND_EXCEEDS_BALANCE 예외를 던지고 아무것도 바꾸지 않는다.
+     * 환불 시도(취소 기록) 하나에 한 번만 회수된다. 같은 취소 기록으로 다시 호출하면 장부의 유니크 제약에 걸려 예외가 난다.
+     *
+     * @return 회수 후 잔액
+     */
+    @Transactional
+    public int collectChargeRefund(Long userId, Long paymentId, Long cancelId, int credits) {
+        requirePositive(credits);
+
+        LocalDateTime now = LocalDateTime.now();
+        int balance = creditJdbcRepository.lockWallet(userId, now).balance();
+        if (balance < credits) {
+            throw new GeneralException(
+                    CreditErrorCode.REFUND_EXCEEDS_BALANCE, Map.of("required", credits, "balance", balance));
+        }
+        return collect(userId, paymentId, cancelId, credits, balance, now);
+    }
+
+    /**
+     * 이미 환불된 결제의 크레딧을 뒤늦게 회수한다 (우리 API를 거치지 않고 나이스페이 쪽에서 취소된 결제).
+     * 돈은 이미 돌아갔으므로 거절하지 않고, 잔액이 모자라면 남아 있는 만큼만 회수한다.
+     *
+     * @return 실제로 회수한 크레딧 (0일 수 있다)
+     */
+    @Transactional
+    public int collectAvailableChargeRefund(Long userId, Long paymentId, Long cancelId, int credits) {
+        requirePositive(credits);
+
+        LocalDateTime now = LocalDateTime.now();
+        int balance = creditJdbcRepository.lockWallet(userId, now).balance();
+        int collectable = Math.min(balance, credits);
+        if (collectable > 0) {
+            collect(userId, paymentId, cancelId, collectable, balance, now);
+        }
+        return collectable;
+    }
+
+    /**
+     * 환불이 되지 않았을 때(결제 취소 거절) 회수했던 크레딧을 되돌린다.
+     * 환불 시도 하나에 한 번만 되돌린다 (장부의 유니크 제약).
+     *
+     * @return 되돌린 후 잔액
+     */
+    @Transactional
+    public int undoChargeRefund(Long userId, Long paymentId, Long cancelId, int credits) {
+        requirePositive(credits);
+
+        LocalDateTime now = LocalDateTime.now();
+        int balance = creditJdbcRepository.lockWallet(userId, now).balance();
+        creditJdbcRepository.changeBalance(userId, credits, now);
+        ledgerRepository.save(
+                CreditLedgerEntry.chargeRefundUndo(userId, paymentId, cancelId, credits, balance + credits));
+        return balance + credits;
+    }
+
+    /**
      * 운영자가 크레딧을 직접 더하거나 뺀다 (일부 사용한 충전의 수동 환불, 보상 지급 등).
      *
      * @param amount 더할 값. 음수면 뺀다. 잔액보다 많이 뺄 수는 없다
@@ -193,6 +251,19 @@ public class CreditService {
         }
         ledgerRepository.save(CreditLedgerEntry.use(userId, usageId, purpose, recordingId, amount, balance - amount));
         return new UsageResult(usageId, amount, free, balance - amount, false);
+    }
+
+    // 지갑을 잠근 뒤에만 호출한다
+    private int collect(Long userId, Long paymentId, Long cancelId, int credits, int balance, LocalDateTime now) {
+        creditJdbcRepository.changeBalance(userId, -credits, now);
+        ledgerRepository.save(CreditLedgerEntry.chargeRefund(userId, paymentId, cancelId, credits, balance - credits));
+        return balance - credits;
+    }
+
+    private static void requirePositive(int credits) {
+        if (credits <= 0) {
+            throw new IllegalArgumentException("크레딧은 0보다 커야 합니다.");
+        }
     }
 
     private String truncate(String reason) {

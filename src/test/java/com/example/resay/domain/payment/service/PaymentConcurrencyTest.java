@@ -153,7 +153,7 @@ class PaymentConcurrencyTest {
             NicepayTransaction paid = paid(stuck, stuck.getTid());
             NicepayTransaction cancelled = new NicepayTransaction(
                     200, "0000", "정상 처리되었습니다.", stuck.getTid(), stuck.getOrderId(), "cancelled", 3000,
-                    null, null, Signature.VALID);
+                    null, null, null, Signature.VALID);
             AtomicLong calls = new AtomicLong();
             when(nicepayClient.find(stuck.getTid()))
                     .thenAnswer(invocation -> calls.incrementAndGet() % 2 == 0 ? paid : cancelled);
@@ -348,7 +348,7 @@ class PaymentConcurrencyTest {
     private NicepayTransaction paid(Payment order, String tid) {
         return new NicepayTransaction(
                 200, "0000", "정상 처리되었습니다.", tid, order.getOrderId(), "paid", order.getAmount(),
-                LocalDateTime.now(), null, Signature.VALID);
+                LocalDateTime.now(), null, null, Signature.VALID);
     }
 
     private Payment reload(Payment payment) {

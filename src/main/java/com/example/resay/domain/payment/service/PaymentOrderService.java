@@ -20,6 +20,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -43,6 +45,8 @@ public class PaymentOrderService {
     private static final int MAX_ORDERS_PER_WINDOW = 20;
     private static final Duration ORDER_LIMIT_WINDOW = Duration.ofMinutes(10);
     private static final DateTimeFormatter ORDER_DATE = DateTimeFormatter.ofPattern("yyMMdd");
+    private static final List<PaymentStatus> HISTORY_STATUSES =
+            Arrays.stream(PaymentStatus.values()).filter(PaymentStatus::hasBeenPaid).toList();
 
     private final PaymentRepository paymentRepository;
     private final PaymentProperties paymentProperties;
@@ -116,13 +120,13 @@ public class PaymentOrderService {
                 .orElseThrow(() -> new GeneralException(PaymentErrorCode.PAYMENT_NOT_FOUND));
     }
 
-    // 결제된 주문만 내려준다 (결제하지 않았거나 실패한 주문은 내역이 아니다)
+    // 결제된 적이 있는 주문만 내려준다. 환불된 충전도 내역에 남는다 (결제하지 않았거나 실패한 주문은 내역이 아니다)
     @Transactional(readOnly = true)
     public PaymentHistoryResponseDto getHistory(Long userId, int page, int size) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
-        return PaymentHistoryResponseDto.from(paymentRepository.findByUserIdAndStatusOrderByIdDesc(
-                userId, PaymentStatus.PAID, PageRequest.of(safePage, safeSize)));
+        return PaymentHistoryResponseDto.from(paymentRepository.findByUserIdAndStatusInOrderByIdDesc(
+                userId, HISTORY_STATUSES, PageRequest.of(safePage, safeSize)));
     }
 
     // 테스트 상점 키로 한 결제는 실제 돈이 나가지 않는데 크레딧은 진짜로 지급된다.

@@ -3,6 +3,7 @@ package com.example.resay.domain.payment.repository;
 import com.example.resay.domain.payment.entity.Payment;
 import com.example.resay.domain.payment.entity.PaymentStatus;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
@@ -23,7 +24,11 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     Optional<Payment> findByOrderIdAndUserId(String orderId, Long userId);
 
-    Slice<Payment> findByUserIdAndStatusOrderByIdDesc(Long userId, PaymentStatus status, Pageable pageable);
+    // 나이스페이가 보내는 통보(웹훅)는 거래 키로 주문을 찾는다
+    Optional<Payment> findByTid(String tid);
+
+    Slice<Payment> findByUserIdAndStatusInOrderByIdDesc(
+            Long userId, Collection<PaymentStatus> statuses, Pageable pageable);
 
     // 승인을 요청한 뒤 결과가 확정되지 않은 채 남아 있는 주문
     List<Payment> findByStatusAndApprovalRequestedAtBeforeOrderByIdAsc(PaymentStatus status, LocalDateTime cutoff);
@@ -107,4 +112,46 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
               and p.status = com.example.resay.domain.payment.entity.PaymentStatus.READY
             """)
     int markExpired(@Param("id") Long id, @Param("now") LocalDateTime now);
+
+    /** 환불을 시작한다 (PAID → CANCELLING). 크레딧 회수와 같은 트랜잭션에서 호출한다. */
+    @Transactional
+    @Modifying(clearAutomatically = true)
+    @Query("""
+            update Payment p
+            set p.status = com.example.resay.domain.payment.entity.PaymentStatus.CANCELLING, p.updatedAt = :now
+            where p.id = :id
+              and p.status = com.example.resay.domain.payment.entity.PaymentStatus.PAID
+            """)
+    int markCancelling(@Param("id") Long id, @Param("now") LocalDateTime now);
+
+    /**
+     * 환불 완료 (CANCELLING 또는 PAID → CANCELLED).
+     *
+     * @param expected 우리가 요청한 취소면 CANCELLING, 나이스페이 쪽에서 이미 취소된 결제를 반영하는 것이면 PAID
+     */
+    @Transactional
+    @Modifying(clearAutomatically = true)
+    @Query("""
+            update Payment p
+            set p.status = com.example.resay.domain.payment.entity.PaymentStatus.CANCELLED,
+                p.cancelledAt = :cancelledAt, p.updatedAt = :now
+            where p.id = :id and p.status = :expected
+            """)
+    int markCancelled(
+            @Param("id") Long id,
+            @Param("expected") PaymentStatus expected,
+            @Param("cancelledAt") LocalDateTime cancelledAt,
+            @Param("now") LocalDateTime now
+    );
+
+    /** 환불이 되지 않아 결제 완료 상태로 되돌린다 (CANCELLING → PAID). 회수한 크레딧을 되돌리는 것과 같은 트랜잭션에서 호출한다. */
+    @Transactional
+    @Modifying(clearAutomatically = true)
+    @Query("""
+            update Payment p
+            set p.status = com.example.resay.domain.payment.entity.PaymentStatus.PAID, p.updatedAt = :now
+            where p.id = :id
+              and p.status = com.example.resay.domain.payment.entity.PaymentStatus.CANCELLING
+            """)
+    int revertCancelling(@Param("id") Long id, @Param("now") LocalDateTime now);
 }

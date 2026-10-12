@@ -113,6 +113,21 @@ public class PaymentApprovalService {
         }
     }
 
+    /**
+     * 결제되지 않은 것으로 끝낸 주문(FAILED)에 나이스페이가 "결제됐다"고 알려 왔을 때 호출한다 (웹훅).
+     * 조회해서 정말 결제돼 있으면 그 결제를 취소한다. 끝난 주문에는 크레딧을 지급하지 않으므로 돈을 돌려주는 쪽으로 맞춘다.
+     * (정리 작업이 "결제되지 않음"으로 끝낸 뒤에 승인이 뒤늦게 처리된 경우, 주문과 맞지 않는 결제의 취소가 확인되지 않았던 경우)
+     *
+     * @throws NicepayUnknownResultException 조회 응답을 받지 못했을 때
+     */
+    public void refundPaymentOfFailedOrder(Payment payment) {
+        NicepayTransaction found = nicepayClient.find(payment.getTid());
+        if (found.isPaid()) {
+            // 주문이 이미 끝나 있으므로 지급하지 않고 결제를 취소한다
+            confirmPaid(payment, payment.getTid(), found);
+        }
+    }
+
     private void process(Payment payment, NicepayReturnRequestDto authResult) {
         // 인증 결과를 이미 받은 주문이다 (같은 결과가 연달아 전송되거나, 뒤로 가기로 다시 전송된 경우)
         if (payment.getStatus() != PaymentStatus.READY) {
@@ -283,8 +298,9 @@ public class PaymentApprovalService {
         });
         if (Boolean.TRUE.equals(confirmed)) {
             log.info("충전 완료: orderId={}, amount={}", payment.getOrderId(), payment.getAmount());
-        } else if (currentStatus(payment) != PaymentStatus.PAID) {
-            // 결제됐다는 답이 왔는데 주문은 이미 결제되지 않은 것으로 끝나 있다. 크레딧을 줄 수 없으므로 결제를 취소한다
+        } else if (!currentStatus(payment).hasBeenPaid()) {
+            // 결제됐다는 답이 왔는데 주문은 이미 결제되지 않은 것으로 끝나 있다. 크레딧을 줄 수 없으므로 결제를 취소한다.
+            // 다른 요청이 먼저 확정한 주문은 해당하지 않는다 (그 뒤 환불 중이거나 환불된 주문도 마찬가지다)
             boolean cancelled = cancelCapturedPayment(tid, "종료된 주문");
             log.error("이미 끝난 주문에 결제 완료 응답이 왔습니다: orderId={}, tid={}, 취소={}",
                     payment.getOrderId(), tid, cancelled ? "완료" : "미확인 (나이스페이 관리자에서 취소 필요)");

@@ -62,7 +62,9 @@ public class PaymentController {
     }
 
     // 최근 충전부터 내려준다
-    @Operation(summary = "충전 내역 조회", description = "결제된 충전만 최근 순으로 내려준다.")
+    @Operation(summary = "충전 내역 조회", description = """
+            결제된 충전만 최근 순으로 내려준다. 환불된 충전도 `status`가 `CANCELLED`(환불 처리 중이면 `CANCELLING`)로 남는다.
+            """)
     @GetMapping
     public ApiResponse<PaymentHistoryResponseDto> getMyHistory(
             @CurrentUserId Long userId,
@@ -81,6 +83,7 @@ public class PaymentController {
             - `APPROVING`: 결제 결과 확인 중. 2~3초 간격으로 다시 조회한다. 대부분 바로 끝나지만 드물게 몇 분 걸린다 (성공 화면으로 왔어도 이 상태일 수 있고, 이후 `FAILED`가 될 수 있다)
             - `FAILED`: 결제되지 않음. `failMessage`가 있으면 텍스트로 보여 준다 (없을 수 있다)
             - `READY` · `EXPIRED`: 결제하지 않은 주문. 다시 결제하려면 주문을 새로 만든다
+            - `CANCELLING` · `CANCELLED`: 결제된 뒤 환불 처리 중 · 환불 완료 (운영자가 환불한 주문. 결제 직후의 결과 화면에서는 나오지 않는다)
             """)
     @GetMapping("/{orderId}")
     public ApiResponse<PaymentResponseDto> getPayment(
