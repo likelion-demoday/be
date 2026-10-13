@@ -34,10 +34,11 @@ class PaymentPropertiesTest {
                 assertThat(product.credits()).isEqualTo(product.amount()));
         assertThat(properties.orderExpiration()).isEqualTo(Duration.ofMinutes(30));
         assertThat(properties.approvalGracePeriod()).isEqualTo(Duration.ofMinutes(3));
-        // 인증 직후 "인증 내역 없음" 응답에 대비해 다시 요청한다. 사용자가 기다리는 시간이므로 다 합쳐도 길지 않아야 한다
+        // 인증 직후 "인증 내역 없음" 응답에 대비해 다시 요청한다. 실제로 6.5초 뒤에야 승인된 결제가 있어 그보다 넉넉해야 하고,
+        // 사용자가 기다리는 시간이므로 다 합쳐도 너무 길지 않아야 한다
         assertThat(properties.approvalRetryDelays()).isNotEmpty();
         assertThat(properties.approvalRetryDelays().stream().reduce(Duration.ZERO, Duration::plus))
-                .isLessThanOrEqualTo(Duration.ofSeconds(15));
+                .isBetween(Duration.ofSeconds(15), Duration.ofSeconds(30));
         assertThat(VALIDATOR.validate(properties)).isEmpty();
     }
 
