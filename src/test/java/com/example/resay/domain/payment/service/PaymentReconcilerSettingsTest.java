@@ -1,6 +1,7 @@
 package com.example.resay.domain.payment.service;
 
 import com.example.resay.domain.payment.config.PaymentProperties;
+import com.example.resay.domain.payment.repository.PaymentCancelRepository;
 import com.example.resay.domain.payment.repository.PaymentRepository;
 import com.example.resay.global.infrastructure.nicepay.NicepayProperties;
 import java.time.Duration;
@@ -59,6 +60,7 @@ class PaymentReconcilerSettingsTest {
                 "S2_client-key", "secret-key", "", "http://localhost:8080/api/v1/payments/nicepay/return",
                 connectTimeout, readTimeout);
         return new PaymentReconciler(
-                mock(PaymentRepository.class), mock(PaymentApprovalService.class), paymentProperties, nicepayProperties);
+                mock(PaymentRepository.class), mock(PaymentCancelRepository.class), mock(PaymentApprovalService.class),
+                mock(PaymentCancelService.class), paymentProperties, nicepayProperties);
     }
 }

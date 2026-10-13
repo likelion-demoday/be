@@ -149,6 +149,7 @@ public class NicepayClient {
                 response.status(),
                 amount,
                 parseDateTime(response.paidAt()),
+                parseDateTime(response.cancelledAt()),
                 response.receiptUrl(),
                 signature.checkTransaction(response.tid(), amount, response.ediDate(), response.signature())
         );

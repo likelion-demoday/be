@@ -532,7 +532,7 @@ class PaymentApprovalFlowTest {
 
         reset(nicepayClient);
         when(nicepayClient.find(order.getTid())).thenReturn(new NicepayTransaction(
-                401, "U116", "사용자 정보가 존재하지 않습니다.", null, null, null, 0, null, null, Signature.MISSING));
+                401, "U116", "사용자 정보가 존재하지 않습니다.", null, null, null, 0, null, null, null, Signature.MISSING));
         paymentReconciler.settleStuckApprovals(LocalDateTime.now().plusMinutes(4));
         assertThat(reload(order).getStatus()).isEqualTo(PaymentStatus.APPROVING);
 
@@ -616,9 +616,9 @@ class PaymentApprovalFlowTest {
                 paidOrderId,
                 "paid",
                 "AMOUNT".equals(mismatch) ? 1000 : 3000,
-                PAID_AT, RECEIPT_URL, Signature.VALID));
+                PAID_AT, null, RECEIPT_URL, Signature.VALID));
         when(nicepayClient.cancel(eq(tid), anyString(), anyString())).thenReturn(new NicepayTransaction(
-                200, "0000", "정상 처리되었습니다.", tid, paidOrderId, "cancelled", 3000, PAID_AT, null, Signature.VALID));
+                200, "0000", "정상 처리되었습니다.", tid, paidOrderId, "cancelled", 3000, PAID_AT, null, null, Signature.VALID));
 
         postAuthResult(order, tid)
                 .andExpect(status().isSeeOther())
@@ -643,7 +643,7 @@ class PaymentApprovalFlowTest {
         String tid = newTid();
         when(nicepayClient.approve(tid, 3000)).thenReturn(new NicepayTransaction(
                 200, "0000", "정상 처리되었습니다.", tid, "RS261008anotherorder", "paid", 3000,
-                PAID_AT, RECEIPT_URL, Signature.VALID));
+                PAID_AT, null, RECEIPT_URL, Signature.VALID));
         when(nicepayClient.cancel(eq(tid), anyString(), anyString()))
                 .thenThrow(new NicepayUnknownResultException("timeout", null));
 
@@ -663,7 +663,7 @@ class PaymentApprovalFlowTest {
         String tid = newTid();
         when(nicepayClient.approve(tid, 3000)).thenReturn(new NicepayTransaction(
                 200, "0000", "정상 처리되었습니다.", tid, order.getOrderId(), "paid", 3000,
-                PAID_AT, RECEIPT_URL, Signature.INVALID));
+                PAID_AT, null, RECEIPT_URL, Signature.INVALID));
 
         postAuthResult(order, tid).andExpect(status().isSeeOther());
 
@@ -685,7 +685,7 @@ class PaymentApprovalFlowTest {
         String tid = newTid();
         when(nicepayClient.approve(tid, 3000)).thenReturn(new NicepayTransaction(
                 200, "0000", "정상 처리되었습니다.", tid, order.getOrderId(), "paid", 3000,
-                null, null, Signature.MISSING));
+                null, null, null, Signature.MISSING));
 
         postAuthResult(order, tid).andExpect(status().isSeeOther());
 
@@ -944,29 +944,29 @@ class PaymentApprovalFlowTest {
     private NicepayTransaction paid(Payment order, String tid) {
         return new NicepayTransaction(
                 200, "0000", "정상 처리되었습니다.", tid, order.getOrderId(), "paid", order.getAmount(),
-                PAID_AT, RECEIPT_URL, Signature.VALID);
+                PAID_AT, null, RECEIPT_URL, Signature.VALID);
     }
 
     // 요청은 성공(0000)이고 거래 상태만 다른 응답
     private NicepayTransaction found(Payment order, String tid, String nicepayStatus) {
         return new NicepayTransaction(
                 200, "0000", "정상 처리되었습니다.", tid, order.getOrderId(), nicepayStatus, order.getAmount(),
-                null, null, Signature.VALID);
+                null, null, null, Signature.VALID);
     }
 
     private NicepayTransaction rejected(String resultCode, String resultMsg) {
-        return new NicepayTransaction(200, resultCode, resultMsg, "", "", "", 0, null, null, Signature.MISSING);
+        return new NicepayTransaction(200, resultCode, resultMsg, "", "", "", 0, null, null, null, Signature.MISSING);
     }
 
     // 승인 요청에 "그런 인증 내역이 없다"는 답 (샌드박스에서 확인한 형식: HTTP 404 + U121)
     private NicepayTransaction authNotFound() {
         return new NicepayTransaction(
-                404, "U121", "인증 요청내역이 존재하지 않습니다.", "", "", "", 0, null, null, Signature.MISSING);
+                404, "U121", "인증 요청내역이 존재하지 않습니다.", "", "", "", 0, null, null, null, Signature.MISSING);
     }
 
     private NicepayTransaction notFound() {
         return new NicepayTransaction(
-                404, "U107", "거래내역이 존재 하지 않습니다.", "", "", "", 0, null, null, Signature.MISSING);
+                404, "U107", "거래내역이 존재 하지 않습니다.", "", "", "", 0, null, null, null, Signature.MISSING);
     }
 
     private Payment reload(Payment payment) {

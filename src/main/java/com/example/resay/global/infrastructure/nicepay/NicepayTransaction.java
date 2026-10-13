@@ -11,6 +11,7 @@ import java.util.Set;
  * @param resultCode 0000이면 요청 성공, 그 외는 실패
  * @param status     paid, ready, failed, cancelled, partialCancelled, expired (요청이 실패하면 비어 있다)
  * @param paidAt     결제 완료 시각 (한국 시간). 결제 완료가 아니면 null
+ * @param cancelledAt 결제 취소 시각 (한국 시간). 취소되지 않았으면 null
  * @param signature  응답에 실린 서명을 우리 시크릿 키로 확인한 결과
  */
 public record NicepayTransaction(
@@ -22,6 +23,7 @@ public record NicepayTransaction(
         String status,
         int amount,
         LocalDateTime paidAt,
+        LocalDateTime cancelledAt,
         String receiptUrl,
         Signature signature
 ) {
@@ -55,7 +57,7 @@ public record NicepayTransaction(
         return isNotFound() || (isSuccess() && status != null && NOT_PAID_STATUSES.contains(status));
     }
 
-    /** 망취소가 받아들여졌는지 (결제됐던 거래가 취소됐다). */
+    /** 결제됐던 거래가 전액 취소됐는지 (망취소 · 취소 요청이 받아들여졌거나, 조회해 보니 취소돼 있다). */
     public boolean isCancelled() {
         return isSuccess() && STATUS_CANCELLED.equals(status);
     }

@@ -42,6 +42,8 @@ public class SecurityConfig {
             "/api/v1/recordings/*/audio",
             // 나이스페이 결제창이 브라우저를 통해 인증 결과를 보내는 주소. 로그인 대신 주문 · 금액 · 서명으로 확인한다
             "/api/v1/payments/nicepay/return",
+            // 나이스페이 서버가 결제 · 취소를 알리는 주소. 로그인 대신 서명으로 확인하고, 상태는 나이스페이에 조회해서 반영한다
+            "/api/v1/payments/nicepay/webhook",
             // 허용된 API에서 발생한 오류가 /error로 넘어갈 때 401로 바뀌지 않게 한다
             "/error"
     };
