@@ -1,7 +1,9 @@
 package com.example.resay.domain.payment.service;
 
+import com.example.resay.domain.credit.service.CreditQueryService;
 import com.example.resay.domain.payment.code.PaymentErrorCode;
 import com.example.resay.domain.payment.config.PaymentProperties;
+import com.example.resay.domain.payment.dto.AdminPaymentSearchResponseDto;
 import com.example.resay.domain.payment.dto.PaymentHistoryResponseDto;
 import com.example.resay.domain.payment.dto.PaymentOrderResponseDto;
 import com.example.resay.domain.payment.dto.PaymentProductResponseDto;
@@ -9,7 +11,9 @@ import com.example.resay.domain.payment.dto.PaymentResponseDto;
 import com.example.resay.domain.payment.entity.Payment;
 import com.example.resay.domain.payment.entity.PaymentStatus;
 import com.example.resay.domain.payment.repository.PaymentRepository;
+import com.example.resay.domain.user.code.UserErrorCode;
 import com.example.resay.domain.user.entity.Role;
+import com.example.resay.domain.user.entity.User;
 import com.example.resay.domain.user.repository.UserRepository;
 import com.example.resay.global.config.CorsProperties;
 import com.example.resay.global.exception.GeneralException;
@@ -52,6 +56,7 @@ public class PaymentOrderService {
     private final PaymentProperties paymentProperties;
     private final NicepayProperties nicepayProperties;
     private final UserRepository userRepository;
+    private final CreditQueryService creditQueryService;
     // 프론트 주소인지 판단하는 기준. CORS 필터와 같은 규칙(대소문자 · 끝의 '/' 무시)으로 비교하려고 같은 클래스를 쓴다
     private final CorsConfiguration frontOrigins = new CorsConfiguration();
     // 기록은 서버 메모리에 둔다 (서버 1대 기준. 재시작하면 초기화된다)
@@ -63,12 +68,14 @@ public class PaymentOrderService {
             PaymentProperties paymentProperties,
             NicepayProperties nicepayProperties,
             CorsProperties corsProperties,
-            UserRepository userRepository
+            UserRepository userRepository,
+            CreditQueryService creditQueryService
     ) {
         this.paymentRepository = paymentRepository;
         this.paymentProperties = paymentProperties;
         this.nicepayProperties = nicepayProperties;
         this.userRepository = userRepository;
+        this.creditQueryService = creditQueryService;
         this.frontOrigins.setAllowedOrigins(corsProperties.allowedOrigins());
     }
 
@@ -127,6 +134,18 @@ public class PaymentOrderService {
         int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         return PaymentHistoryResponseDto.from(paymentRepository.findByUserIdAndStatusInOrderByIdDesc(
                 userId, HISTORY_STATUSES, PageRequest.of(safePage, safeSize)));
+    }
+
+    // 운영자가 환불할 주문을 찾을 때 쓴다. 이메일로 사용자를 찾아 결제된 충전과 지금 잔액을 함께 돌려준다
+    @Transactional(readOnly = true)
+    public AdminPaymentSearchResponseDto searchByEmail(String email) {
+        Long userId = userRepository.findByEmail(email)
+                .map(User::getId)
+                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+        int balance = creditQueryService.getSummary(userId).balance();
+        return AdminPaymentSearchResponseDto.of(userId, balance, paymentRepository
+                .findByUserIdAndStatusInOrderByIdDesc(userId, HISTORY_STATUSES, PageRequest.of(0, MAX_PAGE_SIZE))
+                .getContent());
     }
 
     // 테스트 상점 키로 한 결제는 실제 돈이 나가지 않는데 크레딧은 진짜로 지급된다.

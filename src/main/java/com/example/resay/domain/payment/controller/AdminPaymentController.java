@@ -1,10 +1,13 @@
 package com.example.resay.domain.payment.controller;
 
 import com.example.resay.domain.payment.code.PaymentSuccessCode;
+import com.example.resay.domain.payment.dto.AdminPaymentSearchRequestDto;
+import com.example.resay.domain.payment.dto.AdminPaymentSearchResponseDto;
 import com.example.resay.domain.payment.dto.PaymentCancelRequestDto;
 import com.example.resay.domain.payment.dto.PaymentCancelResponseDto;
 import com.example.resay.domain.payment.entity.PaymentStatus;
 import com.example.resay.domain.payment.service.PaymentCancelService;
+import com.example.resay.domain.payment.service.PaymentOrderService;
 import com.example.resay.global.apiPayload.ApiResponse;
 import com.example.resay.global.security.CurrentUserId;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,6 +27,22 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminPaymentController {
 
     private final PaymentCancelService paymentCancelService;
+    private final PaymentOrderService paymentOrderService;
+
+    @Operation(summary = "충전 주문 조회 (환불할 주문 찾기)", description = """
+            사용자의 이메일로 결제된 충전(환불 중 · 환불된 것 포함, 최근 50건)과 지금 잔액을 조회한다.
+            환불 API에 넣을 주문번호(`orderId`)를 여기서 찾는다.
+
+            `refundable`이 `true`인 주문만 전액 환불할 수 있다 (결제 완료 상태이고 잔액이 그 충전의 크레딧 이상).
+            한 건을 환불하면 잔액이 줄어 다른 주문의 `refundable`이 바뀔 수 있으니 환불할 때마다 다시 조회한다.
+
+            - `404 USER404_1`: 그 이메일로 가입한 사용자가 없다
+            """)
+    @PostMapping("/search")
+    public ApiResponse<AdminPaymentSearchResponseDto> search(@Valid @RequestBody AdminPaymentSearchRequestDto request) {
+        return ApiResponse.onSuccess(
+                PaymentSuccessCode.SEARCH_PAYMENTS, paymentOrderService.searchByEmail(request.email()));
+    }
 
     @Operation(summary = "충전 환불 (전액 취소)", description = """
             충전 주문의 결제를 전액 취소하고 지급했던 크레딧을 회수한다. 충전한 크레딧이 그대로 남아 있는 주문만 된다.

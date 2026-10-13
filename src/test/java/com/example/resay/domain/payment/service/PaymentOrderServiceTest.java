@@ -1,5 +1,6 @@
 package com.example.resay.domain.payment.service;
 
+import com.example.resay.domain.credit.service.CreditQueryService;
 import com.example.resay.domain.payment.code.PaymentErrorCode;
 import com.example.resay.domain.payment.config.PaymentProperties;
 import com.example.resay.domain.payment.dto.PaymentOrderResponseDto;
@@ -165,7 +166,8 @@ class PaymentOrderServiceTest {
                 Duration.ofMinutes(30), Duration.ofMinutes(3), List.of(), sandboxAdminOnly);
         return new PaymentOrderService(
                 paymentRepository, paymentProperties, nicepayProperties,
-                new CorsProperties(List.of(allowedOrigin)), userRepository);
+                new CorsProperties(List.of(allowedOrigin)), userRepository,
+                mock(CreditQueryService.class));
     }
 
     private static NicepayProperties nicepay(String clientKey, String secretKey) {
