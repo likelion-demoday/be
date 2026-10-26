@@ -12,7 +12,9 @@ AnalysisRequestedEvent (화자 매핑 저장 커밋 후)
 AnalysisSourceReader
   -> 정량 지표 계산
   -> 분석 입력 적합성 검증
-  -> 정성 모델 분석
+  -> LINER 1차 분석으로 초안 생성
+  -> LINER 2차 분석으로 원문과 초안을 대조해 최종 결과 생성
+  -> 최종 결과의 근거 및 응답 구조 검증
   -> AnalysisReportAssembler
   -> 분석 상태와 보고서 저장
   -> 성공 시 AnalysisCompletedEvent / 실패 시 AnalysisFailedEvent
@@ -30,6 +32,14 @@ Recording 상태 반영은 B가 해당 이벤트를 수신해 처리합니다.
 
 입력 적합성 검증을 통과한 데이터만 정성 모델에 전달합니다. 저장되는 보고서는
 `recordingInfo`, `quantitativeAnalysis`, `qualitativeAnalysis`로 구성됩니다.
+
+LINER 분석은 두 단계로 실행합니다. 1차 분석은 전체 전사문에서 보고서 초안을 만들고,
+2차 분석은 같은 전사문을 유일한 사실 근거로 삼아 초안의 누락과 모순을 검수한 최종 JSON을
+반환합니다. 서버는 최종 JSON만 검증하고 저장하므로 조회 API와 DB 구조는 기존과 같습니다.
+
+각 단계의 LINER 호출이 일시적인 네트워크 오류, 429 또는 5xx로 실패하면 한 번만 자동으로
+재시도합니다. 인증·요청 오류와 완료되지 않은 응답, JSON 해석 및 최종 검증 실패는 재시도하지
+않고 기존 분석 실패 처리 흐름으로 전달합니다.
 
 ## 분석 보고서 v8
 

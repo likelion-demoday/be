@@ -32,6 +32,9 @@ class LinerAnalysisModelClientTest {
     private LinerAnalysisRequestFactory requestFactory;
 
     @Mock
+    private LinerAnalysisReviewRequestFactory reviewRequestFactory;
+
+    @Mock
     private LinerAnalysisResponseValidator responseValidator;
 
     private LinerAnalysisModelClient modelClient;
@@ -41,6 +44,9 @@ class LinerAnalysisModelClientTest {
         modelClient = new LinerAnalysisModelClient(
                 linerApiClient,
                 requestFactory,
+                reviewRequestFactory,
+                new LinerApiRetryExecutor(duration -> {
+                }),
                 new LinerAnalysisResponseGrounder(),
                 responseValidator,
                 new ObjectMapper()
@@ -50,16 +56,29 @@ class LinerAnalysisModelClientTest {
     @Test
     void analyzesSourceAndReturnsVersionedModelResult() {
         AnalysisSource source = source();
-        LinerChatRequest request = request();
-        given(requestFactory.create(source)).willReturn(request);
-        given(requestFactory.promptVersion()).willReturn("analysis-prompt-v2");
+        LinerChatRequest initialRequest = request("initial-input");
+        LinerChatRequest reviewRequest = request("review-input");
+        given(requestFactory.create(source)).willReturn(initialRequest);
+        given(reviewRequestFactory.create(
+                org.mockito.ArgumentMatchers.eq(source),
+                org.mockito.ArgumentMatchers.any(QualitativeAnalysis.class)
+        )).willReturn(reviewRequest);
+        given(reviewRequestFactory.promptVersion()).willReturn(
+                "analysis-prompt-v2+analysis-review-v1"
+        );
         given(requestFactory.schemaVersion()).willReturn("analysis-result-v2");
-        given(linerApiClient.chat(request)).willReturn(result(validContent(), "stop"));
+        given(linerApiClient.chat(initialRequest)).willReturn(
+                result("initial-request", validContent(), "stop")
+        );
+        given(linerApiClient.chat(reviewRequest)).willReturn(
+                result("review-request", validContent(), "stop")
+        );
 
         AnalysisModelResult result = modelClient.analyze(source);
 
         assertThat(result.modelName()).isEqualTo("liner-mark-1.1");
-        assertThat(result.promptVersion()).isEqualTo("analysis-prompt-v2");
+        assertThat(result.promptVersion())
+                .isEqualTo("analysis-prompt-v2+analysis-review-v1");
         assertThat(result.schemaVersion()).isEqualTo("analysis-result-v2");
         assertThat(result.resultJson())
                 .contains("\"overview\"")
@@ -69,14 +88,18 @@ class LinerAnalysisModelClientTest {
                 org.mockito.ArgumentMatchers.eq(source),
                 org.mockito.ArgumentMatchers.any(QualitativeAnalysis.class)
         );
+        then(linerApiClient).should().chat(initialRequest);
+        then(linerApiClient).should().chat(reviewRequest);
     }
 
     @Test
     void rejectsMalformedJsonResponse() {
         AnalysisSource source = source();
-        LinerChatRequest request = request();
+        LinerChatRequest request = request("initial-input");
         given(requestFactory.create(source)).willReturn(request);
-        given(linerApiClient.chat(request)).willReturn(result("not-json", "stop"));
+        given(linerApiClient.chat(request)).willReturn(
+                result("initial-request", "not-json", "stop")
+        );
 
         assertThatThrownBy(() -> modelClient.analyze(source))
                 .isInstanceOfSatisfying(LinerAnalysisException.class, exception ->
@@ -84,18 +107,22 @@ class LinerAnalysisModelClientTest {
                 );
 
         then(responseValidator).shouldHaveNoInteractions();
+        then(reviewRequestFactory).shouldHaveNoInteractions();
     }
 
     @Test
     void rejectsIncompleteCompletion() {
         AnalysisSource source = source();
-        LinerChatRequest request = request();
+        LinerChatRequest request = request("initial-input");
         given(requestFactory.create(source)).willReturn(request);
-        given(linerApiClient.chat(request)).willReturn(result(validContent(), "length"));
+        given(linerApiClient.chat(request)).willReturn(
+                result("initial-request", validContent(), "length")
+        );
 
         assertThatThrownBy(() -> modelClient.analyze(source))
                 .isInstanceOf(LinerAnalysisException.class)
                 .hasMessageContaining("정상적으로 완료되지 않았습니다")
+                .hasMessageContaining("stage=INITIAL")
                 .hasMessageContaining("finishReason=length")
                 .hasMessageContaining("completionTokens=20");
 
@@ -103,6 +130,31 @@ class LinerAnalysisModelClientTest {
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any()
         );
+        then(reviewRequestFactory).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void rejectsMalformedReviewResponseWithoutValidatingIt() {
+        AnalysisSource source = source();
+        LinerChatRequest initialRequest = request("initial-input");
+        LinerChatRequest reviewRequest = request("review-input");
+        given(requestFactory.create(source)).willReturn(initialRequest);
+        given(reviewRequestFactory.create(
+                org.mockito.ArgumentMatchers.eq(source),
+                org.mockito.ArgumentMatchers.any(QualitativeAnalysis.class)
+        )).willReturn(reviewRequest);
+        given(linerApiClient.chat(initialRequest)).willReturn(
+                result("initial-request", validContent(), "stop")
+        );
+        given(linerApiClient.chat(reviewRequest)).willReturn(
+                result("review-request", "not-json", "stop")
+        );
+
+        assertThatThrownBy(() -> modelClient.analyze(source))
+                .isInstanceOf(LinerAnalysisException.class)
+                .hasMessageContaining("stage=REVIEW");
+
+        then(responseValidator).shouldHaveNoInteractions();
     }
 
     private AnalysisSource source() {
@@ -118,10 +170,10 @@ class LinerAnalysisModelClientTest {
         );
     }
 
-    private LinerChatRequest request() {
+    private LinerChatRequest request(String input) {
         return new LinerChatRequest(
                 "liner-mark-1.1",
-                List.of(new LinerChatMessage("user", "input")),
+                List.of(new LinerChatMessage("user", input)),
                 false,
                 8192,
                 "high",
@@ -129,9 +181,9 @@ class LinerAnalysisModelClientTest {
         );
     }
 
-    private LinerChatResult result(String content, String finishReason) {
+    private LinerChatResult result(String requestId, String content, String finishReason) {
         return new LinerChatResult(
-                "request-1",
+                requestId,
                 new LinerChatResponse(
                         "completion-1",
                         "liner-mark-1.1",

@@ -105,7 +105,7 @@ public class LinerAnalysisRequestFactory {
                 List.of(
                         new LinerChatMessage(
                                 "system",
-                                BASE_INSTRUCTION + "\n" + scenarioInstruction(source.scenario())
+                                analysisInstruction(source.scenario())
                         ),
                         new LinerChatMessage("user", serializeInput(source))
                 ),
@@ -122,6 +122,10 @@ public class LinerAnalysisRequestFactory {
 
     public String schemaVersion() {
         return SCHEMA_VERSION;
+    }
+
+    String analysisInstruction(AnalysisScenario scenario) {
+        return BASE_INSTRUCTION + "\n" + scenarioInstruction(scenario);
     }
 
     private String serializeInput(AnalysisSource source) {
@@ -143,7 +147,7 @@ public class LinerAnalysisRequestFactory {
         }
     }
 
-    private String scenarioInstruction(AnalysisScenario scenario) {
+    String scenarioInstruction(AnalysisScenario scenario) {
         return switch (scenario) {
             case FRIEND_DAILY -> """
                     친구 사이의 일상 대화입니다.
@@ -176,7 +180,7 @@ public class LinerAnalysisRequestFactory {
         };
     }
 
-    private Map<String, Object> responseFormat(AnalysisScenario scenario) {
+    Map<String, Object> responseFormat(AnalysisScenario scenario) {
         return Map.of(
                 "type", "json_schema",
                 "json_schema", Map.of(
