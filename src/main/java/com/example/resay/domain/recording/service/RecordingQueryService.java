@@ -1,8 +1,11 @@
 package com.example.resay.domain.recording.service;
 
+import com.example.resay.domain.recording.code.RecordingErrorCode;
+import com.example.resay.domain.recording.dto.RecordingDetailResponseDto;
 import com.example.resay.domain.recording.dto.RecordingListItemDto;
 import com.example.resay.domain.recording.dto.RecordingListResponseDto;
 import com.example.resay.domain.recording.entity.Recording;
+import com.example.resay.domain.recording.entity.RecordingStatus;
 import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.global.apiPayload.code.status.GeneralErrorCode;
 import com.example.resay.global.exception.GeneralException;
@@ -35,5 +38,13 @@ public class RecordingQueryService {
                 result.getTotalPages(),
                 result.hasNext()
         );
+    }
+
+    // 대화 보관함 상세 (다시 듣기). 목록에 보이는 대화만 연다
+    public RecordingDetailResponseDto getDetail(Long recordingId, Long userId, String audioUrl) {
+        Recording recording = recordingRepository.findByIdAndUserId(recordingId, userId)
+                .filter(found -> !found.isDeleted() && found.getStatus() == RecordingStatus.COMPLETED)
+                .orElseThrow(() -> new GeneralException(RecordingErrorCode.RECORDING_NOT_FOUND));
+        return RecordingDetailResponseDto.of(recording, audioUrl);
     }
 }
