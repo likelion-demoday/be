@@ -53,7 +53,8 @@ class AnalysisProcessorTest {
                 analysisModelClient,
                 new ConversationMetricsCalculator(),
                 readinessValidator,
-                new AnalysisReportAssembler(new ObjectMapper())
+                new AnalysisReportAssembler(new ObjectMapper()),
+                new AnalysisFailureClassifier()
         );
     }
 
@@ -102,6 +103,25 @@ class AnalysisProcessorTest {
         then(analysisService).should(never()).complete(
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any()
+        );
+    }
+
+    @Test
+    void storesSafePublicReasonForDetailedProviderFailure() {
+        AnalysisSource source = analysisSource(1L);
+        AnalysisProcessingException modelException = new AnalysisProcessingException(
+                AnalysisFailureCategory.PROVIDER_TIMEOUT,
+                "provider timeout",
+                null
+        );
+        given(analysisSourceReader.read(1L)).willReturn(source);
+        given(analysisModelClient.analyze(source)).willThrow(modelException);
+
+        assertThatThrownBy(() -> analysisProcessor.process(1L)).isSameAs(modelException);
+
+        then(analysisService).should().recordFailure(
+                1L,
+                AnalysisFailureReason.EXTERNAL_SERVICE_UNAVAILABLE
         );
     }
 

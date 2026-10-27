@@ -1,7 +1,6 @@
 package com.example.resay.domain.analysis.service;
 
 import com.example.resay.domain.analysis.code.AnalysisErrorCode;
-import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
 import com.example.resay.domain.analysis.event.AnalysisRequestedEvent;
 import com.example.resay.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +18,7 @@ public class AnalysisRequestedEventListener {
 
     private final ObjectProvider<AnalysisProcessor> analysisProcessorProvider;
     private final AnalysisService analysisService;
+    private final AnalysisFailureClassifier failureClassifier;
 
     @Async("analysisPipelineExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -43,8 +43,9 @@ public class AnalysisRequestedEventListener {
     }
 
     private void recordUnexpectedFailure(Long recordingId, RuntimeException originalException) {
+        AnalysisFailureClassifier.AnalysisFailure failure = failureClassifier.classify(originalException);
         try {
-            analysisService.recordFailure(recordingId, AnalysisFailureReason.PROCESSING_ERROR);
+            analysisService.recordFailure(recordingId, failure.publicReason());
         } catch (RuntimeException failureException) {
             originalException.addSuppressed(failureException);
             log.error("분석 실패 상태 기록 실패: recordingId={}", recordingId, failureException);

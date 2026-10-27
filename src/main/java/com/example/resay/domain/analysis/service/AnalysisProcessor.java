@@ -2,14 +2,15 @@ package com.example.resay.domain.analysis.service;
 
 import com.example.resay.domain.analysis.code.AnalysisErrorCode;
 import com.example.resay.domain.analysis.dto.AnalysisResultCommand;
-import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.ConversationMetrics;
 import com.example.resay.domain.analysis.port.AnalysisModelClient;
 import com.example.resay.domain.analysis.port.AnalysisSourceReader;
 import com.example.resay.global.exception.GeneralException;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class AnalysisProcessor {
 
     private final AnalysisService analysisService;
@@ -18,6 +19,7 @@ public class AnalysisProcessor {
     private final ConversationMetricsCalculator metricsCalculator;
     private final AnalysisReadinessValidator readinessValidator;
     private final AnalysisReportAssembler reportAssembler;
+    private final AnalysisFailureClassifier failureClassifier;
 
     public AnalysisProcessor(
             AnalysisService analysisService,
@@ -25,7 +27,8 @@ public class AnalysisProcessor {
             AnalysisModelClient analysisModelClient,
             ConversationMetricsCalculator metricsCalculator,
             AnalysisReadinessValidator readinessValidator,
-            AnalysisReportAssembler reportAssembler
+            AnalysisReportAssembler reportAssembler,
+            AnalysisFailureClassifier failureClassifier
     ) {
         this.analysisService = analysisService;
         this.analysisSourceReader = analysisSourceReader;
@@ -33,6 +36,7 @@ public class AnalysisProcessor {
         this.metricsCalculator = metricsCalculator;
         this.readinessValidator = readinessValidator;
         this.reportAssembler = reportAssembler;
+        this.failureClassifier = failureClassifier;
     }
 
     public void process(Long recordingId) {
@@ -80,17 +84,17 @@ public class AnalysisProcessor {
     }
 
     private void markFailed(Long recordingId, RuntimeException originalException) {
+        AnalysisFailureClassifier.AnalysisFailure failure = failureClassifier.classify(originalException);
+        log.error(
+                "분석 처리 실패: recordingId={}, category={}, exceptionType={}",
+                recordingId,
+                failure.category(),
+                originalException.getClass().getSimpleName()
+        );
         try {
-            analysisService.recordFailure(recordingId, failureReason(originalException));
+            analysisService.recordFailure(recordingId, failure.publicReason());
         } catch (RuntimeException statusException) {
             originalException.addSuppressed(statusException);
         }
-    }
-
-    private AnalysisFailureReason failureReason(RuntimeException exception) {
-        if (exception instanceof AnalysisReadinessException) {
-            return AnalysisFailureReason.INSUFFICIENT_SPEAKER_DATA;
-        }
-        return AnalysisFailureReason.PROCESSING_ERROR;
     }
 }

@@ -1,5 +1,6 @@
 package com.example.resay.global.infrastructure.liner;
 
+import com.example.resay.domain.analysis.service.AnalysisFailureCategory;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSource;
@@ -583,6 +584,11 @@ public class LinerAnalysisResponseValidator {
     }
 
     private LinerAnalysisException invalidResponse(String message) {
-        return new LinerAnalysisException("invalid_analysis_response", message, null);
+        return new LinerAnalysisException(
+                AnalysisFailureCategory.RESPONSE_VALIDATION_ERROR,
+                "invalid_analysis_response",
+                message,
+                null
+        );
     }
 }

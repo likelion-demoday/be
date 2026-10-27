@@ -84,6 +84,10 @@ class AnalysisRequestedEventListenerTest {
     }
 
     private AnalysisRequestedEventListener listener() {
-        return new AnalysisRequestedEventListener(analysisProcessorProvider, analysisService);
+        return new AnalysisRequestedEventListener(
+                analysisProcessorProvider,
+                analysisService,
+                new AnalysisFailureClassifier()
+        );
     }
 }
