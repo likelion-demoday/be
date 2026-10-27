@@ -164,6 +164,10 @@ liner:
   model: ${LINER_MODEL:liner-mark-1.1}
   connect-timeout: ${LINER_CONNECT_TIMEOUT:3s}
   read-timeout: ${LINER_READ_TIMEOUT:300s}
+  retry:
+    max-attempts: ${LINER_RETRY_MAX_ATTEMPTS:3}
+    initial-delay: ${LINER_RETRY_INITIAL_DELAY:200ms}
+    max-delay: ${LINER_RETRY_MAX_DELAY:2s}
 
 openai:
   image:
@@ -182,6 +186,9 @@ character:
     generation-enabled: ${CHARACTER_IMAGE_GENERATION_ENABLED:true}
 
 analysis:
+  failure-reconcile:
+    # 분석 실패 저장 뒤 녹음 실패 반영 전에 서버가 종료된 건을 다시 연결한다
+    cron: ${ANALYSIS_FAILURE_RECONCILE_CRON:30 */10 * * * *}
   readiness:
     minimum-total-speaking-duration: ${ANALYSIS_MIN_TOTAL_SPEAKING_DURATION:60s}
     minimum-speaker-speaking-duration: ${ANALYSIS_MIN_SPEAKER_SPEAKING_DURATION:15s}

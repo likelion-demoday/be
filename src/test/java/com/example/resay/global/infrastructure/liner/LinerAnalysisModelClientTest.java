@@ -6,6 +6,8 @@ import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
+import com.example.resay.domain.analysis.service.AnalysisFailureCategory;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,9 +81,11 @@ class LinerAnalysisModelClientTest {
         given(linerApiClient.chat(request)).willReturn(result("not-json", "stop"));
 
         assertThatThrownBy(() -> modelClient.analyze(source))
-                .isInstanceOfSatisfying(LinerAnalysisException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo("invalid_analysis_response")
-                );
+                .isInstanceOfSatisfying(LinerAnalysisException.class, exception -> {
+                    assertThat(exception.getErrorCode()).isEqualTo("invalid_analysis_response");
+                    assertThat(exception.getCategory())
+                            .isEqualTo(AnalysisFailureCategory.RESPONSE_FORMAT_ERROR);
+                });
 
         then(responseValidator).shouldHaveNoInteractions();
     }
@@ -95,6 +99,8 @@ class LinerAnalysisModelClientTest {
 
         assertThatThrownBy(() -> modelClient.analyze(source))
                 .isInstanceOf(LinerAnalysisException.class)
+                .satisfies(exception -> assertThat(((LinerAnalysisException) exception).getCategory())
+                        .isEqualTo(AnalysisFailureCategory.RESPONSE_LENGTH_EXCEEDED))
                 .hasMessageContaining("정상적으로 완료되지 않았습니다")
                 .hasMessageContaining("finishReason=length")
                 .hasMessageContaining("completionTokens=20");
@@ -103,6 +109,50 @@ class LinerAnalysisModelClientTest {
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any()
         );
+    }
+
+    @Test
+    void classifiesProviderAuthenticationWithoutExposingProviderMessage() {
+        AnalysisSource source = source();
+        LinerChatRequest request = request();
+        given(requestFactory.create(source)).willReturn(request);
+        given(linerApiClient.chat(request)).willThrow(new LinerApiException(
+                401,
+                "invalid_api_key",
+                false,
+                null,
+                "request-401",
+                "secret provider detail",
+                null
+        ));
+
+        assertThatThrownBy(() -> modelClient.analyze(source))
+                .isInstanceOfSatisfying(LinerAnalysisException.class, exception -> {
+                    assertThat(exception.getCategory())
+                            .isEqualTo(AnalysisFailureCategory.PROVIDER_AUTHENTICATION);
+                    assertThat(exception.getMessage()).doesNotContain("secret provider detail");
+                });
+    }
+
+    @Test
+    void classifiesProviderRateLimit() {
+        AnalysisSource source = source();
+        LinerChatRequest request = request();
+        given(requestFactory.create(source)).willReturn(request);
+        given(linerApiClient.chat(request)).willThrow(new LinerApiException(
+                429,
+                "rate_limited",
+                true,
+                Duration.ofSeconds(1),
+                "request-429",
+                null
+        ));
+
+        assertThatThrownBy(() -> modelClient.analyze(source))
+                .isInstanceOfSatisfying(LinerAnalysisException.class, exception ->
+                        assertThat(exception.getCategory())
+                                .isEqualTo(AnalysisFailureCategory.PROVIDER_RATE_LIMIT)
+                );
     }
 
     private AnalysisSource source() {

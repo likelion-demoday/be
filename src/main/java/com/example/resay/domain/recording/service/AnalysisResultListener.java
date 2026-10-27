@@ -1,9 +1,7 @@
 package com.example.resay.domain.recording.service;
 
-import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
 import com.example.resay.domain.analysis.event.AnalysisCompletedEvent;
 import com.example.resay.domain.analysis.event.AnalysisFailedEvent;
-import com.example.resay.domain.recording.entity.RecordingFailureReason;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -20,6 +18,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class AnalysisResultListener {
 
     private final RecordingService recordingService;
+    private final AnalysisFailureRecordingService analysisFailureRecordingService;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -32,16 +31,8 @@ public class AnalysisResultListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onFailed(AnalysisFailedEvent event) {
-        if (!recordingService.failAnalysis(event.recordingId(), toRecordingReason(event.failureReason()))) {
+        if (!analysisFailureRecordingService.recordFailure(event.recordingId(), event.failureReason())) {
             log.info("분석 실패를 반영할 녹음이 없습니다. recordingId={}", event.recordingId());
         }
-    }
-
-    // 발화 부족은 프론트가 녹음 상태 안내를 따로 보여줄 수 있도록 구분해서 저장한다
-    private RecordingFailureReason toRecordingReason(AnalysisFailureReason reason) {
-        return switch (reason) {
-            case INSUFFICIENT_SPEAKER_DATA -> RecordingFailureReason.INSUFFICIENT_SPEAKER_DATA;
-            case PROCESSING_ERROR -> RecordingFailureReason.ANALYSIS_FAILED;
-        };
     }
 }

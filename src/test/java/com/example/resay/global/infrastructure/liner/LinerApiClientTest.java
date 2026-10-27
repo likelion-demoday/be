@@ -42,7 +42,8 @@ class LinerApiClientTest {
                 BASE_URL,
                 "liner-mark-1.1",
                 Duration.ofSeconds(3),
-                Duration.ofSeconds(120)
+                Duration.ofSeconds(120),
+                new LinerProperties.Retry(1, Duration.ZERO, Duration.ZERO)
         );
         linerApiClient = new LinerApiClient(properties, builder.build(), new ObjectMapper());
     }
@@ -124,7 +125,8 @@ class LinerApiClientTest {
                 .isInstanceOfSatisfying(LinerApiException.class, exception -> {
                     assertThat(exception.getStatusCode()).isEqualTo(statusCode);
                     assertThat(exception.getErrorCode()).isEqualTo("provider_error");
-                    assertThat(exception.isRetryable()).isFalse();
+                    assertThat(exception.isRetryable())
+                            .isEqualTo(statusCode == 429 || statusCode >= 500);
                 });
     }
 
@@ -157,7 +159,7 @@ class LinerApiClientTest {
                             .contains("statusCode=429")
                             .contains("errorCode=RATE_LIMITED")
                             .contains("requestId=liner-request-429")
-                            .contains("providerMessage=요청 한도 초과");
+                            .doesNotContain("요청 한도 초과");
                     assertThat(exception.getCause()).isNull();
                 });
     }
@@ -189,7 +191,7 @@ class LinerApiClientTest {
         assertThatThrownBy(() -> linerApiClient.chat(request()))
                 .isInstanceOfSatisfying(LinerApiException.class, exception -> {
                     assertThat(exception.getErrorCode()).isEqualTo("invalid_response");
-                    assertThat(exception.isRetryable()).isTrue();
+                    assertThat(exception.isRetryable()).isFalse();
                 });
     }
 
@@ -218,10 +220,40 @@ class LinerApiClientTest {
     }
 
     @Test
+    void retriesTransientServerFailureAndReturnsNextSuccess() {
+        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        LinerApiClient client = retryingClient(builder);
+        server.expect(requestTo(CHAT_COMPLETIONS_URL))
+                .andRespond(withStatus(HttpStatusCode.valueOf(503)));
+        server.expect(requestTo(CHAT_COMPLETIONS_URL))
+                .andRespond(withSuccess(successResponse(), MediaType.APPLICATION_JSON));
+
+        assertThat(client.chat(request()).response().id()).isEqualTo("chatcmpl-123");
+        server.verify();
+    }
+
+    @Test
+    void doesNotRetryNonTransientClientFailure() {
+        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        LinerApiClient client = retryingClient(builder);
+        server.expect(requestTo(CHAT_COMPLETIONS_URL))
+                .andRespond(withStatus(HttpStatusCode.valueOf(400)));
+
+        assertThatThrownBy(() -> client.chat(request()))
+                .isInstanceOfSatisfying(LinerApiException.class, exception -> {
+                    assertThat(exception.getStatusCode()).isEqualTo(400);
+                    assertThat(exception.isRetryable()).isFalse();
+                });
+        server.verify();
+    }
+
+    @Test
     void rejectsCallWhenApiKeyIsMissing() {
         RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        LinerProperties properties = new LinerProperties(null, BASE_URL, null, null, null);
+        LinerProperties properties = new LinerProperties(null, BASE_URL, null, null, null, null);
         LinerApiClient client = new LinerApiClient(properties, builder.build(), new ObjectMapper());
 
         assertThatThrownBy(() -> client.chat(request()))
@@ -244,5 +276,31 @@ class LinerApiClientTest {
                 "medium",
                 Map.of("type", "json_object")
         );
+    }
+
+    private LinerApiClient retryingClient(RestClient.Builder builder) {
+        LinerProperties properties = new LinerProperties(
+                "liner-api-key",
+                BASE_URL,
+                "liner-mark-1.1",
+                Duration.ofSeconds(3),
+                Duration.ofSeconds(120),
+                new LinerProperties.Retry(3, Duration.ZERO, Duration.ZERO)
+        );
+        return new LinerApiClient(properties, builder.build(), new ObjectMapper());
+    }
+
+    private String successResponse() {
+        return """
+                {
+                  "id": "chatcmpl-123",
+                  "model": "liner-mark-1.1",
+                  "choices": [{
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "{\\"summary\\":\\"ok\\"}"},
+                    "finish_reason": "stop"
+                  }]
+                }
+                """;
     }
 }

@@ -2,6 +2,7 @@ package com.example.resay.domain.analysis.config;
 
 import com.example.resay.domain.analysis.port.AnalysisModelClient;
 import com.example.resay.domain.analysis.port.AnalysisSourceReader;
+import com.example.resay.domain.analysis.service.AnalysisFailureClassifier;
 import com.example.resay.domain.analysis.service.AnalysisProcessor;
 import com.example.resay.domain.analysis.service.AnalysisReadinessValidator;
 import com.example.resay.domain.analysis.service.AnalysisReportAssembler;
@@ -22,7 +23,8 @@ public class AnalysisProcessorConfig {
             AnalysisModelClient analysisModelClient,
             ConversationMetricsCalculator metricsCalculator,
             AnalysisReadinessValidator readinessValidator,
-            AnalysisReportAssembler reportAssembler
+            AnalysisReportAssembler reportAssembler,
+            AnalysisFailureClassifier failureClassifier
     ) {
         return new AnalysisProcessor(
                 analysisService,
@@ -30,7 +32,8 @@ public class AnalysisProcessorConfig {
                 analysisModelClient,
                 metricsCalculator,
                 readinessValidator,
-                reportAssembler
+                reportAssembler,
+                failureClassifier
         );
     }
 }

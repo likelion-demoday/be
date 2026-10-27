@@ -1,5 +1,9 @@
 package com.example.resay.domain.credit.service;
 
+import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
+import com.example.resay.domain.analysis.entity.ConversationAnalysis;
+import com.example.resay.domain.analysis.repository.ConversationAnalysisRepository;
+import com.example.resay.domain.analysis.service.AnalysisFailureReconciler;
 import com.example.resay.domain.credit.dto.AnalysisPaymentResponseDto;
 import com.example.resay.domain.credit.entity.CreditLedgerEntry;
 import com.example.resay.domain.credit.entity.CreditLedgerType;
@@ -55,6 +59,9 @@ class AnalysisPaymentFlowTest {
     private CreditRefundReconciler creditRefundReconciler;
 
     @Autowired
+    private AnalysisFailureReconciler analysisFailureReconciler;
+
+    @Autowired
     private CreditService creditService;
 
     @Autowired
@@ -65,6 +72,9 @@ class AnalysisPaymentFlowTest {
 
     @Autowired
     private RecordingRepository recordingRepository;
+
+    @Autowired
+    private ConversationAnalysisRepository conversationAnalysisRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -83,6 +93,7 @@ class AnalysisPaymentFlowTest {
         ledgerRepository.deleteAllInBatch();
         usageRepository.deleteAllInBatch();
         walletRepository.deleteAllInBatch();
+        conversationAnalysisRepository.deleteAllInBatch();
         recordingRepository.deleteAllInBatch();
         userRepository.deleteAllInBatch();
     }
@@ -226,6 +237,28 @@ class AnalysisPaymentFlowTest {
         assertThat(balanceOf(userId)).isEqualTo(5000);
         assertThat(usageRepository.findAll().get(0).getRefundReason()).isEqualTo("RECONCILED");
         assertThat(creditRefundReconciler.refundFailedAnalyses(LocalDateTime.now().plusMinutes(10))).isZero();
+        assertLedgerMatchesBalance(userId);
+    }
+
+    @Test
+    void analysisFailureReconcilerRestoresRecordingAndRefundFlow() {
+        Long userId = userWithCredits(2000);
+        Long recordingId = recordingWithType(userId, RelationshipType.COUPLE_CONFLICT);
+        analysisPaymentService.pay(userId, recordingId);
+        setStatus(recordingId, RecordingStatus.ANALYZING);
+        ConversationAnalysis analysis = ConversationAnalysis.start(recordingId);
+        analysis.fail(AnalysisFailureReason.PROCESSING_ERROR);
+        conversationAnalysisRepository.saveAndFlush(analysis);
+        assertThat(balanceOf(userId)).isZero();
+
+        assertThat(analysisFailureReconciler.reconcileFailedAnalyses()).isEqualTo(1);
+
+        Recording recording = recordingRepository.findById(recordingId).orElseThrow();
+        assertThat(recording.getStatus()).isEqualTo(RecordingStatus.FAILED);
+        assertThat(recording.getFailureReason()).isEqualTo(RecordingFailureReason.ANALYSIS_FAILED);
+        assertThat(balanceOf(userId)).isEqualTo(2000);
+        assertThat(usageRepository.findAll().get(0).getStatus()).isEqualTo(UsageStatus.REFUNDED);
+        assertThat(analysisFailureReconciler.reconcileFailedAnalyses()).isZero();
         assertLedgerMatchesBalance(userId);
     }
 

@@ -27,7 +27,8 @@ class LinerAnalysisRequestFactoryTest {
                 "https://platform.liner.com",
                 "liner-mark-1.1",
                 Duration.ofSeconds(3),
-                Duration.ofSeconds(120)
+                Duration.ofSeconds(120),
+                null
         );
         requestFactory = new LinerAnalysisRequestFactory(properties, objectMapper);
     }

@@ -4,6 +4,7 @@ import com.example.resay.domain.analysis.model.AnalysisModelResult;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.port.AnalysisModelClient;
+import com.example.resay.domain.analysis.service.AnalysisFailureCategory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import tools.jackson.databind.ObjectMapper;
@@ -33,7 +34,12 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
 
     @Override
     public AnalysisModelResult analyze(AnalysisSource source) {
-        LinerChatResult result = linerApiClient.chat(requestFactory.create(source));
+        LinerChatResult result;
+        try {
+            result = linerApiClient.chat(requestFactory.create(source));
+        } catch (LinerApiException exception) {
+            throw apiFailure(exception);
+        }
         validateCompletion(result);
 
         QualitativeAnalysis response = parseResponse(result.content());
@@ -53,7 +59,12 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
         if (!"stop".equals(finishReason)) {
             LinerChatResponse.Usage usage = result.response().usage();
             long completionTokens = usage != null ? usage.completionTokens() : 0;
-            throw invalidResponse(
+            AnalysisFailureCategory category = "length".equals(finishReason)
+                    ? AnalysisFailureCategory.RESPONSE_LENGTH_EXCEEDED
+                    : AnalysisFailureCategory.RESPONSE_INCOMPLETE;
+            throw new LinerAnalysisException(
+                    category,
+                    "incomplete_analysis_response",
                     "LINER 분석 응답이 정상적으로 완료되지 않았습니다. "
                             + "finishReason=" + finishReason
                             + ", completionTokens=" + completionTokens,
@@ -61,7 +72,7 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
             );
         }
         if (!StringUtils.hasText(result.response().model())) {
-            throw invalidResponse("LINER 분석 응답에 모델 정보가 없습니다.", null);
+            throw responseFormatFailure("LINER 분석 응답에 모델 정보가 없습니다.", null);
         }
     }
 
@@ -69,7 +80,7 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
         try {
             return objectMapper.readValue(content, QualitativeAnalysis.class);
         } catch (Exception exception) {
-            throw invalidResponse("LINER 분석 응답을 해석할 수 없습니다.", exception);
+            throw responseFormatFailure("LINER 분석 응답을 해석할 수 없습니다.", exception);
         }
     }
 
@@ -85,7 +96,40 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
         }
     }
 
-    private LinerAnalysisException invalidResponse(String message, Throwable cause) {
-        return new LinerAnalysisException("invalid_analysis_response", message, cause);
+    private LinerAnalysisException responseFormatFailure(String message, Throwable cause) {
+        return new LinerAnalysisException(
+                AnalysisFailureCategory.RESPONSE_FORMAT_ERROR,
+                "invalid_analysis_response",
+                message,
+                cause
+        );
+    }
+
+    private LinerAnalysisException apiFailure(LinerApiException exception) {
+        AnalysisFailureCategory category;
+        Integer statusCode = exception.getStatusCode();
+        if ("not_configured".equals(exception.getErrorCode())) {
+            category = AnalysisFailureCategory.PROVIDER_CONFIGURATION;
+        } else if (statusCode != null && (statusCode == 401 || statusCode == 403)) {
+            category = AnalysisFailureCategory.PROVIDER_AUTHENTICATION;
+        } else if (statusCode != null && statusCode == 429) {
+            category = AnalysisFailureCategory.PROVIDER_RATE_LIMIT;
+        } else if ("timeout".equals(exception.getErrorCode()) || (statusCode != null && statusCode == 408)) {
+            category = AnalysisFailureCategory.PROVIDER_TIMEOUT;
+        } else if ("transport_error".equals(exception.getErrorCode())) {
+            category = AnalysisFailureCategory.PROVIDER_NETWORK;
+        } else if (statusCode != null && statusCode >= 500) {
+            category = AnalysisFailureCategory.PROVIDER_SERVER_ERROR;
+        } else if ("invalid_response".equals(exception.getErrorCode())) {
+            category = AnalysisFailureCategory.RESPONSE_FORMAT_ERROR;
+        } else {
+            category = AnalysisFailureCategory.PROVIDER_CONFIGURATION;
+        }
+        return new LinerAnalysisException(
+                category,
+                exception.getErrorCode(),
+                "외부 분석 서비스 처리에 실패했습니다.",
+                exception
+        );
     }
 }
