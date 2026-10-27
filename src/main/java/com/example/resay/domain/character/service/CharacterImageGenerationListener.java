@@ -22,7 +22,10 @@ import org.springframework.transaction.event.TransactionalEventListener;
 )
 public class CharacterImageGenerationListener {
 
+    static final String PIPELINE_FAILURE_CODE = "PIPELINE_FAILED";
+
     private final CharacterImageProcessor characterImageProcessor;
+    private final CharacterImageService characterImageService;
     private final CreditService creditService;
 
     @Async("characterImageTaskExecutor")
@@ -31,12 +34,39 @@ public class CharacterImageGenerationListener {
         try {
             characterImageProcessor.process(event);
         } catch (RuntimeException exception) {
+            failInProgressImages(event, exception);
             refund(event, exception);
             log.error(
                     "캐릭터 이미지 파이프라인 실행 실패: analysisId={}, recordingId={}",
                     event.analysisId(),
                     event.recordingId(),
                     exception
+            );
+        }
+    }
+
+    private void failInProgressImages(
+            CharacterImageRequestedEvent event,
+            RuntimeException originalException
+    ) {
+        try {
+            int failed = characterImageService.failInProgress(
+                    event.analysisId(),
+                    PIPELINE_FAILURE_CODE
+            );
+            if (failed > 0) {
+                log.info(
+                        "캐릭터 이미지 파이프라인 잔여 작업 실패 처리: analysisId={}, count={}",
+                        event.analysisId(),
+                        failed
+                );
+            }
+        } catch (RuntimeException statusException) {
+            originalException.addSuppressed(statusException);
+            log.error(
+                    "캐릭터 이미지 파이프라인 잔여 작업 실패 처리 실패: analysisId={}",
+                    event.analysisId(),
+                    statusException
             );
         }
     }

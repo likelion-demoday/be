@@ -138,4 +138,32 @@ class CharacterImageServiceIntegrationTest {
                 .isEqualTo(CharacterImageStatus.PENDING);
         assertThat(characterImageRepository.findAllByAnalysisId(20L)).isEmpty();
     }
+
+    @Test
+    void failsOnlyInProgressImagesForAnalysis() {
+        characterImageService.prepare(10L, List.of(SpeakerRole.SELF, SpeakerRole.FRIEND));
+        characterImageService.begin(10L, SpeakerRole.FRIEND);
+        characterImageService.prepare(20L, List.of(SpeakerRole.SELF));
+        characterImageService.begin(20L, SpeakerRole.SELF);
+        characterImageService.complete(
+                20L,
+                SpeakerRole.SELF,
+                "20/self.png",
+                new GeneratedCharacterImage(new byte[]{1}, "image/png", "gpt-image", "v1")
+        );
+
+        assertThat(characterImageService.failInProgress(10L, "PIPELINE_FAILED"))
+                .isEqualTo(2);
+
+        assertThat(characterImageRepository.findAllByAnalysisId(10L))
+                .allSatisfy(image -> {
+                    assertThat(image.getStatus()).isEqualTo(CharacterImageStatus.FAILED);
+                    assertThat(image.getFailureCode()).isEqualTo("PIPELINE_FAILED");
+                });
+        assertThat(characterImageRepository.findAllByAnalysisId(20L))
+                .allSatisfy(image -> assertThat(image.getStatus())
+                        .isEqualTo(CharacterImageStatus.COMPLETED));
+        assertThat(characterImageService.failInProgress(10L, "PIPELINE_FAILED"))
+                .isZero();
+    }
 }
