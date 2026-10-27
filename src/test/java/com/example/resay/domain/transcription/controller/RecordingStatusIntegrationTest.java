@@ -12,6 +12,8 @@ import com.example.resay.domain.user.repository.UserRepository;
 import com.example.resay.global.security.JwtTokenProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -76,13 +78,16 @@ class RecordingStatusIntegrationTest {
         getStatus(user).andExpect(jsonPath("$.result.step").value("SPEAKER_SELECTION_REQUIRED"));
     }
 
-    @Test
-    void 실패했으면_실패_사유를_함께_준다() throws Exception {
-        recording.fail(RecordingFailureReason.SPEAKER_NOT_SEPARATED);
+    @ParameterizedTest
+    @EnumSource(RecordingFailureReason.class)
+    void 실패했으면_실패_사유를_손실_없이_함께_준다(
+            RecordingFailureReason failureReason
+    ) throws Exception {
+        recording.fail(failureReason);
 
         getStatus(user)
                 .andExpect(jsonPath("$.result.step").value("FAILED"))
-                .andExpect(jsonPath("$.result.failureReason").value("SPEAKER_NOT_SEPARATED"));
+                .andExpect(jsonPath("$.result.failureReason").value(failureReason.name()));
     }
 
     @Test

@@ -162,7 +162,7 @@ class SpeakerMappingIntegrationTest {
         assertThat(analysis.getFailureReason()).isEqualTo(AnalysisFailureReason.PROCESSING_ERROR);
         assertThat(failedRecording.getStatus()).isEqualTo(RecordingStatus.FAILED);
         assertThat(failedRecording.getFailureReason())
-                .isEqualTo(RecordingFailureReason.ANALYSIS_FAILED);
+                .isEqualTo(RecordingFailureReason.PROCESSING_ERROR);
     }
 
     @Test
@@ -257,7 +257,7 @@ class SpeakerMappingIntegrationTest {
     }
 
     @Test
-    void 분석_처리_오류로_실패하면_분석_실패_사유로_저장한다() {
+    void 분석_처리_오류로_실패하면_상세_사유를_녹음에도_저장한다() {
         analyzingRecording();
 
         new TransactionTemplate(transactionManager).executeWithoutResult(status ->
@@ -265,7 +265,7 @@ class SpeakerMappingIntegrationTest {
                         recording.getId(), AnalysisFailureReason.PROCESSING_ERROR)));
 
         assertThat(recordingRepository.findById(recording.getId()).orElseThrow().getFailureReason())
-                .isEqualTo(RecordingFailureReason.ANALYSIS_FAILED);
+                .isEqualTo(RecordingFailureReason.PROCESSING_ERROR);
     }
 
     @Test

@@ -15,12 +15,13 @@ public class AnalysisFailureRecordingService {
         return recordingService.failAnalysis(recordingId, toRecordingReason(reason));
     }
 
-    // 상세 분석 실패 분류는 분석에 남기고, 녹음에는 사용자 안내용 사유만 저장한다.
+    // 분석에서 정제한 공개용 사유만 녹음에 저장하고 내부 오류 분류는 노출하지 않는다.
     private RecordingFailureReason toRecordingReason(AnalysisFailureReason reason) {
         return switch (reason) {
             case INSUFFICIENT_SPEAKER_DATA -> RecordingFailureReason.INSUFFICIENT_SPEAKER_DATA;
-            case EXTERNAL_SERVICE_UNAVAILABLE, INVALID_ANALYSIS_RESPONSE, PROCESSING_ERROR ->
-                    RecordingFailureReason.ANALYSIS_FAILED;
+            case EXTERNAL_SERVICE_UNAVAILABLE -> RecordingFailureReason.EXTERNAL_SERVICE_UNAVAILABLE;
+            case INVALID_ANALYSIS_RESPONSE -> RecordingFailureReason.INVALID_ANALYSIS_RESPONSE;
+            case PROCESSING_ERROR -> RecordingFailureReason.PROCESSING_ERROR;
         };
     }
 }

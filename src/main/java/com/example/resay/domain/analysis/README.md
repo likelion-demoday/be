@@ -28,6 +28,17 @@ Recording 상태 반영은 B가 해당 이벤트를 수신해 처리합니다.
 분석 작업 생성 전 예상하지 못한 오류가 발생해도 실패 분석을 저장한 뒤 같은 이벤트를
 발행합니다. 중복 분석 요청과 이미 완료·실패한 작업은 다시 실패 처리하지 않습니다.
 
+사용자에게 전달하는 분석 실패 사유는 내부 오류를 노출하지 않도록 다음 네 가지로 정제합니다.
+
+- `INSUFFICIENT_SPEAKER_DATA`: 두 화자의 발화량이 분석 기준에 미달
+- `EXTERNAL_SERVICE_UNAVAILABLE`: 분석 제공자의 일시적 장애, 네트워크 오류 또는 요청 제한
+- `INVALID_ANALYSIS_RESPONSE`: 미완료 응답, 형식 오류 또는 서비스 규칙 검증 실패
+- `PROCESSING_ERROR`: 인증·설정·저장 오류 등 사용자에게 세부 내용을 노출하지 않는 내부 오류
+
+정제한 사유는 Recording에도 같은 이름으로 저장되어
+`GET /api/v1/recordings/{recordingId}/status`의 `failureReason`으로 반환됩니다.
+기존 `ANALYSIS_FAILED` 값은 이전에 저장된 데이터와의 호환을 위해 유지합니다.
+
 입력 적합성 검증을 통과한 데이터만 정성 모델에 전달합니다. 저장되는 보고서는
 `recordingInfo`, `quantitativeAnalysis`, `qualitativeAnalysis`로 구성됩니다.
 
