@@ -3,6 +3,8 @@ package com.example.resay.domain.recording.repository;
 import com.example.resay.domain.recording.entity.Recording;
 import com.example.resay.domain.recording.entity.RecordingStatus;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -17,6 +19,22 @@ import java.util.Optional;
 public interface RecordingRepository extends JpaRepository<Recording, Long> {
 
     Optional<Recording> findByIdAndUserId(Long id, Long userId);
+
+    // 대화 보관함: 분석이 끝난 대화 중 사용자가 지우지 않은 것, 최신순
+    @Query(value = """
+            select r from Recording r
+            where r.userId = :userId
+              and r.status = com.example.resay.domain.recording.entity.RecordingStatus.COMPLETED
+              and r.deletedAt is null
+            order by r.createdAt desc, r.id desc
+            """,
+            countQuery = """
+            select count(r) from Recording r
+            where r.userId = :userId
+              and r.status = com.example.resay.domain.recording.entity.RecordingStatus.COMPLETED
+              and r.deletedAt is null
+            """)
+    Page<Recording> findArchivedPage(@Param("userId") Long userId, Pageable pageable);
 
     // 결제 완료 전환은 "읽고 확인한 뒤 바꾸기" 대신 조건부 UPDATE 한 번으로 한다
     // UPDATE는 항상 최신 행을 잠그고 처리하므로, 같은 트랜잭션에서 먼저 읽어 둔 옛 값이나

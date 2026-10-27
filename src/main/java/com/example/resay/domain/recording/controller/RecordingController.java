@@ -1,12 +1,14 @@
 package com.example.resay.domain.recording.controller;
 
 import com.example.resay.domain.recording.code.RecordingSuccessCode;
+import com.example.resay.domain.recording.dto.RecordingListResponseDto;
 import com.example.resay.domain.recording.dto.RecordingTypeSelectRequestDto;
 import com.example.resay.domain.recording.dto.RecordingStatusResponseDto;
 import com.example.resay.domain.recording.dto.RecordingUploadResponseDto;
 import com.example.resay.domain.recording.dto.SpeakerMappingRequestDto;
 import com.example.resay.domain.recording.dto.SpeakerSamplesResponseDto;
 import com.example.resay.domain.recording.service.RecordingAudioService;
+import com.example.resay.domain.recording.service.RecordingQueryService;
 import com.example.resay.domain.recording.service.RecordingService;
 import com.example.resay.domain.transcription.service.ConversationDeletionService;
 import com.example.resay.domain.transcription.service.RecordingStatusService;
@@ -15,6 +17,7 @@ import com.example.resay.domain.transcription.service.SpeakerSampleService;
 import com.example.resay.global.apiPayload.ApiResponse;
 import com.example.resay.global.security.AudioUrlSigner;
 import com.example.resay.global.security.CurrentUserId;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
@@ -36,6 +39,21 @@ public class RecordingController {
     private final RecordingAudioService recordingAudioService;
     private final AudioUrlSigner audioUrlSigner;
     private final ConversationDeletionService conversationDeletionService;
+    private final RecordingQueryService recordingQueryService;
+
+    // 대화 보관함 목록. 분석이 끝난 대화만 최신순으로 보여준다
+    @GetMapping
+    public ResponseEntity<ApiResponse<RecordingListResponseDto>> getList(
+            @CurrentUserId Long userId,
+            @Parameter(description = "페이지 번호. 0부터 시작", example = "0")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "페이지 크기. 1 이상 50 이하", example = "10")
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return ResponseEntity.status(RecordingSuccessCode.GET_LIST.getHttpStatus())
+                .body(ApiResponse.onSuccess(RecordingSuccessCode.GET_LIST,
+                        recordingQueryService.getList(userId, page, size)));
+    }
 
     // 대화 삭제: 음성·전사 원문을 지우고 녹음은 숨긴다 (보고서는 남음). 분석이 끝난 대화만 가능
     @DeleteMapping("/{recordingId}")
