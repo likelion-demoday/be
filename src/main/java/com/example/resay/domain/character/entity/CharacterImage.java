@@ -120,7 +120,9 @@ public class CharacterImage extends BaseEntity {
     }
 
     public void fail(String failureCode) {
-        requireStatus(CharacterImageStatus.GENERATING);
+        if (status != CharacterImageStatus.PENDING && status != CharacterImageStatus.GENERATING) {
+            throw new IllegalStateException("진행 중인 작업만 실패로 변경할 수 있습니다.");
+        }
         requireText(failureCode, "failureCode");
         requireMaxLength(failureCode, "failureCode", FAILURE_CODE_MAX_LENGTH);
         this.failureCode = failureCode;

@@ -87,7 +87,8 @@ credit:
     character: 500
   # 캐릭터 생성을 요청한 뒤 이 시간 동안 이미지 진행이 없으면(서버 재시작 등으로 멈춘 경우) 정리 작업이 환급한다.
   # 진행은 이미지 상태가 바뀐 시각으로 본다. 생성 작업은 한 번에 한 건씩 처리되므로, 대기열이 길면 정상 건도 이 시간을 넘길 수 있다
-  character-stall-timeout: 15m
+  # 이미지 2장 생성(각 180초)과 단일 작업 스레드의 최대 큐 대기(20건)를 합친 약 126분보다 길게 둔다.
+  character-stall-timeout: ${CHARACTER_STALL_TIMEOUT:150m}
 
 # 크레딧 충전 (카드 결제). 1원 = 1크레딧
 payment:
@@ -184,6 +185,8 @@ openai:
 character:
   image:
     generation-enabled: ${CHARACTER_IMAGE_GENERATION_ENABLED:true}
+    # 환급 정리와 30초 어긋나게 실행해 같은 시각의 DB 부하를 피한다
+    stall-reconcile-cron: ${CHARACTER_IMAGE_STALL_RECONCILE_CRON:30 */10 * * * *}
 
 analysis:
   failure-reconcile:
