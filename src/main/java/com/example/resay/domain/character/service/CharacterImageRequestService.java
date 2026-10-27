@@ -36,12 +36,15 @@ public class CharacterImageRequestService {
 
     @Transactional
     public CharacterImageRequestResponseDto request(Long userId, Long recordingId) {
+        // MySQL REPEATABLE READ에서 일반 조회가 먼저 실행되면 그 시점의 스냅샷이 고정된다.
+        // 분석 행 잠금을 첫 조회로 잡아, 잠금을 기다린 요청이 앞 요청에서 만든 이미지 행을 보게 한다.
+        var lockedAnalysis = conversationAnalysisRepository.findByRecordingIdForUpdate(recordingId);
+
         var recording = recordingRepository.findByIdAndUserId(recordingId, userId)
                 .filter(found -> !found.isDeleted())
                 .orElseThrow(() -> new GeneralException(RecordingErrorCode.RECORDING_NOT_FOUND));
 
-        ConversationAnalysis analysis = conversationAnalysisRepository
-                .findByRecordingIdForUpdate(recording.getId())
+        ConversationAnalysis analysis = lockedAnalysis
                 .orElseThrow(() -> new GeneralException(AnalysisErrorCode.ANALYSIS_NOT_FOUND));
         if (analysis.getStatus() != AnalysisStatus.COMPLETED) {
             throw new GeneralException(CharacterImageErrorCode.INVALID_ANALYSIS_STATUS);

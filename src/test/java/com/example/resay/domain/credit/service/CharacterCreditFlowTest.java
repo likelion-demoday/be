@@ -401,6 +401,7 @@ class CharacterCreditFlowTest {
         List<Future<CharacterImageRequestResponseDto>> futures = new ArrayList<>();
         List<Throwable> failures = new ArrayList<>();
         int accepted = 0;
+        int alreadyRequested = 0;
         try {
             for (int i = 0; i < threads; i++) {
                 futures.add(executor.submit(() -> {
@@ -413,6 +414,8 @@ class CharacterCreditFlowTest {
                 try {
                     if (!future.get(30, TimeUnit.SECONDS).alreadyRequested()) {
                         accepted++;
+                    } else {
+                        alreadyRequested++;
                     }
                 } catch (java.util.concurrent.ExecutionException exception) {
                     failures.add(exception.getCause());
@@ -423,11 +426,12 @@ class CharacterCreditFlowTest {
             executor.awaitTermination(30, TimeUnit.SECONDS);
         }
 
-        // MySQL에서는 늦게 처리된 요청이 이미지 작업 유니크 제약에 걸려 실패한다 (먼저 한 조회가 옛 시점을 보기 때문.
-        // 요청 서비스의 조회 순서 문제로 C 파트에 전달함). 그 경우에도 트랜잭션 전체가 되돌아가 차감은 한 번뿐이어야 한다
-        assertThat(failures).allSatisfy(failure ->
-                assertThat(failure).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class));
+        assertThat(failures).isEmpty();
         assertThat(accepted).isEqualTo(1);
+        assertThat(alreadyRequested).isEqualTo(threads - 1);
+        assertThat(imageStatuses(recordingId))
+                .containsOnly(CharacterImageStatus.PENDING)
+                .hasSize(2);
         assertThat(usagesOf(recordingId)).hasSize(1);
         assertThat(balanceOf(userId)).isEqualTo(4500);
         assertLedgerMatchesBalance(userId);

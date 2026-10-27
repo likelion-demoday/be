@@ -1,5 +1,6 @@
 package com.example.resay.domain.character.service;
 
+import com.example.resay.domain.analysis.code.AnalysisErrorCode;
 import com.example.resay.domain.analysis.entity.AnalysisResult;
 import com.example.resay.domain.analysis.entity.ConversationAnalysis;
 import com.example.resay.domain.analysis.model.AnalysisReport;
@@ -17,12 +18,14 @@ import com.example.resay.domain.recording.code.RecordingErrorCode;
 import com.example.resay.domain.recording.entity.Recording;
 import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.global.exception.GeneralException;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -34,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static com.example.resay.domain.analysis.support.AnalysisTestSpeakers.speakersFor;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
@@ -88,6 +92,9 @@ class CharacterImageRequestServiceTest {
 
         assertThat(response.recordingId()).isEqualTo(1L);
         assertThat(response.alreadyRequested()).isFalse();
+        InOrder queryOrder = inOrder(conversationAnalysisRepository, recordingRepository);
+        queryOrder.verify(conversationAnalysisRepository).findByRecordingIdForUpdate(1L);
+        queryOrder.verify(recordingRepository).findByIdAndUserId(1L, 1L);
         ArgumentCaptor<CharacterImageRequestedEvent> eventCaptor =
                 ArgumentCaptor.forClass(CharacterImageRequestedEvent.class);
         then(eventPublisher).should().publishEvent(eventCaptor.capture());
@@ -134,6 +141,36 @@ class CharacterImageRequestServiceTest {
                 .isInstanceOf(GeneralException.class)
                 .extracting(exception -> ((GeneralException) exception).getErrorCode())
                 .isEqualTo(RecordingErrorCode.RECORDING_NOT_FOUND);
+        then(conversationAnalysisRepository).should().findByRecordingIdForUpdate(1L);
+        then(creditService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void hidesDeletedRecordingAsNotFoundAfterLockingAnalysis() {
+        Recording recording = recording();
+        ReflectionTestUtils.setField(recording, "deletedAt", LocalDateTime.now());
+        given(recordingRepository.findByIdAndUserId(1L, 1L))
+                .willReturn(Optional.of(recording));
+
+        assertThatThrownBy(() -> service.request(1L, 1L))
+                .isInstanceOf(GeneralException.class)
+                .extracting(exception -> ((GeneralException) exception).getErrorCode())
+                .isEqualTo(RecordingErrorCode.RECORDING_NOT_FOUND);
+        then(conversationAnalysisRepository).should().findByRecordingIdForUpdate(1L);
+        then(creditService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void rejectsMissingAnalysisAfterCheckingRecordingOwnership() {
+        given(conversationAnalysisRepository.findByRecordingIdForUpdate(1L))
+                .willReturn(Optional.empty());
+        given(recordingRepository.findByIdAndUserId(1L, 1L))
+                .willReturn(Optional.of(recording()));
+
+        assertThatThrownBy(() -> service.request(1L, 1L))
+                .isInstanceOf(GeneralException.class)
+                .extracting(exception -> ((GeneralException) exception).getErrorCode())
+                .isEqualTo(AnalysisErrorCode.ANALYSIS_NOT_FOUND);
         then(creditService).shouldHaveNoInteractions();
     }
 
