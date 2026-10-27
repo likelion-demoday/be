@@ -15,6 +15,12 @@ public enum RecordingFailureReason {
     SPEAKER_SELECTION_EXPIRED,
     // 두 명은 검출됐지만 분석하기에 발화가 부족함 (분석 쪽에서 판단)
     INSUFFICIENT_SPEAKER_DATA,
-    // 분석 처리 중 오류
+    // 분석 제공자의 일시적인 장애, 네트워크 오류 또는 요청 제한
+    EXTERNAL_SERVICE_UNAVAILABLE,
+    // 분석 응답이 완료되지 않았거나 서비스 규칙을 충족하지 못함
+    INVALID_ANALYSIS_RESPONSE,
+    // 분석 처리 중 내부 오류
+    PROCESSING_ERROR,
+    // 상세 분석 실패 사유를 저장하기 전에 생성된 레거시 데이터
     ANALYSIS_FAILED
 }

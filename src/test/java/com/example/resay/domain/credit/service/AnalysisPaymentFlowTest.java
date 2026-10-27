@@ -255,7 +255,7 @@ class AnalysisPaymentFlowTest {
 
         Recording recording = recordingRepository.findById(recordingId).orElseThrow();
         assertThat(recording.getStatus()).isEqualTo(RecordingStatus.FAILED);
-        assertThat(recording.getFailureReason()).isEqualTo(RecordingFailureReason.ANALYSIS_FAILED);
+        assertThat(recording.getFailureReason()).isEqualTo(RecordingFailureReason.PROCESSING_ERROR);
         assertThat(balanceOf(userId)).isEqualTo(2000);
         assertThat(usageRepository.findAll().get(0).getStatus()).isEqualTo(UsageStatus.REFUNDED);
         assertThat(analysisFailureReconciler.reconcileFailedAnalyses()).isZero();
