@@ -30,4 +30,32 @@ public interface CreditUsageRepository extends JpaRepository<CreditUsage, Long> 
             @Param("purpose") UsagePurpose purpose,
             @Param("cutoff") LocalDateTime cutoff
     );
+
+    /**
+     * 차감된 채 남아 있는데 캐릭터 이미지가 다 만들어지지 않았고, cutoff 이후로 진행도 없는 캐릭터 사용 건.
+     * 서버 재시작으로 생성이 멈춘 건(이미지가 PENDING · GENERATING에 남음)과 실패했는데 환급 호출이 실패한 건이다.
+     *
+     * 진행은 실패하지 않은 이미지의 상태가 바뀐 시각(updatedAt)으로 본다. 생성 중이면 이미지마다 시작 · 완료 때 갱신되고,
+     * 실패한 이미지를 다시 요청하면 PENDING으로 돌아가면서 갱신된다.
+     * 이미지가 하나도 없으면(분석 삭제 등) 결과를 받았는지 알 수 없으므로 대상이 아니다.
+     */
+    @Query("""
+            select u from CreditUsage u
+            where u.purpose = com.example.resay.domain.credit.entity.UsagePurpose.CHARACTER
+              and u.status = com.example.resay.domain.credit.entity.UsageStatus.USED
+              and u.createdAt < :cutoff
+              and exists (
+                    select unfinished.id from CharacterImage unfinished, ConversationAnalysis analysis
+                    where analysis.recordingId = u.recordingId
+                      and unfinished.analysisId = analysis.id
+                      and unfinished.status <> com.example.resay.domain.character.entity.CharacterImageStatus.COMPLETED)
+              and not exists (
+                    select recent.id from CharacterImage recent, ConversationAnalysis recentAnalysis
+                    where recentAnalysis.recordingId = u.recordingId
+                      and recent.analysisId = recentAnalysis.id
+                      and recent.status <> com.example.resay.domain.character.entity.CharacterImageStatus.FAILED
+                      and recent.updatedAt >= :cutoff)
+            order by u.id
+            """)
+    List<CreditUsage> findStalledCharacterUsages(@Param("cutoff") LocalDateTime cutoff);
 }
