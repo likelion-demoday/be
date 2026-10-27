@@ -21,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 public class ClovaSpeechClient implements SpeechRecognitionClient {
@@ -30,8 +31,8 @@ public class ClovaSpeechClient implements SpeechRecognitionClient {
     private static final String LANGUAGE = "ko-KR";
     // 관계유형이 모두 1:1 대화라 화자를 2명으로 고정해 잘못 나뉘는 것을 줄인다
     private static final int SPEAKER_COUNT = 2;
-    // 전사 결과 상태값 (그 외 FAILED 등은 실패로 본다)
-    private static final String COMPLETED = "COMPLETED";
+    // 전사 성공 상태값. 동기 응답은 COMPLETED, 비동기 callback은 SUCCEEDED로 온다 (그 외 FAILED 등은 실패로 본다)
+    private static final Set<String> SUCCESS_RESULTS = Set.of("COMPLETED", "SUCCEEDED");
 
     private final ClovaSpeechProperties properties;
     private final RestClient restClient;
@@ -127,7 +128,7 @@ public class ClovaSpeechClient implements SpeechRecognitionClient {
                         segment.end(),
                         segment.text()))
                 .toList();
-        boolean completed = COMPLETED.equals(response.result());
+        boolean completed = SUCCESS_RESULTS.contains(response.result());
         String failureMessage = completed ? null : response.result() + ": " + response.message();
         return new RecognitionResult(completed, response.token(), failureMessage, segments);
     }
