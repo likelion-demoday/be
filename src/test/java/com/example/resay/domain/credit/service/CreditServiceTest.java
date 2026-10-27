@@ -329,6 +329,36 @@ class CreditServiceTest {
     }
 
     @Test
+    void refundUsageRefundsOnlyThatUsageOnce() {
+        Long userId = userWithCredits(500);
+        creditService.useForCharacter(userId, 1L);
+        Long usageId = creditService.useForCharacter(userId, 2L).usageId();
+
+        assertThat(creditService.refundUsage(userId, usageId, "RECONCILED")).isTrue();
+        assertThat(creditService.refundUsage(userId, usageId, "RECONCILED")).isFalse();
+
+        assertThat(balanceOf(userId)).isEqualTo(500);
+        assertThat(usageRepository.findByActiveKey(CreditUsage.activeKey(UsagePurpose.CHARACTER, 1L))).isPresent();
+        assertLedgerMatchesBalance(userId);
+    }
+
+    // 잠근 지갑과 다른 사용자의 건을 환급하면 잔액과 장부가 어긋난다
+    @Test
+    void refundUsageRejectsUsageOfAnotherUserWithoutChangingAnything() {
+        Long owner = userWithCredits(500);
+        Long other = newUser();
+        creditService.useForCharacter(owner, 1L);
+        Long usageId = creditService.useForCharacter(owner, 2L).usageId();
+
+        assertThatThrownBy(() -> creditService.refundUsage(other, usageId, "RECONCILED"))
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(balanceOf(owner)).isZero();
+        assertThat(usageRepository.findByActiveKey(CreditUsage.activeKey(UsagePurpose.CHARACTER, 2L))).isPresent();
+        assertLedgerMatchesBalance(owner);
+    }
+
+    @Test
     void sameCharacterRequestTwiceIsNotChargedOrCountedTwice() {
         Long userId = userWithCredits(1000);
         creditService.useForCharacter(userId, 1L);

@@ -51,6 +51,7 @@ credit:
     analysis-daily: 1500
     analysis-conflict: 2000
     character: 500
+  character-stall-timeout: 15m
 
 payment:
   products:

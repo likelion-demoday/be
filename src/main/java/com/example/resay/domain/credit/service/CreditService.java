@@ -82,11 +82,31 @@ public class CreditService {
         if (found.isEmpty()) {
             return false;
         }
+        return refundLocked(found.get().userId(), found.get().id(), reason);
+    }
 
+    /**
+     * 정해 둔 사용 건 하나만 환급한다. 그 건이 이미 환급됐으면 아무 일도 하지 않는다.
+     * 녹음 기준으로 찾는 refund와 달리, 그사이 같은 녹음에 새 사용 건이 생겼더라도 그 건은 건드리지 않는다
+     * (정리 작업이 "멈췄다"고 판단한 건이 이미 환급되고 사용자가 다시 요청한 경우).
+     *
+     * @return 이번 호출로 환급했으면 true
+     */
+    @Transactional
+    public boolean refundUsage(Long userId, Long usageId, String reason) {
+        return refundLocked(userId, usageId, reason);
+    }
+
+    // 있는 것이 확실한 사용 건으로만 호출한다 (없는 행을 잠그면 빈 구간이 잠긴다. CreditJdbcRepository 설명 참고)
+    private boolean refundLocked(Long userId, Long usageId, String reason) {
         LocalDateTime now = LocalDateTime.now();
-        WalletRow wallet = creditJdbcRepository.lockWallet(found.get().userId(), now);
-        UsageRow usage = creditJdbcRepository.lockUsage(found.get().id())
+        WalletRow wallet = creditJdbcRepository.lockWallet(userId, now);
+        UsageRow usage = creditJdbcRepository.lockUsage(usageId)
                 .orElseThrow(() -> new IllegalStateException("사용 건을 찾을 수 없습니다."));
+        if (!usage.userId().equals(userId)) {
+            // 잠근 지갑과 다른 사용자의 건을 바꾸면 잔액과 장부가 어긋난다
+            throw new IllegalStateException("사용 건의 사용자가 다릅니다.");
+        }
         // 지갑을 기다리는 사이 다른 요청이 먼저 환급했을 수 있다
         if (!usage.isUsed() || !creditJdbcRepository.markRefunded(usage.id(), truncate(reason), now)) {
             return false;
