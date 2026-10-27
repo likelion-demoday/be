@@ -12,8 +12,8 @@ import org.springframework.validation.annotation.Validated;
  * 가격은 원가에 따라 바뀔 수 있어 코드가 아니라 설정(application.yml)에 둔다.
  *
  * @param characterStallTimeout 캐릭터 생성을 요청한 뒤 이 시간 동안 이미지 진행이 없으면 멈춘 것으로 보고 환급한다
- *                              (CreditRefundReconciler). 정상 생성 중인 건을 환급하지 않도록 이미지 한 장의 최대 생성 시간과
- *                              작업 대기열에서 기다리는 시간보다 길어야 한다
+ *                              (CreditRefundReconciler, CharacterImageStallReconciler). 정상 생성 중인 건을 실패·환급하지
+ *                              않도록 한 요청의 최대 생성 시간과 작업 대기열에서 기다리는 시간을 합친 값보다 길어야 한다
  */
 @Validated
 @ConfigurationProperties(prefix = "credit")

@@ -36,6 +36,26 @@ class CharacterImageTest {
     }
 
     @Test
+    void recordsFailureBeforeGenerationStarts() {
+        CharacterImage image = CharacterImage.prepare(1L, SpeakerRole.SELF);
+
+        image.fail("TIMED_OUT");
+
+        assertThat(image.getStatus()).isEqualTo(CharacterImageStatus.FAILED);
+        assertThat(image.getFailureCode()).isEqualTo("TIMED_OUT");
+    }
+
+    @Test
+    void rejectsFailureAfterCompletion() {
+        CharacterImage image = CharacterImage.prepare(1L, SpeakerRole.SELF);
+        image.start();
+        image.complete("1/self.png", "image/png", "gpt-image", "v1");
+
+        assertThatThrownBy(() -> image.fail("TIMED_OUT"))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
     void rejectsCompletionBeforeGenerationStarts() {
         CharacterImage image = CharacterImage.prepare(1L, SpeakerRole.SELF);
 

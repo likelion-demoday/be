@@ -26,8 +26,8 @@ class CreditPropertiesTest {
         CreditProperties properties = bind("src/main/resources/application.yml");
 
         assertThat(properties.price()).isEqualTo(PRICE);
-        // 정상 생성 중인 건을 환급하지 않도록 이미지 한 장의 최대 대기(OpenAI 응답 180초)보다 충분히 길어야 한다
-        assertThat(properties.characterStallTimeout()).isEqualTo(Duration.ofMinutes(15));
+        // 이미지 두 장 생성과 현재 작업 큐의 최대 대기시간을 합친 약 126분보다 길어야 한다
+        assertThat(properties.characterStallTimeout()).isEqualTo(Duration.ofMinutes(150));
         assertThat(VALIDATOR.validate(properties)).isEmpty();
     }
 

@@ -6,7 +6,9 @@ import com.example.resay.domain.character.entity.CharacterImageStatus;
 import com.example.resay.domain.character.event.CharacterImagesDeletedEvent;
 import com.example.resay.domain.character.model.GeneratedCharacterImage;
 import com.example.resay.domain.character.repository.CharacterImageRepository;
+import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -17,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class CharacterImageService {
+
+    public static final String TIMED_OUT_FAILURE_CODE = "TIMED_OUT";
 
     private final CharacterImageRepository characterImageRepository;
     private final ApplicationEventPublisher eventPublisher;
@@ -69,6 +73,16 @@ public class CharacterImageService {
     @Transactional
     public void fail(Long analysisId, SpeakerRole speakerRole, String failureCode) {
         find(analysisId, speakerRole).fail(failureCode);
+    }
+
+    @Transactional
+    public int failStalled(LocalDateTime cutoff) {
+        List<CharacterImage> stalled = characterImageRepository.findStalledForUpdate(
+                EnumSet.of(CharacterImageStatus.PENDING, CharacterImageStatus.GENERATING),
+                cutoff
+        );
+        stalled.forEach(image -> image.fail(TIMED_OUT_FAILURE_CODE));
+        return stalled.size();
     }
 
     @Transactional
