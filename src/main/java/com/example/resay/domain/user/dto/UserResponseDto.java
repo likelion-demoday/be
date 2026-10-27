@@ -10,16 +10,25 @@ public record UserResponseDto(
         String email,
         String nickname,
         Provider provider,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        // 가입한 날이 1일째 (한국 시간 날짜 기준)
+        long joinedDays,
+        // 분석이 끝난 대화 중 사용자가 지우지 않은 것
+        long analysisCount,
+        // analysisCount에 센 녹음들의 길이 합 (초)
+        long totalRecordingSeconds
 ) {
 
-    public static UserResponseDto from(User user) {
+    public static UserResponseDto from(User user, long joinedDays, long analysisCount, long totalRecordingSeconds) {
         return new UserResponseDto(
                 user.getId(),
                 user.getEmail(),
                 user.getNickname(),
                 user.getProvider(),
-                user.getCreatedAt()
+                user.getCreatedAt(),
+                joinedDays,
+                analysisCount,
+                totalRecordingSeconds
         );
     }
 }
