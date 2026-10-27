@@ -1,15 +1,23 @@
 package com.example.resay.domain.user.controller;
 
+import com.example.resay.domain.recording.entity.Recording;
+import com.example.resay.domain.recording.entity.RecordingStatus;
+import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.domain.user.entity.Provider;
 import com.example.resay.domain.user.entity.User;
 import com.example.resay.domain.user.repository.UserRepository;
 import com.example.resay.global.security.JwtTokenProvider;
+import jakarta.persistence.EntityManager;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +46,15 @@ class UserControllerTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Autowired
+    private RecordingRepository recordingRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private EntityManager entityManager;
+
     private User user;
     private String accessToken;
 
@@ -58,6 +75,9 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.result.nickname").value("닉네임"))
                 .andExpect(jsonPath("$.result.provider").value("LOCAL"))
                 .andExpect(jsonPath("$.result.createdAt", notNullValue()))
+                .andExpect(jsonPath("$.result.joinedDays").value(1))
+                .andExpect(jsonPath("$.result.analysisCount").value(0))
+                .andExpect(jsonPath("$.result.totalRecordingSeconds").value(0))
                 // 비밀번호 같은 내부 정보는 내려가지 않는다
                 .andExpect(jsonPath("$.result.password").doesNotExist());
     }
@@ -73,6 +93,36 @@ class UserControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.email", nullValue()))
                 .andExpect(jsonPath("$.result.provider").value("KAKAO"));
+    }
+
+    @Test
+    void countsOnlyCompletedRecordingsUserKept() throws Exception {
+        saveRecording(user.getId(), 600, RecordingStatus.COMPLETED, false);
+        saveRecording(user.getId(), 300, RecordingStatus.COMPLETED, false);
+        saveRecording(user.getId(), 1_000, RecordingStatus.COMPLETED, true); // 사용자가 지움
+        saveRecording(user.getId(), 200, RecordingStatus.FAILED, false);
+        saveRecording(user.getId(), 100, RecordingStatus.ANALYZING, false);
+        saveRecording(user.getId() + 1, 999, RecordingStatus.COMPLETED, false); // 다른 사용자
+
+        mockMvc.perform(get(ME_URL).header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.analysisCount").value(2))
+                .andExpect(jsonPath("$.result.totalRecordingSeconds").value(900));
+    }
+
+    @Test
+    void countsJoinedDaysByCalendarDate() throws Exception {
+        // 24시간이 아니라 날짜로 센다: 이틀 전 23:59에 가입했으면 오늘이 3일째
+        jdbcTemplate.update("update users set created_at = ? where id = ?",
+                LocalDate.now().minusDays(2).atTime(23, 59), user.getId());
+        entityManager.clear();
+
+        mockMvc.perform(get(ME_URL).header("Authorization", "Bearer " + accessToken))
+                .andExpect(jsonPath("$.result.joinedDays").value(3));
+        // 닉네임을 수정한 응답도 같은 값을 준다
+        updateNickname("새닉네임")
+                .andExpect(jsonPath("$.result.joinedDays").value(3))
+                .andExpect(jsonPath("$.result.analysisCount").value(0));
     }
 
     @Test
@@ -130,6 +180,15 @@ class UserControllerTest {
         mockMvc.perform(get(ME_URL).header("Authorization", "Bearer " + tokenOfDeletedUser))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("USER404_1"));
+    }
+
+    private void saveRecording(Long userId, int durationSeconds, RecordingStatus status, boolean deleted) {
+        Recording recording = Recording.create(userId, "recordings/test.m4a", durationSeconds);
+        ReflectionTestUtils.setField(recording, "status", status);
+        if (deleted) {
+            ReflectionTestUtils.setField(recording, "deletedAt", LocalDateTime.now());
+        }
+        recordingRepository.saveAndFlush(recording);
     }
 
     private ResultActions updateNickname(String nickname) throws Exception {
