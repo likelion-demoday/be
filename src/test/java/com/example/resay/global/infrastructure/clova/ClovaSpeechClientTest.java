@@ -87,7 +87,20 @@ class ClovaSpeechClientTest {
     }
 
     @Test
-    void parseResult_COMPLETED가_아니면_실패_결과() {
+    void parseResult_비동기_callback의_SUCCEEDED도_성공으로_본다() {
+        RecognitionResult result = clovaSpeechClient.parseResult("""
+                {"result":"SUCCEEDED","message":"Succeeded","token":"job-token",
+                 "segments":[{"start":350,"end":2420,"text":"안녕","confidence":0.99,"speaker":{"label":"1","name":"A"}}],
+                 "speakers":[{"label":"1","name":"A"}]}
+                """);
+
+        assertThat(result.completed()).isTrue();
+        assertThat(result.failureMessage()).isNull();
+        assertThat(result.segments()).containsExactly(new RecognizedSegment("1", 350, 2420, "안녕"));
+    }
+
+    @Test
+    void parseResult_성공_상태가_아니면_실패_결과() {
         RecognitionResult result = clovaSpeechClient.parseResult("""
                 {"result":"FAILED","message":"Failed","token":"job-token","segments":[]}
                 """);
