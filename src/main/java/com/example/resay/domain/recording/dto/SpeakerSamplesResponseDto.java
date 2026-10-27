@@ -3,7 +3,7 @@ package com.example.resay.domain.recording.dto;
 import java.util.List;
 
 public record SpeakerSamplesResponseDto(
-        // <audio src>에 그대로 넣는 재생 주소 (10분 후 만료되면 다시 조회)
+        // <audio src>에 그대로 넣는 재생 주소 (1시간 후 만료되면 다시 조회)
         String audioUrl,
         List<SpeakerSample> speakers
 ) {

@@ -17,7 +17,8 @@ import java.util.Base64;
 @Component
 public class AudioUrlSigner {
 
-    static final Duration VALIDITY = Duration.ofMinutes(10);
+    // 30분 녹음을 멈췄다 다시 들어도 끊기지 않을 만큼
+    static final Duration VALIDITY = Duration.ofHours(1);
     private static final String ALGORITHM = "HmacSHA256";
     private static final String PURPOSE = "recording-audio";
 

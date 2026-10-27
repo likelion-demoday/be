@@ -1,6 +1,7 @@
 package com.example.resay.domain.recording.controller;
 
 import com.example.resay.domain.recording.code.RecordingSuccessCode;
+import com.example.resay.domain.recording.dto.RecordingDetailResponseDto;
 import com.example.resay.domain.recording.dto.RecordingListResponseDto;
 import com.example.resay.domain.recording.dto.RecordingTypeSelectRequestDto;
 import com.example.resay.domain.recording.dto.RecordingStatusResponseDto;
@@ -55,6 +56,17 @@ public class RecordingController {
                         recordingQueryService.getList(userId, page, size)));
     }
 
+    // 대화 보관함 상세 (다시 듣기): 대화 정보와 재생 주소(1시간 후 만료)를 준다
+    @GetMapping("/{recordingId}")
+    public ResponseEntity<ApiResponse<RecordingDetailResponseDto>> getDetail(
+            @CurrentUserId Long userId,
+            @PathVariable Long recordingId
+    ) {
+        return ResponseEntity.status(RecordingSuccessCode.GET_DETAIL.getHttpStatus())
+                .body(ApiResponse.onSuccess(RecordingSuccessCode.GET_DETAIL,
+                        recordingQueryService.getDetail(recordingId, userId, signedAudioUrl(recordingId))));
+    }
+
     // 대화 삭제: 음성·전사 원문을 지우고 녹음은 숨긴다 (보고서는 남음). 분석이 끝난 대화만 가능
     @DeleteMapping("/{recordingId}")
     public ResponseEntity<ApiResponse<Void>> delete(
@@ -66,20 +78,14 @@ public class RecordingController {
                 .body(ApiResponse.onSuccess(RecordingSuccessCode.DELETE));
     }
 
-    // 화자 선택 화면: 화자별로 들려줄 구간과 재생 주소(10분 후 만료)를 준다
+    // 화자 선택 화면: 화자별로 들려줄 구간과 재생 주소(1시간 후 만료)를 준다
     @GetMapping("/{recordingId}/speaker-samples")
     public ResponseEntity<ApiResponse<SpeakerSamplesResponseDto>> getSpeakerSamples(
             @CurrentUserId Long userId,
             @PathVariable Long recordingId
     ) {
         var speakers = speakerSampleService.getSamples(recordingId, userId);
-        AudioUrlSigner.SignedAudioUrl signed = audioUrlSigner.sign(recordingId);
-        String audioUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
-                .path("/api/v1/recordings/{recordingId}/audio")
-                .queryParam("expires", signed.expires())
-                .queryParam("signature", signed.signature())
-                .buildAndExpand(recordingId)
-                .toUriString();
+        String audioUrl = signedAudioUrl(recordingId);
         return ResponseEntity.status(RecordingSuccessCode.GET_SPEAKER_SAMPLES.getHttpStatus())
                 .body(ApiResponse.onSuccess(RecordingSuccessCode.GET_SPEAKER_SAMPLES,
                         new SpeakerSamplesResponseDto(audioUrl, speakers)));
@@ -95,7 +101,7 @@ public class RecordingController {
         RecordingAudioService.AudioFile audio = recordingAudioService.getAudio(recordingId, expires, signature);
         return ResponseEntity.ok()
                 .contentType(audio.mediaType())
-                .header(HttpHeaders.CACHE_CONTROL, "private, max-age=600")
+                .header(HttpHeaders.CACHE_CONTROL, "private, max-age=3600")
                 .body(audio.resource());
     }
 
@@ -141,5 +147,15 @@ public class RecordingController {
         speakerMappingService.map(recordingId, userId, request);
         return ResponseEntity.status(RecordingSuccessCode.MAP_SPEAKERS.getHttpStatus())
                 .body(ApiResponse.onSuccess(RecordingSuccessCode.MAP_SPEAKERS));
+    }
+
+    private String signedAudioUrl(Long recordingId) {
+        AudioUrlSigner.SignedAudioUrl signed = audioUrlSigner.sign(recordingId);
+        return ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/api/v1/recordings/{recordingId}/audio")
+                .queryParam("expires", signed.expires())
+                .queryParam("signature", signed.signature())
+                .buildAndExpand(recordingId)
+                .toUriString();
     }
 }

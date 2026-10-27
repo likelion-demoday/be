@@ -15,7 +15,8 @@ public enum RecordingSuccessCode implements BaseSuccessCode {
     GET_STATUS(HttpStatus.OK, "RECORDING200_3", "녹음 상태를 조회했습니다."),
     GET_SPEAKER_SAMPLES(HttpStatus.OK, "RECORDING200_4", "화자 샘플을 조회했습니다."),
     DELETE(HttpStatus.OK, "RECORDING200_5", "대화를 삭제했습니다."),
-    GET_LIST(HttpStatus.OK, "RECORDING200_6", "대화 목록을 조회했습니다.");
+    GET_LIST(HttpStatus.OK, "RECORDING200_6", "대화 목록을 조회했습니다."),
+    GET_DETAIL(HttpStatus.OK, "RECORDING200_7", "대화를 조회했습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

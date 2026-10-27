@@ -16,17 +16,17 @@ class AudioUrlSignerTest {
     private final AudioUrlSigner signer = new AudioUrlSigner(SECRET, Clock.fixed(NOW, ZoneOffset.UTC));
 
     @Test
-    void 서명한_주소는_10분_동안_유효하다() {
+    void 서명한_주소는_1시간_동안_유효하다() {
         AudioUrlSigner.SignedAudioUrl signed = signer.sign(1L);
 
-        assertThat(signed.expires()).isEqualTo(NOW.plusSeconds(600).getEpochSecond());
+        assertThat(signed.expires()).isEqualTo(NOW.plusSeconds(3600).getEpochSecond());
         assertThat(signer.verify(1L, signed.expires(), signed.signature())).isTrue();
     }
 
     @Test
     void 만료되면_거부한다() {
         AudioUrlSigner.SignedAudioUrl signed = signer.sign(1L);
-        AudioUrlSigner later = new AudioUrlSigner(SECRET, Clock.fixed(NOW.plusSeconds(601), ZoneOffset.UTC));
+        AudioUrlSigner later = new AudioUrlSigner(SECRET, Clock.fixed(NOW.plusSeconds(3601), ZoneOffset.UTC));
 
         assertThat(later.verify(1L, signed.expires(), signed.signature())).isFalse();
     }
