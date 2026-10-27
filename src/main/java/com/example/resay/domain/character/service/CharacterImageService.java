@@ -76,6 +76,16 @@ public class CharacterImageService {
     }
 
     @Transactional
+    public int failInProgress(Long analysisId, String failureCode) {
+        List<CharacterImage> inProgress = characterImageRepository.findInProgressByAnalysisIdForUpdate(
+                analysisId,
+                EnumSet.of(CharacterImageStatus.PENDING, CharacterImageStatus.GENERATING)
+        );
+        inProgress.forEach(image -> image.fail(failureCode));
+        return inProgress.size();
+    }
+
+    @Transactional
     public int failStalled(LocalDateTime cutoff) {
         List<CharacterImage> stalled = characterImageRepository.findStalledForUpdate(
                 EnumSet.of(CharacterImageStatus.PENDING, CharacterImageStatus.GENERATING),

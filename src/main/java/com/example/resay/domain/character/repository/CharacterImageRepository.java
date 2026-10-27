@@ -30,4 +30,16 @@ public interface CharacterImageRepository extends JpaRepository<CharacterImage, 
             @Param("statuses") Collection<CharacterImageStatus> statuses,
             @Param("cutoff") LocalDateTime cutoff
     );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select image from CharacterImage image
+            where image.analysisId = :analysisId
+              and image.status in :statuses
+            order by image.id
+            """)
+    List<CharacterImage> findInProgressByAnalysisIdForUpdate(
+            @Param("analysisId") Long analysisId,
+            @Param("statuses") Collection<CharacterImageStatus> statuses
+    );
 }
