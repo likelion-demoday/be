@@ -124,6 +124,6 @@ class EmailCheckTest {
     private ResultActions signup(String email) throws Exception {
         return mockMvc.perform(post(SIGNUP_URL)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"%s\",\"password\":\"password123\",\"nickname\":\"tester\",\"agreements\":{\"terms\":true,\"privacy\":true,\"ageOver14\":true}}".formatted(email)));
+                .content("{\"email\":\"%s\",\"password\":\"password123\",\"nickname\":\"tester\",\"agreements\":{\"terms\":true,\"privacy\":true,\"voice\":true}}".formatted(email)));
     }
 }

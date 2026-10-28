@@ -158,7 +158,7 @@ class RefreshTokenFlowTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email": "%s", "password": "%s", "nickname": "닉네임",
-                                 "agreements": {"terms": true, "privacy": true, "ageOver14": true}}
+                                 "agreements": {"terms": true, "privacy": true, "voice": true}}
                                 """.formatted(EMAIL, PASSWORD)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();

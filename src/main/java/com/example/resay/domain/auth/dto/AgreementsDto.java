@@ -13,9 +13,9 @@ public record AgreementsDto(
         @AssertTrue(message = "개인정보 수집 · 이용에 동의해 주세요.")
         Boolean privacy,
 
-        @NotNull(message = "만 14세 이상인지 확인해 주세요.")
-        @AssertTrue(message = "만 14세 이상인지 확인해 주세요.")
-        Boolean ageOver14,
+        @NotNull(message = "음성정보 처리에 동의해 주세요.")
+        @AssertTrue(message = "음성정보 처리에 동의해 주세요.")
+        Boolean voice,
 
         // 선택. 보내지 않으면 동의하지 않은 것으로 본다
         Boolean marketing

@@ -74,7 +74,7 @@ class SecurityErrorResponseTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email": "user@example.com", "password": "password123", "nickname": "닉네임",
-                                 "agreements": {"terms": true, "privacy": true, "ageOver14": true}}
+                                 "agreements": {"terms": true, "privacy": true, "voice": true}}
                                 """))
                 .andExpect(status().isCreated());
 

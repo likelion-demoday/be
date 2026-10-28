@@ -58,7 +58,7 @@ public class User extends BaseEntity {
     @Column(nullable = false, columnDefinition = "varchar(20)")
     private Role role;
 
-    // 필수 약관(이용약관 · 개인정보 수집 · 이용 · 만 14세 이상)에 모두 동의한 시각. 동의 기록을 남기기 전에 가입한 계정은 null
+    // 필수 약관(서비스 이용약관 · 개인정보 수집 · 이용 · 음성정보 처리)에 모두 동의한 시각. 동의 기록을 남기기 전에 가입한 계정은 null
     @Column(name = "terms_agreed_at")
     private LocalDateTime termsAgreedAt;
 

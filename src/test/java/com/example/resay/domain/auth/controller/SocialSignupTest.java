@@ -42,7 +42,7 @@ class SocialSignupTest {
     private static final String KAKAO_ID = "1234567890";
     private static final String GOOGLE_SUB = "110248495921238986420";
     private static final String REQUIRED_AGREEMENTS = """
-            {"terms": true, "privacy": true, "ageOver14": true}""";
+            {"terms": true, "privacy": true, "voice": true}""";
 
     @Autowired
     private MockMvc mockMvc;
@@ -61,7 +61,7 @@ class SocialSignupTest {
         String registerToken = registerTokenFromKakao("Kakao@Example.com");
 
         String body = signup(registerToken, "  온보딩닉네임 ", """
-                {"terms": true, "privacy": true, "ageOver14": true, "marketing": true}""")
+                {"terms": true, "privacy": true, "voice": true, "marketing": true}""")
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.code").value("AUTH201_2"))
                 .andExpect(jsonPath("$.result.tokenType").value("Bearer"))
@@ -109,9 +109,9 @@ class SocialSignupTest {
         String registerToken = registerTokenFromKakao("kakao@example.com");
 
         signup(registerToken, "닉네임", """
-                {"terms": true, "privacy": true, "ageOver14": false}""")
+                {"terms": true, "privacy": true, "voice": false}""")
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error['agreements.ageOver14']", notNullValue()));
+                .andExpect(jsonPath("$.error['agreements.voice']", notNullValue()));
         signup(registerToken, "가".repeat(21), REQUIRED_AGREEMENTS)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.nickname", notNullValue()));

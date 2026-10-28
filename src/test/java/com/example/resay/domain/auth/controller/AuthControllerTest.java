@@ -89,7 +89,7 @@ class AuthControllerTest {
         signup("user@example.com", "password123", "닉네임").andExpect(status().isCreated());
         signupWith("""
                 {"email": "marketing@example.com", "password": "password123", "nickname": "닉네임",
-                 "agreements": {"terms": true, "privacy": true, "ageOver14": true, "marketing": true}}
+                 "agreements": {"terms": true, "privacy": true, "voice": true, "marketing": true}}
                 """).andExpect(status().isCreated());
 
         User withoutMarketing = userRepository.findByEmail("user@example.com").orElseThrow();
@@ -114,7 +114,7 @@ class AuthControllerTest {
                 """)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error['agreements.privacy']", notNullValue()))
-                .andExpect(jsonPath("$.error['agreements.ageOver14']", notNullValue()))
+                .andExpect(jsonPath("$.error['agreements.voice']", notNullValue()))
                 .andExpect(jsonPath("$.error['agreements.terms']").doesNotExist());
 
         assertThat(userRepository.findByEmail("user@example.com")).isEmpty();
@@ -161,7 +161,7 @@ class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"email": "%s", "password": "%s", "nickname": "%s",
-                         "agreements": {"terms": true, "privacy": true, "ageOver14": true}}
+                         "agreements": {"terms": true, "privacy": true, "voice": true}}
                         """.formatted(email, password, nickname)));
     }
 
