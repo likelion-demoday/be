@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
@@ -48,57 +49,39 @@ class GoogleLoginTest {
     private GoogleIdTokenVerifier googleIdTokenVerifier;
 
     @Test
-    void signsUpOnFirstLoginAndReusesAccountAfterwards() throws Exception {
+    void firstLoginGivesRegisterTokenWithoutCreatingAccount() throws Exception {
         givenGoogleUser(GOOGLE_SUB, "user@gmail.com", "홍길동");
 
         login()
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("AUTH200_4"))
-                .andExpect(jsonPath("$.result.accessToken", notNullValue()))
-                .andExpect(jsonPath("$.result.refreshToken", notNullValue()));
+                .andExpect(jsonPath("$.result.isNewUser").value(true))
+                .andExpect(jsonPath("$.result.registerToken", notNullValue()))
+                .andExpect(jsonPath("$.result.accessToken", nullValue()));
 
-        User user = userRepository.findByProviderAndProviderId(Provider.GOOGLE, GOOGLE_SUB).orElseThrow();
-        assertThat(user.getEmail()).isEqualTo("user@gmail.com");
-        assertThat(user.getNickname()).isEqualTo("홍길동");
-        assertThat(user.getPassword()).isNull();
-
-        login().andExpect(status().isOk());
-        assertThat(userRepository.count()).isEqualTo(1);
+        assertThat(userRepository.count()).isZero();
     }
 
     @Test
-    void signsUpWithoutVerifiedEmailOrName() throws Exception {
-        givenGoogleUser(GOOGLE_SUB, null, null);
-
-        login().andExpect(status().isOk());
-
-        User user = userRepository.findByProviderAndProviderId(Provider.GOOGLE, GOOGLE_SUB).orElseThrow();
-        assertThat(user.getEmail()).isNull();
-        assertThat(user.getNickname()).isEqualTo("사용자6420");
-    }
-
-    @Test
-    void doesNotTakeOverEmailAlreadyUsedByAnotherAccount() throws Exception {
-        userRepository.saveAndFlush(User.createLocal("user@gmail.com", "encoded-password", "기존회원"));
+    void existingUserGetsTokensAsBefore() throws Exception {
+        userRepository.saveAndFlush(User.createSocial(Provider.GOOGLE, GOOGLE_SUB, "user@gmail.com", "홍길동"));
         givenGoogleUser(GOOGLE_SUB, "user@gmail.com", "홍길동");
 
-        login().andExpect(status().isOk());
-
-        User googleUser = userRepository.findByProviderAndProviderId(Provider.GOOGLE, GOOGLE_SUB).orElseThrow();
-        assertThat(googleUser.getEmail()).isNull();
-        assertThat(userRepository.count()).isEqualTo(2);
+        login()
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.isNewUser").value(false))
+                .andExpect(jsonPath("$.result.accessToken", notNullValue()))
+                .andExpect(jsonPath("$.result.refreshToken", notNullValue()));
     }
 
     @Test
-    void keepsKakaoAndGoogleAccountsSeparateEvenWithSameProviderId() throws Exception {
+    void doesNotTreatKakaoAccountWithSameProviderIdAsGoogleAccount() throws Exception {
         userRepository.saveAndFlush(User.createSocial(Provider.KAKAO, GOOGLE_SUB, null, "카카오유저"));
         givenGoogleUser(GOOGLE_SUB, null, "구글유저");
 
-        login().andExpect(status().isOk());
-
-        assertThat(userRepository.findByProviderAndProviderId(Provider.KAKAO, GOOGLE_SUB)).isPresent();
-        assertThat(userRepository.findByProviderAndProviderId(Provider.GOOGLE, GOOGLE_SUB)).isPresent();
-        assertThat(userRepository.count()).isEqualTo(2);
+        login()
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.isNewUser").value(true));
     }
 
     @Test

@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 public enum AuthSuccessCode implements BaseSuccessCode {
 
     SIGNUP(HttpStatus.CREATED, "AUTH201_1", "회원가입이 완료되었습니다."),
+    SOCIAL_SIGNUP(HttpStatus.CREATED, "AUTH201_2", "소셜 회원가입이 완료되었습니다."),
     LOGIN(HttpStatus.OK, "AUTH200_1", "로그인되었습니다."),
     REISSUE(HttpStatus.OK, "AUTH200_2", "토큰이 재발급되었습니다."),
     LOGOUT(HttpStatus.OK, "AUTH200_3", "로그아웃되었습니다."),

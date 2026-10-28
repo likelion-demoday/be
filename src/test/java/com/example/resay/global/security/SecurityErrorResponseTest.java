@@ -73,7 +73,8 @@ class SecurityErrorResponseTest {
                         .header("Authorization", "Bearer " + expiredToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email": "user@example.com", "password": "password123", "nickname": "닉네임"}
+                                {"email": "user@example.com", "password": "password123", "nickname": "닉네임",
+                                 "agreements": {"terms": true, "privacy": true, "ageOver14": true}}
                                 """))
                 .andExpect(status().isCreated());
 

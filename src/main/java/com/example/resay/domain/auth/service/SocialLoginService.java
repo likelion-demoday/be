@@ -1,33 +1,38 @@
 package com.example.resay.domain.auth.service;
 
-import com.example.resay.domain.user.entity.Provider;
+import com.example.resay.domain.auth.service.SocialSignupTokenStore.PendingSocialSignup;
 import com.example.resay.domain.user.entity.User;
 import com.example.resay.domain.user.repository.UserRepository;
+import java.time.LocalDateTime;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 소셜 로그인 공통 흐름. 카카오·구글 등 제공자별 검증이 끝난 뒤의 처리를 담당한다.
+ * 소셜 가입 공통 흐름. 카카오·구글 등 제공자별 검증이 끝난 뒤, 사용자가 약관에 동의했을 때 계정을 만든다.
  */
 @Service
 @RequiredArgsConstructor
 public class SocialLoginService {
 
-    private static final int NICKNAME_MAX_LENGTH = 50;
-
     private final UserRepository userRepository;
 
+    // 같은 소셜 계정으로 받은 가입 토큰이 여러 개면(로그인을 두 번 함) 먼저 마친 쪽으로 가입되고,
+    // 나머지는 새로 만들지 않고 그 계정을 돌려준다 (닉네임 · 동의 기록은 처음 가입한 그대로)
     @Transactional
-    public User findOrCreate(Provider provider, String providerId, String email, String nickname) {
-        return userRepository.findByProviderAndProviderId(provider, providerId)
-                .orElseGet(() -> userRepository.saveAndFlush(User.createSocial(
-                        provider,
-                        providerId,
-                        resolveEmail(email),
-                        resolveNickname(nickname, providerId)
-                )));
+    public User register(PendingSocialSignup pending, String nickname, boolean marketingAgreed) {
+        return userRepository.findByProviderAndProviderId(pending.provider(), pending.providerId())
+                .orElseGet(() -> {
+                    User user = User.createSocial(
+                            pending.provider(),
+                            pending.providerId(),
+                            resolveEmail(pending.email()),
+                            nickname
+                    );
+                    user.agreeToTerms(LocalDateTime.now(), marketingAgreed);
+                    return userRepository.saveAndFlush(user);
+                });
     }
 
     /**
@@ -40,16 +45,5 @@ public class SocialLoginService {
         }
         String normalized = email.trim().toLowerCase(Locale.ROOT);
         return userRepository.existsByEmail(normalized) ? null : normalized;
-    }
-
-    // 닉네임 제공에 동의하지 않은 계정도 가입할 수 있어야 한다
-    private String resolveNickname(String nickname, String providerId) {
-        if (nickname == null || nickname.isBlank()) {
-            return "사용자" + providerId.substring(Math.max(0, providerId.length() - 4));
-        }
-        String trimmed = nickname.trim();
-        return trimmed.length() > NICKNAME_MAX_LENGTH
-                ? trimmed.substring(0, NICKNAME_MAX_LENGTH)
-                : trimmed;
     }
 }

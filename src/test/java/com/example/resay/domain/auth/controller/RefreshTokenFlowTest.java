@@ -157,7 +157,8 @@ class RefreshTokenFlowTest {
         String body = mockMvc.perform(post("/api/v1/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email": "%s", "password": "%s", "nickname": "닉네임"}
+                                {"email": "%s", "password": "%s", "nickname": "닉네임",
+                                 "agreements": {"terms": true, "privacy": true, "ageOver14": true}}
                                 """.formatted(EMAIL, PASSWORD)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();

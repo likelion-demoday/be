@@ -1,7 +1,9 @@
 package com.example.resay.domain.auth.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 public record SignupRequestDto(
@@ -17,7 +19,11 @@ public record SignupRequestDto(
 
         @NotBlank(message = "닉네임을 입력해 주세요.")
         @Size(max = 20, message = "닉네임은 20자 이하여야 합니다.")
-        String nickname
+        String nickname,
+
+        @NotNull(message = "약관 동의 항목을 보내 주세요.")
+        @Valid
+        AgreementsDto agreements
 ) {
 
     // 복사·붙여넣기로 붙은 앞뒤 공백 때문에 형식 검증에서 떨어지지 않도록 검증 전에 제거한다

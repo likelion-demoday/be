@@ -8,7 +8,10 @@ import com.example.resay.domain.auth.dto.KakaoLoginRequestDto;
 import com.example.resay.domain.auth.dto.LoginRequestDto;
 import com.example.resay.domain.auth.dto.RefreshTokenRequestDto;
 import com.example.resay.domain.auth.dto.SignupRequestDto;
+import com.example.resay.domain.auth.dto.SocialLoginResponseDto;
+import com.example.resay.domain.auth.dto.SocialSignupRequestDto;
 import com.example.resay.domain.auth.dto.TokenResponseDto;
+import com.example.resay.domain.auth.service.SocialSignupTokenStore.PendingSocialSignup;
 import com.example.resay.domain.user.entity.Provider;
 import com.example.resay.domain.user.entity.User;
 import com.example.resay.domain.user.repository.UserRepository;
@@ -19,6 +22,7 @@ import com.example.resay.global.infrastructure.kakao.KakaoClient;
 import com.example.resay.global.infrastructure.kakao.KakaoProperties;
 import com.example.resay.global.infrastructure.kakao.KakaoUserResponse;
 import com.example.resay.global.security.JwtTokenProvider;
+import java.time.LocalDateTime;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -36,6 +40,7 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
     private final SocialLoginService socialLoginService;
+    private final SocialSignupTokenStore socialSignupTokenStore;
     private final KakaoClient kakaoClient;
     private final KakaoProperties kakaoProperties;
     private final GoogleIdTokenVerifier googleIdTokenVerifier;
@@ -56,6 +61,7 @@ public class AuthService {
                 passwordEncoder.encode(request.password()),
                 request.nickname()
         );
+        user.agreeToTerms(LocalDateTime.now(), request.agreements().marketingAgreed());
         try {
             userRepository.saveAndFlush(user);
         } catch (DataIntegrityViolationException exception) {
@@ -93,9 +99,9 @@ public class AuthService {
         }
     }
 
-    // 프론트가 카카오에서 받은 인가 코드로 로그인하거나 자동 가입한다
+    // 프론트가 카카오에서 받은 인가 코드로 로그인한다. 처음 온 사용자는 가입용 임시 토큰을 받는다
     @Transactional
-    public TokenResponseDto loginWithKakao(KakaoLoginRequestDto request) {
+    public SocialLoginResponseDto loginWithKakao(KakaoLoginRequestDto request) {
         if (!kakaoProperties.isConfigured()) {
             throw new GeneralException(AuthErrorCode.SOCIAL_LOGIN_NOT_CONFIGURED);
         }
@@ -104,24 +110,25 @@ public class AuthService {
         }
 
         KakaoUserResponse kakaoUser = kakaoClient.fetchUser(request.code(), request.redirectUri());
-        User user = socialLoginService.findOrCreate(
-                Provider.KAKAO,
-                String.valueOf(kakaoUser.id()),
-                kakaoUser.email(),
-                kakaoUser.nickname()
-        );
-        return issueToken(user);
+        return socialLogin(Provider.KAKAO, String.valueOf(kakaoUser.id()), kakaoUser.email());
     }
 
-    // 프론트가 구글 로그인 버튼으로 받은 ID 토큰으로 로그인하거나 자동 가입한다
+    // 프론트가 구글 로그인 버튼으로 받은 ID 토큰으로 로그인한다. 처음 온 사용자는 가입용 임시 토큰을 받는다
     @Transactional
-    public TokenResponseDto loginWithGoogle(GoogleLoginRequestDto request) {
+    public SocialLoginResponseDto loginWithGoogle(GoogleLoginRequestDto request) {
         GoogleUserInfo googleUser = googleIdTokenVerifier.verify(request.idToken());
-        User user = socialLoginService.findOrCreate(
-                Provider.GOOGLE,
-                googleUser.providerId(),
-                googleUser.email(),
-                googleUser.name()
+        return socialLogin(Provider.GOOGLE, googleUser.providerId(), googleUser.email());
+    }
+
+    // 소셜 신규 회원이 온보딩 마지막(약관 동의)에서 가입을 마친다. 이메일 가입처럼 이때 계정이 생긴다
+    @Transactional
+    public TokenResponseDto completeSocialSignup(SocialSignupRequestDto request) {
+        PendingSocialSignup pending = socialSignupTokenStore.consume(request.registerToken())
+                .orElseThrow(() -> new GeneralException(AuthErrorCode.INVALID_REGISTER_TOKEN));
+        User user = socialLoginService.register(
+                pending,
+                request.nickname(),
+                request.agreements().marketingAgreed()
         );
         return issueToken(user);
     }
@@ -144,6 +151,14 @@ public class AuthService {
     private boolean isInvalidCredentials(RuntimeException exception) {
         return exception instanceof GeneralException generalException
                 && generalException.getErrorCode() == AuthErrorCode.INVALID_CREDENTIALS;
+    }
+
+    // 약관 동의 전에는 계정을 만들지 않는다 (동의 없이 이메일을 저장하지 않고, 온보딩 중에 떠난 사람이 가입자로 남지 않게)
+    private SocialLoginResponseDto socialLogin(Provider provider, String providerId, String email) {
+        return userRepository.findByProviderAndProviderId(provider, providerId)
+                .map(user -> SocialLoginResponseDto.existingUser(issueToken(user)))
+                .orElseGet(() -> SocialLoginResponseDto.newUser(
+                        socialSignupTokenStore.issue(provider, providerId, email)));
     }
 
     private TokenResponseDto issueToken(User user) {

@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
@@ -47,45 +48,35 @@ class KakaoLoginTest {
     private KakaoClient kakaoClient;
 
     @Test
-    void signsUpOnFirstLoginAndReusesAccountAfterwards() throws Exception {
+    void firstLoginGivesRegisterTokenWithoutCreatingAccount() throws Exception {
         givenKakaoUser("kakao@example.com", "카카오닉네임");
 
         login()
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("AUTH200_4"))
-                .andExpect(jsonPath("$.result.accessToken", notNullValue()))
-                .andExpect(jsonPath("$.result.refreshToken", notNullValue()));
+                .andExpect(jsonPath("$.result.isNewUser").value(true))
+                .andExpect(jsonPath("$.result.registerToken", notNullValue()))
+                .andExpect(jsonPath("$.result.registerExpiresIn").value(1800))
+                .andExpect(jsonPath("$.result.accessToken", nullValue()))
+                .andExpect(jsonPath("$.result.refreshToken", nullValue()));
 
-        User user = userRepository.findByProviderAndProviderId(Provider.KAKAO, KAKAO_ID).orElseThrow();
-        assertThat(user.getEmail()).isEqualTo("kakao@example.com");
-        assertThat(user.getNickname()).isEqualTo("카카오닉네임");
-        assertThat(user.getPassword()).isNull();
-
-        login().andExpect(status().isOk());
-        assertThat(userRepository.count()).isEqualTo(1);
+        // 약관에 동의하기 전에는 계정도 이메일도 저장하지 않는다
+        assertThat(userRepository.count()).isZero();
     }
 
     @Test
-    void signsUpWhenUserDidNotAgreeToShareEmailAndNickname() throws Exception {
-        givenKakaoUser(null, null);
-
-        login().andExpect(status().isOk());
-
-        User user = userRepository.findByProviderAndProviderId(Provider.KAKAO, KAKAO_ID).orElseThrow();
-        assertThat(user.getEmail()).isNull();
-        assertThat(user.getNickname()).isEqualTo("사용자7890");
-    }
-
-    @Test
-    void doesNotTakeOverEmailAlreadyUsedByAnotherAccount() throws Exception {
-        userRepository.saveAndFlush(User.createLocal("kakao@example.com", "encoded-password", "기존회원"));
+    void existingUserGetsTokensAsBefore() throws Exception {
+        userRepository.saveAndFlush(User.createSocial(Provider.KAKAO, KAKAO_ID, "kakao@example.com", "카카오닉네임"));
         givenKakaoUser("kakao@example.com", "카카오닉네임");
 
-        login().andExpect(status().isOk());
-
-        User kakaoUser = userRepository.findByProviderAndProviderId(Provider.KAKAO, KAKAO_ID).orElseThrow();
-        assertThat(kakaoUser.getEmail()).isNull();
-        assertThat(userRepository.count()).isEqualTo(2);
+        login()
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.isNewUser").value(false))
+                .andExpect(jsonPath("$.result.registerToken", nullValue()))
+                .andExpect(jsonPath("$.result.accessToken", notNullValue()))
+                .andExpect(jsonPath("$.result.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.result.refreshToken", notNullValue()));
+        assertThat(userRepository.count()).isEqualTo(1);
     }
 
     @Test
