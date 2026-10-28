@@ -11,7 +11,12 @@ public record QualitativeAnalysis(
         List<InterestInsight> interestInsights, // 관심도 점수와 관찰 근거
         List<SpicinessInsight> spicinessInsights, // 표독력 점수와 강한 표현의 맥락
         List<ReactionStyleInsight> reactionStyleInsights, // T/F 비율과 대표 반응
-        List<ScenarioInsight> scenarioInsights
+        List<ScenarioInsight> scenarioInsights,
+        List<RepresentativeEvidence> representativeEvidences, // Figma에 노출할 대표 발화
+        RelationshipSummary relationshipSummary,
+        List<ReportMetric> reportMetrics,
+        List<SpeakerTendency> speakerTendencies,
+        List<CoachingSuggestion> coachingSuggestions
 ) {
 
     public QualitativeAnalysis {
@@ -23,6 +28,71 @@ public record QualitativeAnalysis(
         spicinessInsights = copy(spicinessInsights);
         reactionStyleInsights = copy(reactionStyleInsights);
         scenarioInsights = copy(scenarioInsights);
+        representativeEvidences = copy(representativeEvidences);
+        reportMetrics = reportMetrics == null ? List.of() : List.copyOf(reportMetrics);
+        speakerTendencies = speakerTendencies == null ? List.of() : List.copyOf(speakerTendencies);
+        coachingSuggestions = coachingSuggestions == null
+                ? List.of()
+                : List.copyOf(coachingSuggestions);
+    }
+
+    public QualitativeAnalysis(
+            Overview overview,
+            List<TimelineItem> timeline,
+            List<Topic> topics,
+            List<CharacterInsight> characterInsights,
+            List<SpeakerInsight> speakerInsights,
+            List<InterestInsight> interestInsights,
+            List<SpicinessInsight> spicinessInsights,
+            List<ReactionStyleInsight> reactionStyleInsights,
+            List<ScenarioInsight> scenarioInsights,
+            List<RepresentativeEvidence> representativeEvidences
+    ) {
+        this(
+                overview,
+                timeline,
+                topics,
+                characterInsights,
+                speakerInsights,
+                interestInsights,
+                spicinessInsights,
+                reactionStyleInsights,
+                scenarioInsights,
+                representativeEvidences,
+                null,
+                List.of(),
+                List.of(),
+                List.of()
+        );
+    }
+
+    public QualitativeAnalysis(
+            Overview overview,
+            List<TimelineItem> timeline,
+            List<Topic> topics,
+            List<CharacterInsight> characterInsights,
+            List<SpeakerInsight> speakerInsights,
+            List<InterestInsight> interestInsights,
+            List<SpicinessInsight> spicinessInsights,
+            List<ReactionStyleInsight> reactionStyleInsights,
+            List<ScenarioInsight> scenarioInsights
+    ) {
+        this(
+                overview,
+                timeline,
+                topics,
+                characterInsights,
+                speakerInsights,
+                interestInsights,
+                spicinessInsights,
+                reactionStyleInsights,
+                scenarioInsights,
+                null,
+                null,
+                List.of(),
+                List.of(),
+                List.of()
+        );
     }
 
     public record Overview(
@@ -202,6 +272,62 @@ public record QualitativeAnalysis(
         }
     }
 
+    public record RepresentativeEvidence(
+            ReportEvidenceType type,
+            SpeakerRole speakerRole,
+            ReactionCategory reactionCategory,
+            Long segmentId,
+            String displayContent
+    ) {
+    }
+
+    public record RelationshipSummary(
+            String title,
+            String description,
+            List<Long> evidenceSegmentIds
+    ) {
+        public RelationshipSummary {
+            evidenceSegmentIds = copy(evidenceSegmentIds);
+        }
+    }
+
+    public record ReportMetric(
+            ReportMetricType type,
+            SpeakerRole speakerRole,
+            int value,
+            ReportMetricUnit unit,
+            String title,
+            String description,
+            List<Long> evidenceSegmentIds
+    ) {
+        public ReportMetric {
+            evidenceSegmentIds = copy(evidenceSegmentIds);
+        }
+    }
+
+    public record SpeakerTendency(
+            SpeakerRole speakerRole,
+            String label,
+            String description,
+            List<Long> evidenceSegmentIds
+    ) {
+        public SpeakerTendency {
+            evidenceSegmentIds = copy(evidenceSegmentIds);
+        }
+    }
+
+    public record CoachingSuggestion(
+            int order,
+            String title,
+            String description,
+            String suggestedPhrase,
+            List<Long> evidenceSegmentIds
+    ) {
+        public CoachingSuggestion {
+            evidenceSegmentIds = copy(evidenceSegmentIds);
+        }
+    }
+
     public enum SpeakerPatternCategory {
         SHORT_RESPONSE,
         REPEAT_OR_CONFIRM,
@@ -256,6 +382,58 @@ public record QualitativeAnalysis(
         CARE_EXPRESSION,
         QUESTION_RESPONSE_STYLE,
         SOLUTION
+    }
+
+    public enum ReportEvidenceType {
+        REACTION_STYLE_EXAMPLE,
+        EMOTION_EXPRESSION,
+        MISSED_QUESTION,
+        FOLLOWING_RESPONSE,
+        SPEAKER_REACTION,
+        RECOVERY_START,
+        CHILD_POSITION,
+        FOLLOWING_ADVICE,
+        UNASKED_QUESTION,
+        WORRY_START,
+        EXPRESSION_TURNING_POINT,
+        CLOSING_RESPONSE
+    }
+
+    public enum ReportMetricUnit {
+        COUNT,
+        PERCENT
+    }
+
+    public enum ReportMetricType {
+        COMPLIMENT,
+        ENCOURAGEMENT,
+        CARING_EXPRESSION,
+        FRIENDLY_ADDRESS,
+        DIRECT_AFFECTION,
+        JOY_OR_GRATITUDE,
+        AFFECTIONATE_ADDRESS,
+        COMPLIMENT_OR_ENCOURAGEMENT,
+        POSITION_EXPLANATION,
+        REBUTTAL,
+        AVOIDANCE,
+        APOLOGY,
+        YIELDING,
+        EMOTION_CHECK,
+        DIRECT_EXPRESSION,
+        ASSERTIVE_EXPRESSION,
+        SOFTENING_EXPRESSION,
+        RECOVERY_EXPRESSION,
+        QUESTION,
+        MISSED_RESPONSE,
+        SITUATION_QUESTION,
+        CONCRETE_ADVICE,
+        EXPERIENCE_COMPARISON,
+        SHORT_RESPONSE,
+        TOPIC_AVOIDANCE,
+        EMOTION_EXPRESSION,
+        CHILD_EXPRESSION,
+        PARENT_CONFIRMATION,
+        ADVICE
     }
 
     private static <T> List<T> copy(List<T> values) {

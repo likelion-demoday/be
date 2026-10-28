@@ -65,6 +65,12 @@ class MockAnalysisControllerIntegrationTest {
                         .isNumber())
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.spicinessInsights[0].swearWordCount")
                         .value(0))
+                .andExpect(jsonPath("$.result.report.qualitativeAnalysis.representativeEvidences.length()")
+                        .value(2))
+                .andExpect(jsonPath("$.result.report.qualitativeAnalysis.representativeEvidences[0].evidence.originalContent")
+                        .isNotEmpty())
+                .andExpect(jsonPath("$.result.report.qualitativeAnalysis.representativeEvidences[0].evidence.displayContent")
+                        .isNotEmpty())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
@@ -86,7 +92,7 @@ class MockAnalysisControllerIntegrationTest {
                 .andExpect(jsonPath("$.result.recordingId").value(recordingId))
                 .andExpect(jsonPath("$.result.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.result.modelName").value("mock-analysis-model"))
-                .andExpect(jsonPath("$.result.schemaVersion").value("analysis-report-v8"))
+                .andExpect(jsonPath("$.result.schemaVersion").value("analysis-report-v10"))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();

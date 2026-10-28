@@ -8,6 +8,7 @@ import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.ConversationMetrics;
 import com.example.resay.domain.analysis.model.SpeakerRole;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -77,7 +78,34 @@ class AnalysisReportAssemblerTest {
                           "interestInsights": [],
                           "spicinessInsights": [],
                           "reactionStyleInsights": [],
-                          "scenarioInsights": []
+                          "scenarioInsights": [],
+                          "representativeEvidences": [
+                            {
+                              "type": "REACTION_STYLE_EXAMPLE",
+                              "speakerRole": "SELF",
+                              "reactionCategory": "THINKING",
+                              "segmentId": 1,
+                              "displayContent": "주말에 만날까?"
+                            }
+                          ],
+                          "relationshipSummary": {
+                            "title": "계획하는 사람 × 호응하는 사람",
+                            "description": "주말 계획을 함께 구체화해요.",
+                            "evidenceSegmentIds": [1, 2]
+                          },
+                          "reportMetrics": [
+                            {
+                              "type": "ENCOURAGEMENT",
+                              "speakerRole": "SELF",
+                              "value": 2,
+                              "unit": "COUNT",
+                              "title": "응원 표현",
+                              "description": "대화를 이어 주는 표현이 보여요.",
+                              "evidenceSegmentIds": [1, 3]
+                            }
+                          ],
+                          "speakerTendencies": [],
+                          "coachingSuggestions": []
                         }
                         """,
                 "liner-mark-1.1",
@@ -89,10 +117,13 @@ class AnalysisReportAssemblerTest {
 
         AnalysisReport json = objectMapper.readValue(report.resultJson(), AnalysisReport.class);
         assertThat(json.recordingInfo().recordingId()).isEqualTo(10L);
+        assertThat(json.recordingInfo().recordedAt())
+                .isEqualTo(LocalDateTime.of(2026, 10, 28, 12, 30));
         assertThat(json.recordingInfo().speakers())
                 .extracting("speakerName")
                 .containsExactly("호준", "호석");
         assertThat(json.quantitativeAnalysis().speakers()).hasSize(2);
+        assertThat(json.quantitativeAnalysis().totalTurnCount()).isEqualTo(3);
         AnalysisReport.TimelineItem timeline = json.qualitativeAnalysis().timeline().get(0);
         assertThat(timeline.startMs()).isEqualTo(100L);
         assertThat(timeline.endMs()).isEqualTo(1_800L);
@@ -108,8 +139,21 @@ class AnalysisReportAssemblerTest {
                 .frequentExpressions().get(0).count()).isEqualTo(2);
         assertThat(AnalysisReportDto.from(json).qualitativeAnalysis()
                 .speakerInsights().get(0).patterns().get(0).count()).isEqualTo(2);
+        AnalysisReport.RepresentativeEvidence representativeEvidence = json.qualitativeAnalysis()
+                .representativeEvidences().get(0);
+        assertThat(representativeEvidence.evidence().originalContent())
+                .isEqualTo("주말에 만날가?");
+        assertThat(representativeEvidence.evidence().displayContent())
+                .isEqualTo("주말에 만날까?");
+        assertThat(representativeEvidence.evidence().correctionApplied()).isTrue();
+        assertThat(AnalysisReportDto.from(json).qualitativeAnalysis()
+                .representativeEvidences().get(0).evidence().startMs()).isEqualTo(100L);
+        assertThat(AnalysisReportDto.from(json).qualitativeAnalysis()
+                .relationshipSummary().title()).contains("계획하는 사람");
+        assertThat(AnalysisReportDto.from(json).qualitativeAnalysis()
+                .reportMetrics().get(0).value()).isEqualTo(2);
         assertThat(report.modelName()).isEqualTo("liner-mark-1.1");
-        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v8");
+        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v10");
     }
 
     private AnalysisSource source() {
@@ -117,9 +161,10 @@ class AnalysisReportAssemblerTest {
                 10L,
                 AnalysisScenario.FRIEND_DAILY,
                 2_000L,
+                LocalDateTime.of(2026, 10, 28, 12, 30),
                 speakersFor(AnalysisScenario.FRIEND_DAILY),
                 List.of(
-                        new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "주말에 만날까?"),
+                        new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "주말에 만날가?"),
                         new AnalysisSegment(2L, SpeakerRole.FRIEND, 700L, 1_200L, "좋아, 오후에 보자."),
                         new AnalysisSegment(3L, SpeakerRole.SELF, 1_500L, 1_800L, "주말 장소도 정하자.")
                 )

@@ -6,9 +6,10 @@ import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
-@Schema(description = "근거 발화 정보가 제거된 공개 분석 보고서")
+@Schema(description = "분석 보고서. 화면에 필요한 대표 발화 근거만 포함합니다.")
 public record AnalysisReportDto(
         RecordingInfo recordingInfo,
         QuantitativeAnalysis quantitativeAnalysis,
@@ -27,6 +28,7 @@ public record AnalysisReportDto(
             Long recordingId,
             AnalysisScenario scenario,
             Long durationMs,
+            LocalDateTime recordedAt,
             List<SpeakerInfo> speakers
     ) {
 
@@ -35,6 +37,7 @@ public record AnalysisReportDto(
                     source.recordingId(),
                     source.scenario(),
                     source.durationMs(),
+                    source.recordedAt(),
                     source.speakers().stream().map(SpeakerInfo::from).toList()
             );
         }
@@ -56,7 +59,8 @@ public record AnalysisReportDto(
 
     public record QuantitativeAnalysis(
             List<SpeakerMetrics> speakers,
-            SpeakingSpeedComparison speakingSpeedComparison
+            SpeakingSpeedComparison speakingSpeedComparison,
+            int totalTurnCount
     ) {
 
         private static QuantitativeAnalysis from(
@@ -64,7 +68,8 @@ public record AnalysisReportDto(
         ) {
             return new QuantitativeAnalysis(
                     source.speakers().stream().map(SpeakerMetrics::from).toList(),
-                    SpeakingSpeedComparison.from(source.speakingSpeedComparison())
+                    SpeakingSpeedComparison.from(source.speakingSpeedComparison()),
+                    source.totalTurnCount()
             );
         }
     }
@@ -129,7 +134,13 @@ public record AnalysisReportDto(
             List<InterestInsight> interestInsights,
             List<SpicinessInsight> spicinessInsights,
             List<ReactionStyleInsight> reactionStyleInsights,
-            List<ScenarioInsight> scenarioInsights
+            List<ScenarioInsight> scenarioInsights,
+            @Schema(description = "Figma 보고서에서 실제 발화로 표시하는 대표 근거만 포함")
+            List<RepresentativeEvidence> representativeEvidences,
+            RelationshipSummary relationshipSummary,
+            List<ReportMetric> reportMetrics,
+            List<SpeakerTendency> speakerTendencies,
+            List<CoachingSuggestion> coachingSuggestions
     ) {
 
         private static QualitativeReport from(AnalysisReport.QualitativeReport source) {
@@ -144,7 +155,131 @@ public record AnalysisReportDto(
                     source.reactionStyleInsights().stream()
                             .map(ReactionStyleInsight::from)
                             .toList(),
-                    source.scenarioInsights().stream().map(ScenarioInsight::from).toList()
+                    source.scenarioInsights().stream().map(ScenarioInsight::from).toList(),
+                    source.representativeEvidences().stream()
+                            .map(RepresentativeEvidence::from)
+                            .toList(),
+                    RelationshipSummary.from(source.relationshipSummary()),
+                    source.reportMetrics().stream().map(ReportMetric::from).toList(),
+                    source.speakerTendencies().stream().map(SpeakerTendency::from).toList(),
+                    source.coachingSuggestions().stream().map(CoachingSuggestion::from).toList()
+            );
+        }
+    }
+
+    public record RelationshipSummary(
+            String title,
+            String description
+    ) {
+
+        private static RelationshipSummary from(
+                QualitativeAnalysis.RelationshipSummary source
+        ) {
+            return source == null ? null : new RelationshipSummary(
+                    source.title(),
+                    source.description()
+            );
+        }
+    }
+
+    public record ReportMetric(
+            QualitativeAnalysis.ReportMetricType type,
+            SpeakerRole speakerRole,
+            int value,
+            QualitativeAnalysis.ReportMetricUnit unit,
+            String title,
+            String description
+    ) {
+
+        private static ReportMetric from(QualitativeAnalysis.ReportMetric source) {
+            return new ReportMetric(
+                    source.type(),
+                    source.speakerRole(),
+                    source.value(),
+                    source.unit(),
+                    source.title(),
+                    source.description()
+            );
+        }
+    }
+
+    public record SpeakerTendency(
+            SpeakerRole speakerRole,
+            String label,
+            String description
+    ) {
+
+        private static SpeakerTendency from(QualitativeAnalysis.SpeakerTendency source) {
+            return new SpeakerTendency(
+                    source.speakerRole(),
+                    source.label(),
+                    source.description()
+            );
+        }
+    }
+
+    public record CoachingSuggestion(
+            int order,
+            String title,
+            String description,
+            String suggestedPhrase
+    ) {
+
+        private static CoachingSuggestion from(
+                QualitativeAnalysis.CoachingSuggestion source
+        ) {
+            return new CoachingSuggestion(
+                    source.order(),
+                    source.title(),
+                    source.description(),
+                    source.suggestedPhrase()
+            );
+        }
+    }
+
+    public record RepresentativeEvidence(
+            @Schema(description = "보고서에서 근거가 사용되는 위치")
+            QualitativeAnalysis.ReportEvidenceType type,
+            SpeakerRole speakerRole,
+            @Schema(description = "일상 대화 T/F 반응 예시에서만 사용")
+            QualitativeAnalysis.ReactionCategory reactionCategory,
+            EvidenceQuote evidence
+    ) {
+
+        private static RepresentativeEvidence from(
+                AnalysisReport.RepresentativeEvidence source
+        ) {
+            return new RepresentativeEvidence(
+                    source.type(),
+                    source.speakerRole(),
+                    source.reactionCategory(),
+                    EvidenceQuote.from(source.evidence())
+            );
+        }
+    }
+
+    public record EvidenceQuote(
+            Long segmentId,
+            SpeakerRole speakerRole,
+            @Schema(description = "분석 당시 CLOVA 원본 발화")
+            String originalContent,
+            @Schema(description = "문맥상 명확한 오인식만 최소 보정한 화면 표시용 발화")
+            String displayContent,
+            @Schema(description = "표시용 발화가 원문과 달라졌는지 여부")
+            boolean correctionApplied,
+            Long startMs,
+            Long endMs
+    ) {
+
+        private static EvidenceQuote from(AnalysisReport.EvidenceQuote source) {
+            return new EvidenceQuote(
+                    source.segmentId(),
+                    source.speakerRole(),
+                    source.originalContent(),
+                    source.displayContent(),
+                    source.correctionApplied(),
+                    source.startMs(),
+                    source.endMs()
             );
         }
     }
@@ -306,7 +441,8 @@ public record AnalysisReportDto(
     public record InterestObservation(
             QualitativeAnalysis.InterestCategory category,
             String title,
-            String description
+            String description,
+            int count
     ) {
 
         private static InterestObservation from(
@@ -315,7 +451,8 @@ public record AnalysisReportDto(
             return new InterestObservation(
                     source.category(),
                     source.title(),
-                    source.description()
+                    source.description(),
+                    (int) source.evidenceSegmentIds().stream().distinct().count()
             );
         }
     }
@@ -345,7 +482,8 @@ public record AnalysisReportDto(
     public record SpicinessObservation(
             QualitativeAnalysis.SpicinessCategory category,
             String title,
-            String description
+            String description,
+            int count
     ) {
 
         private static SpicinessObservation from(
@@ -354,7 +492,8 @@ public record AnalysisReportDto(
             return new SpicinessObservation(
                     source.category(),
                     source.title(),
-                    source.description()
+                    source.description(),
+                    (int) source.evidenceSegmentIds().stream().distinct().count()
             );
         }
     }

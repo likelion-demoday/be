@@ -65,17 +65,143 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
         response.put("spicinessInsights", roleItems(source, this::spicinessInsight));
         response.put("reactionStyleInsights", roleItems(source, this::reactionStyleInsight));
         response.put("scenarioInsights", List.of(scenarioInsight(source, first, second)));
+        response.put("representativeEvidences", representativeEvidences(source));
+        response.put("relationshipSummary", evidenceItem(
+                "주고받으며 이어가는 두 사람",
+                "이번 대화에서는 서로의 말에 반응하며 주제를 이어가는 흐름이 보여요.",
+                List.of(first.segmentId(), second.segmentId())
+        ));
+        response.put("reportMetrics", reportMetrics(source));
+        response.put("speakerTendencies", speakerTendencies(source));
+        response.put("coachingSuggestions", coachingSuggestions(source));
 
         try {
             return new AnalysisModelResult(
                     objectMapper.writeValueAsString(response),
                     "mock-analysis-model",
-                    "mock-prompt-v2",
-                    "analysis-result-v5"
+                    "mock-prompt-v3",
+                    "analysis-result-v7"
             );
         } catch (Exception exception) {
             throw new IllegalStateException("목업 정성 분석 결과를 만들 수 없습니다.", exception);
         }
+    }
+
+    private List<Map<String, Object>> reportMetrics(AnalysisSource source) {
+        String type = switch (source.scenario()) {
+            case FRIEND_DAILY -> "COMPLIMENT";
+            case COUPLE_DAILY -> "DIRECT_AFFECTION";
+            case COUPLE_CONFLICT -> "DIRECT_EXPRESSION";
+            case PARENT_CHILD_CONFLICT -> "ADVICE";
+        };
+        return source.scenario().requiredRoles().stream()
+                .sorted()
+                .map(role -> {
+                    AnalysisSegment evidence = evidenceFor(source, role);
+                    Map<String, Object> metric = new LinkedHashMap<>();
+                    metric.put("type", type);
+                    metric.put("speakerRole", role);
+                    metric.put("value", source.scenario() == com.example.resay.domain.analysis.model.AnalysisScenario.FRIEND_DAILY
+                            ? 1 : 50);
+                    metric.put("unit", source.scenario() == com.example.resay.domain.analysis.model.AnalysisScenario.FRIEND_DAILY
+                            ? "COUNT" : "PERCENT");
+                    metric.put("title", "이번 대화의 표현 지표");
+                    metric.put("description", "이번 대화에서 확인된 표현을 기준으로 보여드려요.");
+                    metric.put("evidenceSegmentIds", List.of(evidence.segmentId()));
+                    return metric;
+                })
+                .toList();
+    }
+
+    private List<Map<String, Object>> speakerTendencies(AnalysisSource source) {
+        return switch (source.scenario()) {
+            case FRIEND_DAILY, COUPLE_DAILY -> List.of();
+            case COUPLE_CONFLICT, PARENT_CHILD_CONFLICT -> source.scenario().requiredRoles().stream()
+                    .sorted()
+                    .map(role -> {
+                        AnalysisSegment evidence = evidenceFor(source, role);
+                        Map<String, Object> tendency = new LinkedHashMap<>();
+                        tendency.put("speakerRole", role);
+                        tendency.put("label", "설명하며 확인하는 편");
+                        tendency.put("description", "이번 대화에서는 자신의 생각을 설명하고 상대의 반응을 확인해요.");
+                        tendency.put("evidenceSegmentIds", List.of(evidence.segmentId()));
+                        return tendency;
+                    })
+                    .toList();
+        };
+    }
+
+    private List<Map<String, Object>> coachingSuggestions(AnalysisSource source) {
+        if (source.scenario() == com.example.resay.domain.analysis.model.AnalysisScenario.FRIEND_DAILY
+                || source.scenario() == com.example.resay.domain.analysis.model.AnalysisScenario.COUPLE_DAILY) {
+            return List.of();
+        }
+        List<Long> evidenceIds = source.segments().stream()
+                .limit(2)
+                .map(AnalysisSegment::segmentId)
+                .toList();
+        return java.util.stream.IntStream.rangeClosed(1, 3)
+                .mapToObj(order -> {
+                    Map<String, Object> suggestion = new LinkedHashMap<>();
+                    suggestion.put("order", order);
+                    suggestion.put("title", order + "단계 대화 제안");
+                    suggestion.put("description", "상대의 말을 확인한 뒤 내 생각을 짧게 전해 보세요.");
+                    suggestion.put("suggestedPhrase", "네 말을 먼저 이해하고 싶어. 이 부분을 조금 더 말해줄래?");
+                    suggestion.put("evidenceSegmentIds", evidenceIds);
+                    return suggestion;
+                })
+                .toList();
+    }
+
+    private List<Map<String, Object>> representativeEvidences(AnalysisSource source) {
+        return switch (source.scenario()) {
+            case FRIEND_DAILY, COUPLE_DAILY -> source.scenario().requiredRoles().stream()
+                    .sorted()
+                    .map(role -> representativeEvidence(
+                            "REACTION_STYLE_EXAMPLE",
+                            evidenceFor(source, role),
+                            "MIXED"
+                    ))
+                    .toList();
+            case COUPLE_CONFLICT -> {
+                AnalysisSegment self = evidenceFor(source, SpeakerRole.SELF);
+                AnalysisSegment partner = evidenceFor(source, SpeakerRole.PARTNER);
+                yield List.of(
+                        representativeEvidence("EMOTION_EXPRESSION", self, null),
+                        representativeEvidence("MISSED_QUESTION", self, null),
+                        representativeEvidence("FOLLOWING_RESPONSE", partner, null),
+                        representativeEvidence("SPEAKER_REACTION", self, null),
+                        representativeEvidence("SPEAKER_REACTION", partner, null),
+                        representativeEvidence("RECOVERY_START", partner, null)
+                );
+            }
+            case PARENT_CHILD_CONFLICT -> {
+                AnalysisSegment parent = evidenceFor(source, SpeakerRole.PARENT);
+                AnalysisSegment child = evidenceFor(source, SpeakerRole.CHILD);
+                yield List.of(
+                        representativeEvidence("CHILD_POSITION", child, null),
+                        representativeEvidence("FOLLOWING_ADVICE", parent, null),
+                        representativeEvidence("UNASKED_QUESTION", child, null),
+                        representativeEvidence("WORRY_START", parent, null),
+                        representativeEvidence("EXPRESSION_TURNING_POINT", parent, null),
+                        representativeEvidence("CLOSING_RESPONSE", child, null)
+                );
+            }
+        };
+    }
+
+    private Map<String, Object> representativeEvidence(
+            String type,
+            AnalysisSegment segment,
+            String reactionCategory
+    ) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("type", type);
+        result.put("speakerRole", segment.speakerRole());
+        result.put("reactionCategory", reactionCategory);
+        result.put("segmentId", segment.segmentId());
+        result.put("displayContent", segment.content());
+        return result;
     }
 
     private List<Map<String, Object>> speakerInsights(AnalysisSource source) {

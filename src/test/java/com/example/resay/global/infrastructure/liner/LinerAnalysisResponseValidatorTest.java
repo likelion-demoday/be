@@ -9,6 +9,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static com.example.resay.domain.analysis.support.AnalysisTestSpeakers.speakersFor;
 
 class LinerAnalysisResponseValidatorTest {
@@ -325,6 +326,100 @@ class LinerAnalysisResponseValidatorTest {
                 .hasMessageContaining("CONFLICT_TOPIC");
     }
 
+    @Test
+    void acceptsDailyRepresentativeEvidenceLinkedToReactionExamples() {
+        QualitativeAnalysis response = withRepresentativeEvidences(
+                validResponse(),
+                List.of(
+                        representativeReaction(SpeakerRole.SELF, 1L, "오늘 뭐 했어? 미친 미친"),
+                        representativeReaction(SpeakerRole.FRIEND, 2L, "학교 갔다 왔어")
+                )
+        );
+
+        validator.validate(source(), response);
+    }
+
+    @Test
+    void rejectsRepresentativeEvidenceWithMismatchedSpeaker() {
+        QualitativeAnalysis response = withRepresentativeEvidences(
+                validResponse(),
+                List.of(
+                        representativeReaction(SpeakerRole.SELF, 2L, "학교 갔다 왔어"),
+                        representativeReaction(SpeakerRole.FRIEND, 2L, "학교 갔다 왔어")
+                )
+        );
+
+        assertThatThrownBy(() -> validator.validate(source(), response))
+                .isInstanceOf(LinerAnalysisException.class)
+                .hasMessageContaining("화자가 원본 발화와 일치하지 않습니다");
+    }
+
+    @Test
+    void acceptsStructuredReportMetricsAndRelationshipSummary() {
+        QualitativeAnalysis valid = validResponse();
+        QualitativeAnalysis response = withExtendedFields(
+                valid,
+                List.of(new QualitativeAnalysis.ReportMetric(
+                        QualitativeAnalysis.ReportMetricType.ENCOURAGEMENT,
+                        SpeakerRole.SELF,
+                        2,
+                        QualitativeAnalysis.ReportMetricUnit.COUNT,
+                        "응원 표현",
+                        "상대의 이야기를 이어 주는 표현이 두 발화에서 보여요.",
+                        List.of(1L, 3L)
+                ))
+        );
+
+        assertThatCode(() -> validator.validate(source(), response)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsPercentMetricOverOneHundred() {
+        QualitativeAnalysis valid = validResponse();
+        QualitativeAnalysis response = withExtendedFields(
+                valid,
+                List.of(new QualitativeAnalysis.ReportMetric(
+                        QualitativeAnalysis.ReportMetricType.DIRECT_AFFECTION,
+                        SpeakerRole.SELF,
+                        101,
+                        QualitativeAnalysis.ReportMetricUnit.PERCENT,
+                        "직접 호감 표현",
+                        "이번 대화에서 직접적인 호감 표현이 보여요.",
+                        List.of(1L)
+                ))
+        );
+
+        assertThatThrownBy(() -> validator.validate(source(), response))
+                .isInstanceOf(LinerAnalysisException.class)
+                .hasMessageContaining("100 이하");
+    }
+
+    private QualitativeAnalysis withExtendedFields(
+            QualitativeAnalysis source,
+            List<QualitativeAnalysis.ReportMetric> metrics
+    ) {
+        return new QualitativeAnalysis(
+                source.overview(),
+                source.timeline(),
+                source.topics(),
+                source.characterInsights(),
+                source.speakerInsights(),
+                source.interestInsights(),
+                source.spicinessInsights(),
+                source.reactionStyleInsights(),
+                source.scenarioInsights(),
+                source.representativeEvidences(),
+                new QualitativeAnalysis.RelationshipSummary(
+                        "질문하는 사람 × 답해 주는 사람",
+                        "질문과 답변을 주고받으며 대화를 이어가요.",
+                        List.of(1L, 2L)
+                ),
+                metrics,
+                List.of(),
+                List.of()
+        );
+    }
+
     private AnalysisSource source() {
         return new AnalysisSource(
                 1L,
@@ -486,6 +581,38 @@ class LinerAnalysisResponseValidatorTest {
                         reaction(SpeakerRole.FRIEND, 2L, 50, 50)
                 ),
                 List.of(commonInterest)
+        );
+    }
+
+    private QualitativeAnalysis withRepresentativeEvidences(
+            QualitativeAnalysis source,
+            List<QualitativeAnalysis.RepresentativeEvidence> evidences
+    ) {
+        return new QualitativeAnalysis(
+                source.overview(),
+                source.timeline(),
+                source.topics(),
+                source.characterInsights(),
+                source.speakerInsights(),
+                source.interestInsights(),
+                source.spicinessInsights(),
+                source.reactionStyleInsights(),
+                source.scenarioInsights(),
+                evidences
+        );
+    }
+
+    private QualitativeAnalysis.RepresentativeEvidence representativeReaction(
+            SpeakerRole speakerRole,
+            Long segmentId,
+            String displayContent
+    ) {
+        return new QualitativeAnalysis.RepresentativeEvidence(
+                QualitativeAnalysis.ReportEvidenceType.REACTION_STYLE_EXAMPLE,
+                speakerRole,
+                QualitativeAnalysis.ReactionCategory.MIXED,
+                segmentId,
+                displayContent
         );
     }
 

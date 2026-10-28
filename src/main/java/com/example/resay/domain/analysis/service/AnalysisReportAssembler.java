@@ -18,7 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class AnalysisReportAssembler {
 
-    private static final String REPORT_SCHEMA_VERSION = "analysis-report-v8";
+    private static final String REPORT_SCHEMA_VERSION = "analysis-report-v10";
 
     private final ObjectMapper objectMapper;
 
@@ -54,6 +54,7 @@ public class AnalysisReportAssembler {
                 source.recordingId(),
                 source.scenario(),
                 source.durationMs(),
+                source.recordedAt(),
                 source.speakers()
         );
     }
@@ -68,8 +69,21 @@ public class AnalysisReportAssembler {
 
         return new AnalysisReport.QuantitativeAnalysis(
                 speakers,
-                metrics.speakingSpeedComparison().orElse(null)
+                metrics.speakingSpeedComparison().orElse(null),
+                totalTurnCount(source.segments())
         );
+    }
+
+    private int totalTurnCount(List<AnalysisSegment> segments) {
+        int turns = 0;
+        SpeakerRole previousRole = null;
+        for (AnalysisSegment segment : segments) {
+            if (previousRole == null || previousRole != segment.speakerRole()) {
+                turns++;
+                previousRole = segment.speakerRole();
+            }
+        }
+        return turns;
     }
 
     private AnalysisReport.QualitativeReport qualitativeAnalysis(
@@ -86,7 +100,52 @@ public class AnalysisReportAssembler {
                 result.interestInsights(),
                 result.spicinessInsights(),
                 result.reactionStyleInsights(),
-                result.scenarioInsights()
+                result.scenarioInsights(),
+                enrichRepresentativeEvidences(result.representativeEvidences(), source.segments()),
+                result.relationshipSummary(),
+                result.reportMetrics(),
+                result.speakerTendencies(),
+                result.coachingSuggestions()
+        );
+    }
+
+    private List<AnalysisReport.RepresentativeEvidence> enrichRepresentativeEvidences(
+            List<QualitativeAnalysis.RepresentativeEvidence> evidences,
+            List<AnalysisSegment> segments
+    ) {
+        if (evidences == null) {
+            return List.of();
+        }
+
+        Map<Long, AnalysisSegment> segmentsById = new java.util.LinkedHashMap<>();
+        segments.forEach(segment -> segmentsById.put(segment.segmentId(), segment));
+        return evidences.stream()
+                .map(evidence -> enrichRepresentativeEvidence(evidence, segmentsById))
+                .toList();
+    }
+
+    private AnalysisReport.RepresentativeEvidence enrichRepresentativeEvidence(
+            QualitativeAnalysis.RepresentativeEvidence evidence,
+            Map<Long, AnalysisSegment> segmentsById
+    ) {
+        AnalysisSegment segment = segmentsById.get(evidence.segmentId());
+        if (segment == null) {
+            throw new IllegalStateException("대표 근거에 존재하지 않는 발화가 포함되어 있습니다.");
+        }
+        String displayContent = evidence.displayContent().trim();
+        return new AnalysisReport.RepresentativeEvidence(
+                evidence.type(),
+                evidence.speakerRole(),
+                evidence.reactionCategory(),
+                new AnalysisReport.EvidenceQuote(
+                        segment.segmentId(),
+                        segment.speakerRole(),
+                        segment.content(),
+                        displayContent,
+                        !segment.content().equals(displayContent),
+                        segment.startMs(),
+                        segment.endMs()
+                )
         );
     }
 

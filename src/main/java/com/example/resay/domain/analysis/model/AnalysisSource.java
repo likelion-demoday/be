@@ -1,5 +1,6 @@
 package com.example.resay.domain.analysis.model;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -9,9 +10,20 @@ public record AnalysisSource(
         Long recordingId,
         AnalysisScenario scenario,
         Long durationMs,
+        LocalDateTime recordedAt,
         List<AnalysisSpeaker> speakers,
         List<AnalysisSegment> segments
 ) {
+
+    public AnalysisSource(
+            Long recordingId,
+            AnalysisScenario scenario,
+            Long durationMs,
+            List<AnalysisSpeaker> speakers,
+            List<AnalysisSegment> segments
+    ) {
+        this(recordingId, scenario, durationMs, null, speakers, segments);
+    }
 
     public AnalysisSource {
         if (recordingId == null || recordingId <= 0) {

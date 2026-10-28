@@ -56,6 +56,7 @@ public class TranscriptAnalysisSourceReader implements AnalysisSourceReader {
                 recordingId,
                 AnalysisScenario.valueOf(recording.getRelationshipType().name()),
                 recording.getDurationSeconds() * 1000L,
+                recording.getCreatedAt(),
                 List.of(
                         new AnalysisSpeaker(selfRole, selfName),
                         new AnalysisSpeaker(partnerRole, recording.getPartnerNickname())

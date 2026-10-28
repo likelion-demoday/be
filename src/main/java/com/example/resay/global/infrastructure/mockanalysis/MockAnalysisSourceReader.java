@@ -4,6 +4,7 @@ import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.port.AnalysisSourceReader;
 import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -37,6 +38,7 @@ public class MockAnalysisSourceReader implements AnalysisSourceReader {
                 recordingId,
                 template.scenario(),
                 template.durationMs(),
+                LocalDateTime.now(),
                 template.speakers(),
                 template.segments()
         );
