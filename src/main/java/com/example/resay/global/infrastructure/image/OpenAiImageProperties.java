@@ -22,7 +22,7 @@ public record OpenAiImageProperties(
     private static final String DEFAULT_SIZE = "1024x1024";
     private static final String DEFAULT_QUALITY = "medium";
     private static final String DEFAULT_OUTPUT_FORMAT = "png";
-    private static final String DEFAULT_BACKGROUND = "opaque";
+    private static final String DEFAULT_BACKGROUND = "transparent";
     private static final Duration DEFAULT_CONNECT_TIMEOUT = Duration.ofSeconds(3);
     private static final Duration DEFAULT_READ_TIMEOUT = Duration.ofSeconds(180);
     private static final Set<String> QUALITIES = Set.of(
@@ -44,8 +44,14 @@ public record OpenAiImageProperties(
         requireOneOf(quality, "quality", QUALITIES);
         requireOneOf(outputFormat, "outputFormat", OUTPUT_FORMATS);
         requireOneOf(background, "background", BACKGROUNDS);
-        if (background.equals("transparent") && outputFormat.equals("jpeg")) {
-            throw new IllegalArgumentException("투명 배경은 png 또는 webp 형식이어야 합니다.");
+        if (!DEFAULT_SIZE.equals(size)) {
+            throw new IllegalArgumentException("캐릭터 이미지는 1024x1024 크기여야 합니다.");
+        }
+        if (!DEFAULT_OUTPUT_FORMAT.equals(outputFormat)) {
+            throw new IllegalArgumentException("캐릭터 이미지는 png 형식이어야 합니다.");
+        }
+        if (!DEFAULT_BACKGROUND.equals(background)) {
+            throw new IllegalArgumentException("캐릭터 이미지는 투명 배경이어야 합니다.");
         }
         requirePositive(connectTimeout, "connectTimeout");
         requirePositive(readTimeout, "readTimeout");

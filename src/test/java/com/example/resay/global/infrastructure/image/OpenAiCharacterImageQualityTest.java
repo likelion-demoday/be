@@ -2,12 +2,16 @@ package com.example.resay.global.infrastructure.image;
 
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.SpeakerRole;
+import com.example.resay.domain.character.service.CharacterCardStyleResolver;
 import com.example.resay.domain.character.model.CharacterImageGenerationCommand;
 import com.example.resay.domain.character.model.GeneratedCharacterImage;
 import com.example.resay.domain.character.port.CharacterImageGenerator;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,13 +30,18 @@ class OpenAiCharacterImageQualityTest {
     @Autowired
     private CharacterImageGenerator imageGenerator;
 
+    @Autowired
+    private CharacterCardStyleResolver characterCardStyleResolver;
+
     @Test
     void generatesSelectedCharacterImage() throws Exception {
         CharacterCase selected = CharacterCase.valueOf(
                 System.getenv("OPENAI_CHARACTER_CASE").toUpperCase(Locale.ROOT)
         );
 
-        GeneratedCharacterImage image = imageGenerator.generate(selected.command());
+        GeneratedCharacterImage image = imageGenerator.generate(
+                selected.command(characterCardStyleResolver)
+        );
 
         Path outputDirectory = Path.of("build", "reports", "openai-character-quality");
         Files.createDirectories(outputDirectory);
@@ -51,7 +60,49 @@ class OpenAiCharacterImageQualityTest {
             assertThat(image.content()).startsWith(
                     new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47}
             );
+            assertTransparentComposition(image.content());
         }
+    }
+
+    private void assertTransparentComposition(byte[] content) throws Exception {
+        BufferedImage image = ImageIO.read(new ByteArrayInputStream(content));
+        assertThat(image).isNotNull();
+        assertThat(image.getWidth()).isEqualTo(1024);
+        assertThat(image.getHeight()).isEqualTo(1024);
+        assertThat(image.getColorModel().hasAlpha()).isTrue();
+
+        int minX = image.getWidth();
+        int minY = image.getHeight();
+        int maxX = -1;
+        int maxY = -1;
+        boolean hasTransparentPixel = false;
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int alpha = image.getRGB(x, y) >>> 24;
+                if (alpha == 0) {
+                    hasTransparentPixel = true;
+                }
+                if (alpha >= 16) {
+                    minX = Math.min(minX, x);
+                    minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x);
+                    maxY = Math.max(maxY, y);
+                }
+            }
+        }
+
+        assertThat(hasTransparentPixel).isTrue();
+        assertThat(maxX).isGreaterThan(minX);
+        assertThat(maxY).isGreaterThan(minY);
+
+        double widthRatio = (double) (maxX - minX + 1) / image.getWidth();
+        double heightRatio = (double) (maxY - minY + 1) / image.getHeight();
+        double centerXRatio = (double) (minX + maxX) / 2 / image.getWidth();
+        double centerYRatio = (double) (minY + maxY) / 2 / image.getHeight();
+        assertThat(widthRatio).isBetween(0.50, 0.85);
+        assertThat(heightRatio).isBetween(0.65, 0.90);
+        assertThat(centerXRatio).isBetween(0.42, 0.58);
+        assertThat(centerYRatio).isBetween(0.42, 0.62);
     }
 
     private String extension(String mediaType) {
@@ -136,7 +187,7 @@ class OpenAiCharacterImageQualityTest {
             this.evidence = evidence;
         }
 
-        CharacterImageGenerationCommand command() {
+        CharacterImageGenerationCommand command(CharacterCardStyleResolver styleResolver) {
             return new CharacterImageGenerationCommand(
                     scenario,
                     role,
@@ -144,7 +195,8 @@ class OpenAiCharacterImageQualityTest {
                     description,
                     mainTrait,
                     secondaryTrait,
-                    evidence
+                    evidence,
+                    styleResolver.resolve(role, name)
             );
         }
     }

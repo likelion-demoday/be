@@ -4,6 +4,7 @@ import com.example.resay.domain.analysis.service.AnalysisFailureCategory;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSource;
+import com.example.resay.domain.analysis.model.CharacterInsightTextPolicy;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import java.util.HashMap;
@@ -446,6 +447,16 @@ public class LinerAnalysisResponseValidator {
         for (QualitativeAnalysis.CharacterInsight insight : insights) {
             requireText(insight.name(), "characterInsight.name");
             requireText(insight.description(), "characterInsight.description");
+            requireMaxLength(
+                    insight.name(),
+                    CharacterInsightTextPolicy.NAME_MAX_LENGTH,
+                    "characterInsight.name"
+            );
+            requireMaxLength(
+                    insight.description(),
+                    CharacterInsightTextPolicy.DESCRIPTION_MAX_LENGTH,
+                    "characterInsight.description"
+            );
             validateSpeakerEvidence(
                     insight.evidenceSegmentIds(),
                     insight.speakerRole(),
@@ -917,6 +928,12 @@ public class LinerAnalysisResponseValidator {
     private void requireText(String value, String fieldName) {
         if (!StringUtils.hasText(value)) {
             throw invalidResponse(fieldName + "은(는) 비어 있을 수 없습니다.");
+        }
+    }
+
+    private void requireMaxLength(String value, int maxLength, String fieldName) {
+        if (value.length() > maxLength) {
+            throw invalidResponse(fieldName + "은(는) " + maxLength + "자 이하여야 합니다.");
         }
     }
 

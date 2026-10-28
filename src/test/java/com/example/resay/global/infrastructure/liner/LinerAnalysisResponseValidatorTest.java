@@ -22,6 +22,27 @@ class LinerAnalysisResponseValidatorTest {
     }
 
     @Test
+    void rejectsCharacterCardTextOverDisplayLimits() {
+        QualitativeAnalysis valid = validResponse();
+        QualitativeAnalysis response = withCharacterInsights(
+                valid,
+                List.of(
+                        new QualitativeAnalysis.CharacterInsight(
+                                SpeakerRole.SELF,
+                                "열두자를넘어가는캐릭터이름",
+                                "이번 대화에서 상대의 말을 끝까지 듣고 새로운 질문을 계속 덧붙이며 대화를 자연스럽게 이어 가는 모습이 보여요.",
+                                List.of(1L)
+                        ),
+                        character(SpeakerRole.FRIEND, 2L)
+                )
+        );
+
+        assertThatThrownBy(() -> validator.validate(source(), response))
+                .isInstanceOf(LinerAnalysisException.class)
+                .hasMessageContaining("12자 이하");
+    }
+
+    @Test
     void rejectsUnknownEvidenceSegmentId() {
         QualitativeAnalysis valid = validResponse();
         QualitativeAnalysis response = copy(
@@ -417,6 +438,28 @@ class LinerAnalysisResponseValidatorTest {
                 metrics,
                 List.of(),
                 List.of()
+        );
+    }
+
+    private QualitativeAnalysis withCharacterInsights(
+            QualitativeAnalysis source,
+            List<QualitativeAnalysis.CharacterInsight> characterInsights
+    ) {
+        return new QualitativeAnalysis(
+                source.overview(),
+                source.timeline(),
+                source.topics(),
+                characterInsights,
+                source.speakerInsights(),
+                source.interestInsights(),
+                source.spicinessInsights(),
+                source.reactionStyleInsights(),
+                source.scenarioInsights(),
+                source.representativeEvidences(),
+                source.relationshipSummary(),
+                source.reportMetrics(),
+                source.speakerTendencies(),
+                source.coachingSuggestions()
         );
     }
 

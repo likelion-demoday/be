@@ -55,18 +55,21 @@ class CharacterImageProcessorTest {
     private CharacterImageStorage characterImageStorage;
 
     private ObjectMapper objectMapper;
+    private CharacterCardStyleResolver characterCardStyleResolver;
     private CharacterImageProcessor processor;
     private GeneratedCharacterImage generatedImage;
 
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
+        characterCardStyleResolver = new CharacterCardStyleResolver();
         processor = new CharacterImageProcessor(
                 conversationAnalysisRepository,
                 analysisResultRepository,
                 characterImageService,
                 characterImageGenerator,
                 characterImageStorage,
+                characterCardStyleResolver,
                 objectMapper
         );
         generatedImage = new GeneratedCharacterImage(
@@ -93,20 +96,28 @@ class CharacterImageProcessorTest {
         assertThat(commandCaptor.getAllValues())
                 .extracting(CharacterImageGenerationCommand::speakerRole)
                 .containsExactly(SpeakerRole.SELF, SpeakerRole.FRIEND);
+        var expectedStyle = characterCardStyleResolver.resolve(
+                SpeakerRole.SELF,
+                "차분한 탐험가"
+        );
         assertThat(commandCaptor.getAllValues().get(0))
                 .extracting(
                         CharacterImageGenerationCommand::characterName,
                         CharacterImageGenerationCommand::characterSummary,
                         CharacterImageGenerationCommand::mainTrait,
                         CharacterImageGenerationCommand::secondaryTrait,
-                        CharacterImageGenerationCommand::selectionEvidence
+                        CharacterImageGenerationCommand::selectionEvidence,
+                        command -> command.cardStyle().characterNameTextColor(),
+                        command -> command.cardStyle().cardBackgroundGradientColors()
                 )
                 .containsExactly(
                         "차분한 탐험가",
                         "상대의 이야기를 차분히 살피는 모습이 보여요.",
                         "상대의 이야기를 차분히 살피는 모습이 보여요.",
                         "꼬리 질문: 상대의 이야기를 질문으로 이어 갔어요.",
-                        "꼬리 질문: 상대의 이야기를 질문으로 이어 갔어요."
+                        "꼬리 질문: 상대의 이야기를 질문으로 이어 갔어요.",
+                        expectedStyle.characterNameTextColor(),
+                        expectedStyle.cardBackgroundGradientColors()
                 );
         then(characterImageService).should().complete(
                 10L,

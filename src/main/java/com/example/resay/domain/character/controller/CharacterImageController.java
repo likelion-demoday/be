@@ -40,7 +40,8 @@ public class CharacterImageController {
     @GetMapping("/{recordingId}/character-images")
     @Operation(
             summary = "캐릭터 이미지 상태 조회",
-            description = "화자별 캐릭터 이미지 생성 상태와 완료된 이미지의 조회 주소를 반환합니다."
+            description = "화자별 캐릭터 이미지 생성 상태, 완료된 이미지 URL과 "
+                    + "카드 표시용 이름·설명·색상 정보를 반환합니다."
     )
     public ResponseEntity<ApiResponse<CharacterImageListResponseDto>> getAll(
             @Parameter(hidden = true) @CurrentUserId Long userId,

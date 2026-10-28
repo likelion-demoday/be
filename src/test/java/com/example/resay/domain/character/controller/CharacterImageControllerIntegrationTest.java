@@ -10,6 +10,7 @@ import com.example.resay.domain.character.entity.CharacterImageStatus;
 import com.example.resay.domain.character.model.GeneratedCharacterImage;
 import com.example.resay.domain.character.port.CharacterImageStorage;
 import com.example.resay.domain.character.repository.CharacterImageRepository;
+import com.example.resay.domain.character.service.CharacterCardStyleResolver;
 import com.example.resay.domain.character.service.CharacterImageService;
 import com.example.resay.domain.credit.service.CreditQueryService;
 import com.example.resay.domain.recording.entity.Recording;
@@ -59,6 +60,9 @@ class CharacterImageControllerIntegrationTest {
 
     @Autowired
     private CharacterImageService characterImageService;
+
+    @Autowired
+    private CharacterCardStyleResolver characterCardStyleResolver;
 
     @Autowired
     private CreditQueryService creditQueryService;
@@ -167,6 +171,10 @@ class CharacterImageControllerIntegrationTest {
                 generatedImage
         );
         given(characterImageStorage.load("1/self.png")).willReturn(imageBytes);
+        var expectedStyle = characterCardStyleResolver.resolve(
+                SpeakerRole.SELF,
+                "차분한 탐험가"
+        );
 
         mockMvc.perform(get(
                         "/api/v1/analyses/{recordingId}/character-images",
@@ -182,6 +190,23 @@ class CharacterImageControllerIntegrationTest {
                         "$.result.images[?(@.speakerRole == 'SELF')].contentUrl"
                 ).value("/api/v1/analyses/" + recording.getId()
                         + "/character-images/SELF/content"))
+                .andExpect(jsonPath(
+                        "$.result.images[?(@.speakerRole == 'SELF')].characterName"
+                ).value("차분한 탐험가"))
+                .andExpect(jsonPath(
+                        "$.result.images[?(@.speakerRole == 'SELF')].characterDescription"
+                ).value("대화에서 관찰된 캐릭터 설명"))
+                .andExpect(jsonPath(
+                        "$.result.images[?(@.speakerRole == 'SELF')].characterNameTextColor"
+                ).value(expectedStyle.characterNameTextColor()))
+                .andExpect(jsonPath(
+                        "$.result.images[?(@.speakerRole == 'SELF')]"
+                                + ".cardBackgroundGradientColors[0]"
+                ).value(expectedStyle.cardBackgroundGradientColors().get(0)))
+                .andExpect(jsonPath(
+                        "$.result.images[?(@.speakerRole == 'SELF')]"
+                                + ".cardBackgroundGradientColors[1]"
+                ).value(expectedStyle.cardBackgroundGradientColors().get(1)))
                 .andExpect(jsonPath(
                         "$.result.images[?(@.speakerRole == 'FRIEND')].status"
                 ).value("PENDING"))
@@ -256,8 +281,24 @@ class CharacterImageControllerIntegrationTest {
 
         assertThat(getOperation.path("summary").asText())
                 .isEqualTo("캐릭터 이미지 상태 조회");
+        assertThat(getOperation.path("description").asText())
+                .contains("이미지 URL", "이름", "설명", "색상");
         assertThat(contentOperation.path("summary").asText())
                 .isEqualTo("캐릭터 이미지 파일 조회");
+
+        var imageItemProperties = objectMapper.readTree(apiDocs)
+                .path("components")
+                .path("schemas")
+                .path("CharacterImageItem")
+                .path("properties");
+        assertThat(imageItemProperties.path("contentUrl").path("description").asText())
+                .contains("캐릭터 이미지 파일의 상대 URL");
+        assertThat(imageItemProperties.path("characterName").path("maxLength").asInt())
+                .isEqualTo(12);
+        assertThat(imageItemProperties.path("characterDescription").path("maxLength").asInt())
+                .isEqualTo(24);
+        assertThat(imageItemProperties.has("characterNameTextColor")).isTrue();
+        assertThat(imageItemProperties.has("cardBackgroundGradientColors")).isTrue();
     }
 
     private org.springframework.test.web.servlet.ResultActions performRequest(String token)
