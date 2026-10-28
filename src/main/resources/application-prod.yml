@@ -8,12 +8,6 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: ${DB_POOL_SIZE:10}
-  # 스키마는 Flyway 마이그레이션(db/migration)으로만 바꾼다
-  flyway:
-    enabled: true
-    # 런칭 전 서버처럼 테이블은 있고 Flyway 기록이 없는 DB에서는 V1을 실행하지 않고 "적용됨"으로만 기록한다 (V2부터 실행).
-    # 빈 DB(런칭 때 초기화)와 기록이 생긴 뒤에는 아무 일도 하지 않는다
-    baseline-on-migrate: true
   jpa:
     hibernate:
       # 운영에서는 스키마를 자동 변경하지 않는다
