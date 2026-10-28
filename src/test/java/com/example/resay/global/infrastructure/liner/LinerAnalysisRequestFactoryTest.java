@@ -79,10 +79,16 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("topics의 segmentIds에는 대표 근거만 넣지 말고")
                 .contains("topics 사이에 segmentIds를 중복해서 넣지 마세요")
                 .contains("title과 description에는 segmentId나 근거 발화 번호를 직접 작성하지 마세요")
-                .contains("reactionStyleInsights의 examples에는 해당 화자의 반응 사례를 원문 인용 없이");
+                .contains("reactionStyleInsights의 examples에는 해당 화자의 반응 사례를 원문 인용 없이")
+                .contains("음성 인식 오류가 포함될 수 있습니다")
+                .contains("대표 근거만 작성하세요")
+                .contains("displayContent를 요약하거나")
+                .contains("reportMetrics는 화면에 필요한 세부 횟수와 비율")
+                .contains("관찰되지 않은 항목도 value 0으로 작성하세요")
+                .contains("화자별 1개 이상 3개 이하");
 
-        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v11");
-        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v5");
+        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v13");
+        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v7");
 
         Map<?, ?> input = objectMapper.readValue(request.messages().get(1).content(), Map.class);
         assertThat(input.get("recordingId")).isEqualTo(1);
@@ -103,8 +109,25 @@ class LinerAnalysisRequestFactoryTest {
                 "characterInsights",
                 "interestInsights",
                 "spicinessInsights",
-                "reactionStyleInsights"
+                "reactionStyleInsights",
+                "representativeEvidences",
+                "relationshipSummary",
+                "reportMetrics",
+                "speakerTendencies",
+                "coachingSuggestions"
         );
+        Map<?, ?> representativeEvidences =
+                (Map<?, ?>) rootProperties.get("representativeEvidences");
+        assertThat(representativeEvidences.get("minItems")).isEqualTo(2);
+        assertThat(representativeEvidences.get("maxItems")).isEqualTo(6);
+        Map<?, ?> representativeEvidenceItems =
+                (Map<?, ?>) representativeEvidences.get("items");
+        Map<?, ?> representativeEvidenceProperties =
+                (Map<?, ?>) representativeEvidenceItems.get("properties");
+        Map<?, ?> representativeEvidenceType =
+                (Map<?, ?>) representativeEvidenceProperties.get("type");
+        assertThat(representativeEvidenceType.get("enum"))
+                .isEqualTo(List.of("REACTION_STYLE_EXAMPLE"));
         Map<?, ?> speakerInsights = (Map<?, ?>) rootProperties.get("speakerInsights");
         assertThat(speakerInsights.keySet().stream().map(Object::toString).toList())
                 .containsExactlyInAnyOrder("type", "items");
@@ -209,7 +232,20 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("SELF와 PARTNER에 대해 각각 한 개씩")
                 .contains("두 사람의 입장을 한 항목에 합치지 마세요")
                 .contains("공격, 방어, 회피는 사람의 성향이 아니라")
-                .contains("애착 유형이나 정신 상태를 진단하지 마세요");
+                .contains("애착 유형이나 정신 상태를 진단하지 마세요")
+                .contains("coachingSuggestions는 대화 개선 단계 세 개")
+                .contains("총 6개가 되게 하세요");
+
+        Map<?, ?> jsonSchema = (Map<?, ?>) request.responseFormat().get("json_schema");
+        Map<?, ?> rootSchema = (Map<?, ?>) jsonSchema.get("schema");
+        Map<?, ?> rootProperties = (Map<?, ?>) rootSchema.get("properties");
+        Map<?, ?> representativeEvidences =
+                (Map<?, ?>) rootProperties.get("representativeEvidences");
+        assertThat(representativeEvidences.get("minItems")).isEqualTo(6);
+        assertThat(representativeEvidences.get("maxItems")).isEqualTo(6);
+        Map<?, ?> coachingSuggestions = (Map<?, ?>) rootProperties.get("coachingSuggestions");
+        assertThat(coachingSuggestions.get("minItems")).isEqualTo(3);
+        assertThat(coachingSuggestions.get("maxItems")).isEqualTo(3);
     }
 
     private AnalysisSource friendSource() {

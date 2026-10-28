@@ -63,6 +63,60 @@ final class LinerAnalysisPolicy {
         };
     }
 
+    static Set<QualitativeAnalysis.ReportMetricType> reportMetricTypes(
+            AnalysisScenario scenario
+    ) {
+        return switch (scenario) {
+            case FRIEND_DAILY -> Set.of(
+                    QualitativeAnalysis.ReportMetricType.COMPLIMENT,
+                    QualitativeAnalysis.ReportMetricType.ENCOURAGEMENT,
+                    QualitativeAnalysis.ReportMetricType.CARING_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.FRIENDLY_ADDRESS,
+                    QualitativeAnalysis.ReportMetricType.DIRECT_AFFECTION,
+                    QualitativeAnalysis.ReportMetricType.JOY_OR_GRATITUDE
+            );
+            case COUPLE_DAILY -> Set.of(
+                    QualitativeAnalysis.ReportMetricType.COMPLIMENT,
+                    QualitativeAnalysis.ReportMetricType.ENCOURAGEMENT,
+                    QualitativeAnalysis.ReportMetricType.CARING_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.DIRECT_AFFECTION,
+                    QualitativeAnalysis.ReportMetricType.JOY_OR_GRATITUDE,
+                    QualitativeAnalysis.ReportMetricType.AFFECTIONATE_ADDRESS,
+                    QualitativeAnalysis.ReportMetricType.COMPLIMENT_OR_ENCOURAGEMENT
+            );
+            case COUPLE_CONFLICT -> Set.of(
+                    QualitativeAnalysis.ReportMetricType.POSITION_EXPLANATION,
+                    QualitativeAnalysis.ReportMetricType.REBUTTAL,
+                    QualitativeAnalysis.ReportMetricType.AVOIDANCE,
+                    QualitativeAnalysis.ReportMetricType.APOLOGY,
+                    QualitativeAnalysis.ReportMetricType.YIELDING,
+                    QualitativeAnalysis.ReportMetricType.EMOTION_CHECK,
+                    QualitativeAnalysis.ReportMetricType.DIRECT_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.ASSERTIVE_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.SOFTENING_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.RECOVERY_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.QUESTION,
+                    QualitativeAnalysis.ReportMetricType.MISSED_RESPONSE
+            );
+            case PARENT_CHILD_CONFLICT -> Set.of(
+                    QualitativeAnalysis.ReportMetricType.SITUATION_QUESTION,
+                    QualitativeAnalysis.ReportMetricType.CONCRETE_ADVICE,
+                    QualitativeAnalysis.ReportMetricType.EMOTION_CHECK,
+                    QualitativeAnalysis.ReportMetricType.ASSERTIVE_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.EXPERIENCE_COMPARISON,
+                    QualitativeAnalysis.ReportMetricType.SHORT_RESPONSE,
+                    QualitativeAnalysis.ReportMetricType.TOPIC_AVOIDANCE,
+                    QualitativeAnalysis.ReportMetricType.REBUTTAL,
+                    QualitativeAnalysis.ReportMetricType.EMOTION_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.APOLOGY,
+                    QualitativeAnalysis.ReportMetricType.ADVICE,
+                    QualitativeAnalysis.ReportMetricType.SOFTENING_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.CHILD_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.PARENT_CONFIRMATION
+            );
+        };
+    }
+
     private static Set<QualitativeAnalysis.SpeakerPatternCategory> conflictPatterns() {
         Set<QualitativeAnalysis.SpeakerPatternCategory> categories = new HashSet<>(DAILY_PATTERNS);
         categories.addAll(Set.of(

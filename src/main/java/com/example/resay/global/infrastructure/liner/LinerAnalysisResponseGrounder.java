@@ -1,12 +1,14 @@
 package com.example.resay.global.infrastructure.liner;
 
 import com.example.resay.domain.analysis.model.AnalysisSegment;
+import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.springframework.stereotype.Component;
@@ -51,8 +53,147 @@ public class LinerAnalysisResponseGrounder {
                 response.interestInsights(),
                 groundedSpicinessInsights,
                 response.reactionStyleInsights(),
-                response.scenarioInsights()
+                response.scenarioInsights(),
+                groundRepresentativeEvidences(source, response.representativeEvidences()),
+                response.relationshipSummary(),
+                groundReportMetrics(response.reportMetrics()),
+                response.speakerTendencies(),
+                response.coachingSuggestions()
         );
+    }
+
+    private List<QualitativeAnalysis.ReportMetric> groundReportMetrics(
+            List<QualitativeAnalysis.ReportMetric> metrics
+    ) {
+        if (metrics == null) {
+            return null;
+        }
+        return metrics.stream()
+                .map(metric -> {
+                    if (metric == null
+                            || metric.unit() != QualitativeAnalysis.ReportMetricUnit.COUNT
+                            || metric.evidenceSegmentIds() == null) {
+                        return metric;
+                    }
+                    return new QualitativeAnalysis.ReportMetric(
+                            metric.type(),
+                            metric.speakerRole(),
+                            (int) metric.evidenceSegmentIds().stream().distinct().count(),
+                            metric.unit(),
+                            metric.title(),
+                            metric.description(),
+                            metric.evidenceSegmentIds()
+                    );
+                })
+                .toList();
+    }
+
+    private List<QualitativeAnalysis.RepresentativeEvidence> groundRepresentativeEvidences(
+            AnalysisSource source,
+            List<QualitativeAnalysis.RepresentativeEvidence> evidences
+    ) {
+        if (evidences == null) {
+            return null;
+        }
+
+        Map<Long, AnalysisSegment> segmentsById = source.segments().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        AnalysisSegment::segmentId,
+                        segment -> segment
+                ));
+        return evidences.stream()
+                .map(evidence -> groundRepresentativeEvidence(
+                        evidence,
+                        segmentsById,
+                        source.scenario() == AnalysisScenario.FRIEND_DAILY
+                                || source.scenario() == AnalysisScenario.COUPLE_DAILY
+                ))
+                .toList();
+    }
+
+    private QualitativeAnalysis.RepresentativeEvidence groundRepresentativeEvidence(
+            QualitativeAnalysis.RepresentativeEvidence evidence,
+            Map<Long, AnalysisSegment> segmentsById,
+            boolean dailyScenario
+    ) {
+        if (evidence == null || evidence.segmentId() == null) {
+            return evidence;
+        }
+        AnalysisSegment segment = segmentsById.get(evidence.segmentId());
+        if (segment == null) {
+            return evidence;
+        }
+
+        String candidate = stripOuterQuotes(evidence.displayContent());
+        String displayContent = isConservativeCorrection(segment.content(), candidate)
+                ? candidate
+                : segment.content();
+        return new QualitativeAnalysis.RepresentativeEvidence(
+                evidence.type(),
+                evidence.speakerRole(),
+                dailyScenario ? evidence.reactionCategory() : null,
+                evidence.segmentId(),
+                displayContent
+        );
+    }
+
+    private String stripOuterQuotes(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        String trimmed = value.trim();
+        if (trimmed.length() >= 2
+                && ((trimmed.startsWith("\"") && trimmed.endsWith("\""))
+                || (trimmed.startsWith("“") && trimmed.endsWith("”")))) {
+            return trimmed.substring(1, trimmed.length() - 1).trim();
+        }
+        return trimmed;
+    }
+
+    private boolean isConservativeCorrection(String original, String candidate) {
+        if (!StringUtils.hasText(candidate)) {
+            return false;
+        }
+        String normalizedOriginal = normalizeForComparison(original);
+        String normalizedCandidate = normalizeForComparison(candidate);
+        if (normalizedOriginal.isEmpty() || normalizedCandidate.isEmpty()) {
+            return false;
+        }
+        double lengthRatio = (double) normalizedCandidate.length() / normalizedOriginal.length();
+        if (lengthRatio < 0.5 || lengthRatio > 1.5) {
+            return false;
+        }
+        int maxLength = Math.max(normalizedOriginal.length(), normalizedCandidate.length());
+        return (double) levenshteinDistance(normalizedOriginal, normalizedCandidate) / maxLength <= 0.45;
+    }
+
+    private String normalizeForComparison(String value) {
+        return value.toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("[\\p{P}\\p{S}\\s]", "");
+    }
+
+    private int levenshteinDistance(String left, String right) {
+        int[] previous = new int[right.length() + 1];
+        int[] current = new int[right.length() + 1];
+        for (int index = 0; index <= right.length(); index++) {
+            previous[index] = index;
+        }
+        for (int leftIndex = 1; leftIndex <= left.length(); leftIndex++) {
+            current[0] = leftIndex;
+            for (int rightIndex = 1; rightIndex <= right.length(); rightIndex++) {
+                int substitutionCost = left.charAt(leftIndex - 1) == right.charAt(rightIndex - 1)
+                        ? 0
+                        : 1;
+                current[rightIndex] = Math.min(
+                        Math.min(current[rightIndex - 1] + 1, previous[rightIndex] + 1),
+                        previous[rightIndex - 1] + substitutionCost
+                );
+            }
+            int[] swap = previous;
+            previous = current;
+            current = swap;
+        }
+        return previous[right.length()];
     }
 
     private List<QualitativeAnalysis.Topic> groundTopics(

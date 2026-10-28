@@ -228,6 +228,58 @@ class LinerAnalysisResponseGrounderTest {
         assertThat(grounded.spicinessInsights().get(0).observations()).isEmpty();
     }
 
+    @Test
+    void keepsConservativeContextualCorrectionForRepresentativeEvidence() {
+        AnalysisSource source = evidenceSource();
+        QualitativeAnalysis response = responseWithRepresentativeEvidence(
+                "“아니, 그거 진짜 힘들었을 것 같아.”"
+        );
+
+        QualitativeAnalysis grounded = grounder.ground(source, response);
+
+        assertThat(grounded.representativeEvidences().get(0).displayContent())
+                .isEqualTo("아니, 그거 진짜 힘들었을 것 같아.");
+    }
+
+    @Test
+    void fallsBackToOriginalWhenCorrectionChangesMeaningTooMuch() {
+        AnalysisSource source = evidenceSource();
+        QualitativeAnalysis response = responseWithRepresentativeEvidence(
+                "오늘은 대화를 그만하고 여행을 떠나자."
+        );
+
+        QualitativeAnalysis grounded = grounder.ground(source, response);
+
+        assertThat(grounded.representativeEvidences().get(0).displayContent())
+                .isEqualTo("아니 그거 진짜 힘들었을거 가타");
+    }
+
+    @Test
+    void clearsReactionCategoryFromConflictRepresentativeEvidence() {
+        QualitativeAnalysis response = new QualitativeAnalysis(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(new QualitativeAnalysis.RepresentativeEvidence(
+                        QualitativeAnalysis.ReportEvidenceType.WORRY_START,
+                        SpeakerRole.PARENT,
+                        QualitativeAnalysis.ReactionCategory.THINKING,
+                        1L,
+                        "먼저 연락해. 먼저 알려줘."
+                ))
+        );
+
+        QualitativeAnalysis grounded = grounder.ground(source(), response);
+
+        assertThat(grounded.representativeEvidences().get(0).reactionCategory()).isNull();
+    }
+
     private AnalysisSource source() {
         return new AnalysisSource(
                 1L,
@@ -298,6 +350,52 @@ class LinerAnalysisResponseGrounderTest {
                         new AnalysisSegment(2L, SpeakerRole.FRIEND, 1_100L, 2_000L, "그러게 놀랐어"),
                         new AnalysisSegment(3L, SpeakerRole.SELF, 2_100L, 3_000L, "미친 너무 웃기다")
                 )
+        );
+    }
+
+    private AnalysisSource evidenceSource() {
+        return new AnalysisSource(
+                3L,
+                AnalysisScenario.FRIEND_DAILY,
+                10_000L,
+                speakersFor(AnalysisScenario.FRIEND_DAILY),
+                List.of(
+                        new AnalysisSegment(
+                                1L,
+                                SpeakerRole.SELF,
+                                0L,
+                                1_000L,
+                                "아니 그거 진짜 힘들었을거 가타"
+                        ),
+                        new AnalysisSegment(
+                                2L,
+                                SpeakerRole.FRIEND,
+                                1_100L,
+                                2_000L,
+                                "응, 정말 힘들었어."
+                        )
+                )
+        );
+    }
+
+    private QualitativeAnalysis responseWithRepresentativeEvidence(String displayContent) {
+        return new QualitativeAnalysis(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(new QualitativeAnalysis.RepresentativeEvidence(
+                        QualitativeAnalysis.ReportEvidenceType.REACTION_STYLE_EXAMPLE,
+                        SpeakerRole.SELF,
+                        QualitativeAnalysis.ReactionCategory.FEELING,
+                        1L,
+                        displayContent
+                ))
         );
     }
 
