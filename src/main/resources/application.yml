@@ -3,10 +3,6 @@ spring:
     name: resay
   profiles:
     default: local
-  # 운영(prod)에서만 Flyway가 src/main/resources/db/migration 의 SQL로 스키마를 만든다.
-  # 로컬 · mock은 지금처럼 Hibernate(ddl-auto)가 만든다 (이미 테이블이 있는 로컬 DB에서 Flyway가 실패하지 않게)
-  flyway:
-    enabled: false
   jpa:
     open-in-view: false
     properties:
