@@ -81,7 +81,8 @@ class AnalysisServiceTest {
     @Test
     void completesAnalysis() {
         ConversationAnalysis analysis = savedAnalysis();
-        given(conversationAnalysisRepository.findByRecordingId(1L)).willReturn(Optional.of(analysis));
+        given(conversationAnalysisRepository.findByRecordingIdForUpdate(1L))
+                .willReturn(Optional.of(analysis));
         given(analysisResultRepository.existsByAnalysisId(10L)).willReturn(false);
 
         analysisService.complete(1L, resultCommand());
@@ -166,7 +167,8 @@ class AnalysisServiceTest {
 
     @Test
     void rejectsMissingAnalysis() {
-        given(conversationAnalysisRepository.findByRecordingId(1L)).willReturn(Optional.empty());
+        given(conversationAnalysisRepository.findByRecordingIdForUpdate(1L))
+                .willReturn(Optional.empty());
 
         assertThatThrownBy(() -> analysisService.complete(1L, resultCommand()))
                 .isInstanceOfSatisfying(GeneralException.class, exception ->
@@ -177,7 +179,8 @@ class AnalysisServiceTest {
     @Test
     void rejectsExistingAnalysisResult() {
         ConversationAnalysis analysis = savedAnalysis();
-        given(conversationAnalysisRepository.findByRecordingId(1L)).willReturn(Optional.of(analysis));
+        given(conversationAnalysisRepository.findByRecordingIdForUpdate(1L))
+                .willReturn(Optional.of(analysis));
         given(analysisResultRepository.existsByAnalysisId(10L)).willReturn(true);
 
         assertThatThrownBy(() -> analysisService.complete(1L, resultCommand()))
@@ -193,7 +196,8 @@ class AnalysisServiceTest {
     @Test
     void handlesConcurrentDuplicateAnalysisResult() {
         ConversationAnalysis analysis = savedAnalysis();
-        given(conversationAnalysisRepository.findByRecordingId(1L)).willReturn(Optional.of(analysis));
+        given(conversationAnalysisRepository.findByRecordingIdForUpdate(1L))
+                .willReturn(Optional.of(analysis));
         given(analysisResultRepository.existsByAnalysisId(10L)).willReturn(false);
         given(analysisResultRepository.saveAndFlush(org.mockito.ArgumentMatchers.any()))
                 .willThrow(DataIntegrityViolationException.class);

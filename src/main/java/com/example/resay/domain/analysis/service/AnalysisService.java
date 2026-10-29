@@ -44,7 +44,9 @@ public class AnalysisService {
     @Transactional
     public void complete(Long recordingId, AnalysisResultCommand command) {
         Objects.requireNonNull(command, "분석 결과 명령은 비어 있을 수 없습니다.");
-        ConversationAnalysis analysis = findAnalysis(recordingId);
+        // 멈춤 정리와 동시에 끝난 경우 한쪽이 행 잠금을 먼저 얻고, 나중 작업은 최신 상태를 본다.
+        // 정리 작업이 먼저 FAILED로 바꿨다면 늦게 도착한 결과를 저장하거나 COMPLETED로 덮지 않는다.
+        ConversationAnalysis analysis = findAnalysisForUpdate(recordingId);
         AnalysisResult result = AnalysisResult.create(
                 analysis.getId(),
                 command.resultJson(),
@@ -106,6 +108,11 @@ public class AnalysisService {
 
     private ConversationAnalysis findAnalysis(Long recordingId) {
         return conversationAnalysisRepository.findByRecordingId(recordingId)
+                .orElseThrow(() -> new GeneralException(AnalysisErrorCode.ANALYSIS_NOT_FOUND));
+    }
+
+    private ConversationAnalysis findAnalysisForUpdate(Long recordingId) {
+        return conversationAnalysisRepository.findByRecordingIdForUpdate(recordingId)
                 .orElseThrow(() -> new GeneralException(AnalysisErrorCode.ANALYSIS_NOT_FOUND));
     }
 }
