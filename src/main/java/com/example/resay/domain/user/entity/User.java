@@ -10,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -57,6 +58,14 @@ public class User extends BaseEntity {
     @Column(nullable = false, columnDefinition = "varchar(20)")
     private Role role;
 
+    // 필수 약관(서비스 이용약관 · 개인정보 수집 · 이용 · 음성정보 처리)에 모두 동의한 시각. 동의 기록을 남기기 전에 가입한 계정은 null
+    @Column(name = "terms_agreed_at")
+    private LocalDateTime termsAgreedAt;
+
+    // 마케팅 정보 수신에 동의한 시각. 동의하지 않았으면 null
+    @Column(name = "marketing_agreed_at")
+    private LocalDateTime marketingAgreedAt;
+
     private User(
             String email,
             String password,
@@ -96,6 +105,11 @@ public class User extends BaseEntity {
             requireText(email, "email");
         }
         return new User(email, null, nickname, provider, providerId);
+    }
+
+    public void agreeToTerms(LocalDateTime agreedAt, boolean marketing) {
+        this.termsAgreedAt = agreedAt;
+        this.marketingAgreedAt = marketing ? agreedAt : null;
     }
 
     public void updateNickname(String nickname) {

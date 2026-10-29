@@ -71,7 +71,7 @@ public class RefreshTokenService {
         refreshTokenRepository.deleteByTokenHash(hash(rawToken));
     }
 
-    private String generateRawToken() {
+    static String generateRawToken() {
         byte[] bytes = new byte[TOKEN_BYTES];
         SECURE_RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);

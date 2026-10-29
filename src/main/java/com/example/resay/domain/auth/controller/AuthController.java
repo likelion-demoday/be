@@ -8,6 +8,8 @@ import com.example.resay.domain.auth.dto.KakaoLoginRequestDto;
 import com.example.resay.domain.auth.dto.LoginRequestDto;
 import com.example.resay.domain.auth.dto.RefreshTokenRequestDto;
 import com.example.resay.domain.auth.dto.SignupRequestDto;
+import com.example.resay.domain.auth.dto.SocialLoginResponseDto;
+import com.example.resay.domain.auth.dto.SocialSignupRequestDto;
 import com.example.resay.domain.auth.dto.TokenResponseDto;
 import com.example.resay.domain.auth.service.AuthService;
 import com.example.resay.global.apiPayload.ApiResponse;
@@ -60,21 +62,31 @@ public class AuthController {
     }
 
     @PostMapping("/oauth/kakao")
-    public ResponseEntity<ApiResponse<TokenResponseDto>> loginWithKakao(
+    public ResponseEntity<ApiResponse<SocialLoginResponseDto>> loginWithKakao(
             @Valid @RequestBody KakaoLoginRequestDto request
     ) {
-        TokenResponseDto response = authService.loginWithKakao(request);
+        SocialLoginResponseDto response = authService.loginWithKakao(request);
         return ResponseEntity.status(AuthSuccessCode.SOCIAL_LOGIN.getHttpStatus())
                 .body(ApiResponse.onSuccess(AuthSuccessCode.SOCIAL_LOGIN, response));
     }
 
     @PostMapping("/oauth/google")
-    public ResponseEntity<ApiResponse<TokenResponseDto>> loginWithGoogle(
+    public ResponseEntity<ApiResponse<SocialLoginResponseDto>> loginWithGoogle(
             @Valid @RequestBody GoogleLoginRequestDto request
     ) {
-        TokenResponseDto response = authService.loginWithGoogle(request);
+        SocialLoginResponseDto response = authService.loginWithGoogle(request);
         return ResponseEntity.status(AuthSuccessCode.SOCIAL_LOGIN.getHttpStatus())
                 .body(ApiResponse.onSuccess(AuthSuccessCode.SOCIAL_LOGIN, response));
+    }
+
+    // 소셜 로그인에서 isNewUser=true를 받은 사용자가 온보딩을 마치고 가입한다
+    @PostMapping("/oauth/signup")
+    public ResponseEntity<ApiResponse<TokenResponseDto>> signupWithSocial(
+            @Valid @RequestBody SocialSignupRequestDto request
+    ) {
+        TokenResponseDto response = authService.completeSocialSignup(request);
+        return ResponseEntity.status(AuthSuccessCode.SOCIAL_SIGNUP.getHttpStatus())
+                .body(ApiResponse.onSuccess(AuthSuccessCode.SOCIAL_SIGNUP, response));
     }
 
     @PostMapping("/reissue")

@@ -85,6 +85,42 @@ class AuthControllerTest {
     }
 
     @Test
+    void signupRecordsAgreements() throws Exception {
+        signup("user@example.com", "password123", "닉네임").andExpect(status().isCreated());
+        signupWith("""
+                {"email": "marketing@example.com", "password": "password123", "nickname": "닉네임",
+                 "agreements": {"terms": true, "privacy": true, "voice": true, "marketing": true}}
+                """).andExpect(status().isCreated());
+
+        User withoutMarketing = userRepository.findByEmail("user@example.com").orElseThrow();
+        assertThat(withoutMarketing.getTermsAgreedAt()).isNotNull();
+        assertThat(withoutMarketing.getMarketingAgreedAt()).isNull();
+        User withMarketing = userRepository.findByEmail("marketing@example.com").orElseThrow();
+        assertThat(withMarketing.getMarketingAgreedAt()).isEqualTo(withMarketing.getTermsAgreedAt());
+    }
+
+    @Test
+    void signupRequiresEveryRequiredAgreement() throws Exception {
+        signupWith("""
+                {"email": "user@example.com", "password": "password123", "nickname": "닉네임"}
+                """)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.agreements", notNullValue()));
+
+        // 보내지 않은 필수 항목도 동의하지 않은 것으로 본다
+        signupWith("""
+                {"email": "user@example.com", "password": "password123", "nickname": "닉네임",
+                 "agreements": {"terms": true, "privacy": false, "marketing": true}}
+                """)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error['agreements.privacy']", notNullValue()))
+                .andExpect(jsonPath("$.error['agreements.voice']", notNullValue()))
+                .andExpect(jsonPath("$.error['agreements.terms']").doesNotExist());
+
+        assertThat(userRepository.findByEmail("user@example.com")).isEmpty();
+    }
+
+    @Test
     void loginReturnsAccessToken() throws Exception {
         signup("user@example.com", "password123", "닉네임").andExpect(status().isCreated());
 
@@ -124,8 +160,15 @@ class AuthControllerTest {
         return mockMvc.perform(post(SIGNUP_URL)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"email": "%s", "password": "%s", "nickname": "%s"}
+                        {"email": "%s", "password": "%s", "nickname": "%s",
+                         "agreements": {"terms": true, "privacy": true, "voice": true}}
                         """.formatted(email, password, nickname)));
+    }
+
+    private ResultActions signupWith(String body) throws Exception {
+        return mockMvc.perform(post(SIGNUP_URL)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body));
     }
 
     private ResultActions login(String email, String password) throws Exception {

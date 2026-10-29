@@ -303,7 +303,7 @@ class AuthRateLimitTest {
     private ResultActions signup(String clientIp, String email) throws Exception {
         return mockMvc.perform(from(clientIp, post(SIGNUP_URL))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"%s\",\"password\":\"%s\",\"nickname\":\"tester\"}".formatted(email, PASSWORD)));
+                .content("{\"email\":\"%s\",\"password\":\"%s\",\"nickname\":\"tester\",\"agreements\":{\"terms\":true,\"privacy\":true,\"voice\":true}}".formatted(email, PASSWORD)));
     }
 
     private ResultActions login(String clientIp, String email, String password) throws Exception {
