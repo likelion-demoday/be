@@ -255,6 +255,57 @@ class LinerAnalysisResponseGrounderTest {
     }
 
     @Test
+    void replacesDailyRepresentativeEvidenceNotLinkedToReactionExample() {
+        AnalysisSource source = new AnalysisSource(
+                4L,
+                AnalysisScenario.FRIEND_DAILY,
+                10_000L,
+                speakersFor(AnalysisScenario.FRIEND_DAILY),
+                List.of(
+                        new AnalysisSegment(1L, SpeakerRole.SELF, 0L, 1_000L, "오늘 뭐 했어?"),
+                        new AnalysisSegment(2L, SpeakerRole.FRIEND, 1_100L, 2_000L, "학교 갔다 왔어."),
+                        new AnalysisSegment(3L, SpeakerRole.SELF, 2_100L, 3_000L, "재밌었어?")
+                )
+        );
+        QualitativeAnalysis response = new QualitativeAnalysis(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(
+                        reactionStyle(SpeakerRole.SELF, 1L),
+                        reactionStyle(SpeakerRole.FRIEND, 2L)
+                ),
+                null,
+                List.of(
+                        representativeReaction(SpeakerRole.SELF, 3L, "재밌었어?"),
+                        representativeReaction(SpeakerRole.SELF, 1L, "오늘은 뭐 했어?"),
+                        representativeReaction(SpeakerRole.FRIEND, 2L, "학교 갔다 왔어.")
+                )
+        );
+
+        QualitativeAnalysis grounded = grounder.ground(source, response);
+
+        assertThat(grounded.representativeEvidences())
+                .extracting(
+                        QualitativeAnalysis.RepresentativeEvidence::speakerRole,
+                        QualitativeAnalysis.RepresentativeEvidence::segmentId,
+                        QualitativeAnalysis.RepresentativeEvidence::displayContent
+                )
+                .containsExactlyInAnyOrder(
+                        org.assertj.core.groups.Tuple.tuple(
+                                SpeakerRole.SELF, 1L, "오늘은 뭐 했어?"
+                        ),
+                        org.assertj.core.groups.Tuple.tuple(
+                                SpeakerRole.FRIEND, 2L, "학교 갔다 왔어."
+                        )
+                );
+    }
+
+    @Test
     void clearsReactionCategoryFromConflictRepresentativeEvidence() {
         QualitativeAnalysis response = new QualitativeAnalysis(
                 null,
@@ -396,6 +447,38 @@ class LinerAnalysisResponseGrounderTest {
                         1L,
                         displayContent
                 ))
+        );
+    }
+
+    private QualitativeAnalysis.ReactionStyleInsight reactionStyle(
+            SpeakerRole role,
+            Long evidenceId
+    ) {
+        return new QualitativeAnalysis.ReactionStyleInsight(
+                role,
+                50,
+                50,
+                "정보와 감정에 함께 반응했어요.",
+                List.of(new QualitativeAnalysis.ReactionExample(
+                        QualitativeAnalysis.ReactionCategory.MIXED,
+                        "혼합 반응",
+                        "정보와 감정에 함께 반응했어요.",
+                        List.of(evidenceId)
+                ))
+        );
+    }
+
+    private QualitativeAnalysis.RepresentativeEvidence representativeReaction(
+            SpeakerRole role,
+            Long segmentId,
+            String displayContent
+    ) {
+        return new QualitativeAnalysis.RepresentativeEvidence(
+                QualitativeAnalysis.ReportEvidenceType.REACTION_STYLE_EXAMPLE,
+                role,
+                QualitativeAnalysis.ReactionCategory.MIXED,
+                segmentId,
+                displayContent
         );
     }
 

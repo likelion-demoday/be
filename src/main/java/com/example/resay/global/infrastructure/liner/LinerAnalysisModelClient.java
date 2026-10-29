@@ -5,10 +5,13 @@ import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.port.AnalysisModelClient;
 import com.example.resay.domain.analysis.service.AnalysisFailureCategory;
+import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import tools.jackson.databind.ObjectMapper;
 // AnalysisModelClient를 실제 LINER 호출로 연결하는 어댑터
+@Slf4j
 @Component
 public class LinerAnalysisModelClient implements AnalysisModelClient {
 
@@ -44,13 +47,68 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
 
         QualitativeAnalysis response = parseResponse(result.content());
         QualitativeAnalysis groundedResponse = responseGrounder.ground(source, response);
-        responseValidator.validate(source, groundedResponse);
+        QualitativeAnalysis validatedResponse = validateWithRepresentativeEvidenceFallback(
+                source,
+                groundedResponse
+        );
 
         return new AnalysisModelResult(
-                serializeResponse(groundedResponse),
+                serializeResponse(validatedResponse),
                 result.response().model(),
                 requestFactory.promptVersion(),
                 requestFactory.schemaVersion()
+        );
+    }
+
+    private QualitativeAnalysis validateWithRepresentativeEvidenceFallback(
+            AnalysisSource source,
+            QualitativeAnalysis response
+    ) {
+        try {
+            responseValidator.validate(source, response);
+            return response;
+        } catch (LinerAnalysisException validationException) {
+            if (response.representativeEvidences() == null
+                    || response.representativeEvidences().isEmpty()) {
+                throw validationException;
+            }
+
+            QualitativeAnalysis withoutRepresentativeEvidences =
+                    withoutRepresentativeEvidences(response);
+            try {
+                responseValidator.validate(source, withoutRepresentativeEvidences);
+            } catch (LinerAnalysisException nonRepresentativeValidationException) {
+                if (validationException != nonRepresentativeValidationException) {
+                    validationException.addSuppressed(nonRepresentativeValidationException);
+                }
+                throw validationException;
+            }
+
+            log.warn(
+                    "대표 근거 검증 실패로 부가 항목 제외: recordingId={}, 제외 {}건",
+                    source.recordingId(),
+                    response.representativeEvidences().size()
+            );
+            return withoutRepresentativeEvidences;
+        }
+    }
+
+    private QualitativeAnalysis withoutRepresentativeEvidences(QualitativeAnalysis source) {
+        return new QualitativeAnalysis(
+                source.overview(),
+                source.timeline(),
+                source.topics(),
+                source.characterInsights(),
+                source.speakerInsights(),
+                source.interestInsights(),
+                source.spicinessInsights(),
+                source.reactionStyleInsights(),
+                source.scenarioInsights(),
+                List.of(),
+                source.relationshipSummary(),
+                source.reportMetrics(),
+                source.speakerTendencies(),
+                source.coachingSuggestions()
         );
     }
 

@@ -11,9 +11,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+@Slf4j
 @Component
 public class LinerAnalysisResponseGrounder {
 
@@ -54,7 +56,11 @@ public class LinerAnalysisResponseGrounder {
                 groundedSpicinessInsights,
                 response.reactionStyleInsights(),
                 response.scenarioInsights(),
-                groundRepresentativeEvidences(source, response.representativeEvidences()),
+                groundRepresentativeEvidences(
+                        source,
+                        response.reactionStyleInsights(),
+                        response.representativeEvidences()
+                ),
                 response.relationshipSummary(),
                 groundReportMetrics(response.reportMetrics()),
                 response.speakerTendencies(),
@@ -90,6 +96,7 @@ public class LinerAnalysisResponseGrounder {
 
     private List<QualitativeAnalysis.RepresentativeEvidence> groundRepresentativeEvidences(
             AnalysisSource source,
+            List<QualitativeAnalysis.ReactionStyleInsight> reactionStyleInsights,
             List<QualitativeAnalysis.RepresentativeEvidence> evidences
     ) {
         if (evidences == null) {
@@ -101,14 +108,228 @@ public class LinerAnalysisResponseGrounder {
                         AnalysisSegment::segmentId,
                         segment -> segment
                 ));
-        return evidences.stream()
+        boolean dailyScenario = source.scenario() == AnalysisScenario.FRIEND_DAILY
+                || source.scenario() == AnalysisScenario.COUPLE_DAILY;
+        List<QualitativeAnalysis.RepresentativeEvidence> grounded = evidences.stream()
                 .map(evidence -> groundRepresentativeEvidence(
                         evidence,
                         segmentsById,
-                        source.scenario() == AnalysisScenario.FRIEND_DAILY
-                                || source.scenario() == AnalysisScenario.COUPLE_DAILY
+                        dailyScenario
                 ))
                 .toList();
+        if (!dailyScenario || grounded.isEmpty() || reactionStyleInsights == null) {
+            return grounded;
+        }
+
+        List<QualitativeAnalysis.RepresentativeEvidence> reconciled =
+                reconcileDailyRepresentativeEvidences(
+                        source,
+                        reactionStyleInsights,
+                        grounded,
+                        segmentsById
+                );
+        if (!reconciled.equals(grounded)) {
+            log.info(
+                    "T/F 대표 근거 정합성 복구: recordingId={}, 기존 {}건, 복구 후 {}건",
+                    source.recordingId(),
+                    grounded.size(),
+                    reconciled.size()
+            );
+        }
+        return reconciled;
+    }
+
+    private List<QualitativeAnalysis.RepresentativeEvidence>
+            reconcileDailyRepresentativeEvidences(
+                    AnalysisSource source,
+                    List<QualitativeAnalysis.ReactionStyleInsight> reactionStyleInsights,
+                    List<QualitativeAnalysis.RepresentativeEvidence> evidences,
+                    Map<Long, AnalysisSegment> segmentsById
+            ) {
+        List<QualitativeAnalysis.RepresentativeEvidence> reconciled = new ArrayList<>();
+        Set<String> selected = new LinkedHashSet<>();
+        Map<SpeakerRole, Integer> counts = new java.util.EnumMap<>(SpeakerRole.class);
+
+        // 정상 근거를 먼저 보존한 뒤 남은 자리만 잘못된 근거의 대체 발화로 채운다.
+        for (QualitativeAnalysis.RepresentativeEvidence evidence : evidences) {
+            if (evidence == null
+                    || !source.scenario().requiredRoles().contains(evidence.speakerRole())
+                    || counts.getOrDefault(evidence.speakerRole(), 0) >= 3) {
+                continue;
+            }
+            QualitativeAnalysis.ReactionStyleInsight insight = reactionStyleInsights.stream()
+                    .filter(candidate -> candidate != null
+                            && candidate.speakerRole() == evidence.speakerRole())
+                    .findFirst()
+                    .orElse(null);
+            QualitativeAnalysis.ReactionExample example = findReactionExample(
+                    insight,
+                    evidence.reactionCategory()
+            );
+            if (example == null
+                    || !isValidExampleSegment(
+                            example,
+                            evidence.speakerRole(),
+                            evidence.segmentId(),
+                            segmentsById
+                    )
+                    || !selectIfValid(
+                            evidence.segmentId(),
+                            evidence.speakerRole(),
+                            example.category(),
+                            segmentsById,
+                            selected
+                    )) {
+                continue;
+            }
+            AnalysisSegment segment = segmentsById.get(evidence.segmentId());
+            String displayContent = StringUtils.hasText(evidence.displayContent())
+                    ? evidence.displayContent()
+                    : segment.content();
+            reconciled.add(new QualitativeAnalysis.RepresentativeEvidence(
+                    QualitativeAnalysis.ReportEvidenceType.REACTION_STYLE_EXAMPLE,
+                    evidence.speakerRole(),
+                    example.category(),
+                    evidence.segmentId(),
+                    displayContent
+            ));
+            counts.merge(evidence.speakerRole(), 1, Integer::sum);
+        }
+
+        for (QualitativeAnalysis.RepresentativeEvidence evidence : evidences) {
+            if (evidence == null
+                    || !source.scenario().requiredRoles().contains(evidence.speakerRole())
+                    || counts.getOrDefault(evidence.speakerRole(), 0) >= 3) {
+                continue;
+            }
+            QualitativeAnalysis.ReactionStyleInsight insight = reactionStyleInsights.stream()
+                    .filter(candidate -> candidate != null
+                            && candidate.speakerRole() == evidence.speakerRole())
+                    .findFirst()
+                    .orElse(null);
+            QualitativeAnalysis.ReactionExample example = findReactionExample(
+                    insight,
+                    evidence.reactionCategory()
+            );
+            if (example == null || isValidExampleSegment(
+                    example,
+                    evidence.speakerRole(),
+                    evidence.segmentId(),
+                    segmentsById
+            )) {
+                continue;
+            }
+            Long segmentId = selectAvailableSegmentId(
+                    example,
+                    evidence.speakerRole(),
+                    segmentsById,
+                    selected
+            );
+            if (segmentId == null) {
+                continue;
+            }
+            reconciled.add(new QualitativeAnalysis.RepresentativeEvidence(
+                    QualitativeAnalysis.ReportEvidenceType.REACTION_STYLE_EXAMPLE,
+                    evidence.speakerRole(),
+                    example.category(),
+                    segmentId,
+                    segmentsById.get(segmentId).content()
+            ));
+            counts.merge(evidence.speakerRole(), 1, Integer::sum);
+        }
+
+        // LINER가 한 화자의 대표 근거를 모두 잘못 고른 경우에도 반응 예시에서 한 건을 복구한다.
+        for (QualitativeAnalysis.ReactionStyleInsight insight : reactionStyleInsights) {
+            if (insight == null
+                    || !source.scenario().requiredRoles().contains(insight.speakerRole())
+                    || counts.getOrDefault(insight.speakerRole(), 0) > 0
+                    || insight.examples() == null) {
+                continue;
+            }
+            for (QualitativeAnalysis.ReactionExample example : insight.examples()) {
+                Long segmentId = selectAvailableSegmentId(
+                        example,
+                        insight.speakerRole(),
+                        segmentsById,
+                        selected
+                );
+                if (segmentId == null) {
+                    continue;
+                }
+                reconciled.add(new QualitativeAnalysis.RepresentativeEvidence(
+                        QualitativeAnalysis.ReportEvidenceType.REACTION_STYLE_EXAMPLE,
+                        insight.speakerRole(),
+                        example.category(),
+                        segmentId,
+                        segmentsById.get(segmentId).content()
+                ));
+                counts.put(insight.speakerRole(), 1);
+                break;
+            }
+        }
+        return List.copyOf(reconciled);
+    }
+
+    private QualitativeAnalysis.ReactionExample findReactionExample(
+            QualitativeAnalysis.ReactionStyleInsight insight,
+            QualitativeAnalysis.ReactionCategory category
+    ) {
+        if (insight == null || insight.examples() == null || category == null) {
+            return null;
+        }
+        return insight.examples().stream()
+                .filter(example -> example != null && example.category() == category)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private Long selectAvailableSegmentId(
+            QualitativeAnalysis.ReactionExample example,
+            SpeakerRole speakerRole,
+            Map<Long, AnalysisSegment> segmentsById,
+            Set<String> selected
+    ) {
+        if (example == null || example.category() == null || example.evidenceSegmentIds() == null) {
+            return null;
+        }
+        return example.evidenceSegmentIds().stream()
+                .filter(segmentId -> selectIfValid(
+                        segmentId,
+                        speakerRole,
+                        example.category(),
+                        segmentsById,
+                        selected
+                ))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private boolean selectIfValid(
+            Long segmentId,
+            SpeakerRole speakerRole,
+            QualitativeAnalysis.ReactionCategory category,
+            Map<Long, AnalysisSegment> segmentsById,
+            Set<String> selected
+    ) {
+        AnalysisSegment segment = segmentsById.get(segmentId);
+        if (segment == null || segment.speakerRole() != speakerRole) {
+            return false;
+        }
+        return selected.add(speakerRole + ":" + category + ":" + segmentId);
+    }
+
+    private boolean isValidExampleSegment(
+            QualitativeAnalysis.ReactionExample example,
+            SpeakerRole speakerRole,
+            Long segmentId,
+            Map<Long, AnalysisSegment> segmentsById
+    ) {
+        if (example.evidenceSegmentIds() == null
+                || !example.evidenceSegmentIds().contains(segmentId)) {
+            return false;
+        }
+        AnalysisSegment segment = segmentsById.get(segmentId);
+        return segment != null && segment.speakerRole() == speakerRole;
     }
 
     private QualitativeAnalysis.RepresentativeEvidence groundRepresentativeEvidence(

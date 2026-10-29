@@ -8,6 +8,7 @@ import com.example.resay.domain.analysis.model.SpeakerRole;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static com.example.resay.domain.analysis.support.AnalysisTestSpeakers.speakersFor;
@@ -358,6 +359,26 @@ class LinerAnalysisResponseValidatorTest {
         );
 
         validator.validate(source(), response);
+    }
+
+    @Test
+    void acceptsDailyResponseAfterMismatchedRepresentativeEvidenceIsRecovered() {
+        QualitativeAnalysis response = withRepresentativeEvidences(
+                validResponse(),
+                List.of(
+                        representativeReaction(SpeakerRole.SELF, 3L, "재밌었어?"),
+                        representativeReaction(SpeakerRole.FRIEND, 2L, "학교 갔다 왔어")
+                )
+        );
+
+        QualitativeAnalysis grounded = new LinerAnalysisResponseGrounder()
+                .ground(source(), response);
+
+        assertThat(grounded.representativeEvidences())
+                .filteredOn(evidence -> evidence.speakerRole() == SpeakerRole.SELF)
+                .extracting(QualitativeAnalysis.RepresentativeEvidence::segmentId)
+                .containsExactly(1L);
+        validator.validate(source(), grounded);
     }
 
     @Test
