@@ -34,7 +34,7 @@ public record AnalysisReport(
     public record QuantitativeAnalysis(
             List<SpeakerMetrics> speakers,
             SpeakingSpeedComparison speakingSpeedComparison,
-            int totalTurnCount
+            Integer totalTurnCount
     ) {
 
         public QuantitativeAnalysis(
@@ -46,6 +46,7 @@ public record AnalysisReport(
 
         public QuantitativeAnalysis {
             speakers = List.copyOf(speakers);
+            totalTurnCount = totalTurnCount == null ? 0 : totalTurnCount;
         }
     }
 

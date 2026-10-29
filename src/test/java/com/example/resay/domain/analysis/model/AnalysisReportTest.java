@@ -24,4 +24,35 @@ class AnalysisReportTest {
 
         assertThat(recordingInfo.speakers()).isEmpty();
     }
+
+    @Test
+    void readsPreviousQuantitativeAnalysisWithoutTotalTurnCount() throws Exception {
+        AnalysisReport.QuantitativeAnalysis quantitativeAnalysis = objectMapper.readValue(
+                """
+                        {
+                          "speakers": [],
+                          "speakingSpeedComparison": null
+                        }
+                        """,
+                AnalysisReport.QuantitativeAnalysis.class
+        );
+
+        assertThat(quantitativeAnalysis.totalTurnCount()).isZero();
+    }
+
+    @Test
+    void treatsNullTotalTurnCountAsZero() throws Exception {
+        AnalysisReport.QuantitativeAnalysis quantitativeAnalysis = objectMapper.readValue(
+                """
+                        {
+                          "speakers": [],
+                          "speakingSpeedComparison": null,
+                          "totalTurnCount": null
+                        }
+                        """,
+                AnalysisReport.QuantitativeAnalysis.class
+        );
+
+        assertThat(quantitativeAnalysis.totalTurnCount()).isZero();
+    }
 }

@@ -20,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -138,6 +139,34 @@ class AnalysisSummaryQueryServiceTest {
         assertThat(result.swearWordUsage().ratePercent()).isEqualByComparingTo("0.00");
         assertThat(result.speakingSpeed()).isNull();
         assertThat(result.speakingRatioHistory()).isEmpty();
+    }
+
+    @Test
+    void aggregatesPreviousReportWithoutTotalTurnCount() throws Exception {
+        AnalysisReport report = friendReport(
+                5L, 50, 100, 60_000L, 300, 1, "진짜", 2
+        );
+        var legacyReport = objectMapper.readTree(objectMapper.writeValueAsString(report));
+        ((ObjectNode) legacyReport.get("quantitativeAnalysis")).remove("totalTurnCount");
+        when(analysisResultRepository.findRecentSummarySources(
+                eq(1L),
+                eq(AnalysisStatus.COMPLETED),
+                any()
+        )).thenReturn(List.of(new SummarySource(
+                5L,
+                LocalDateTime.of(2026, 10, 8, 12, 0),
+                null,
+                objectMapper.writeValueAsString(legacyReport)
+        )));
+
+        AnalysisSummaryResponseDto result = service.getSummary(1L);
+
+        assertThat(result.analysisCount()).isEqualTo(1);
+        assertThat(result.frequentExpressions()).containsExactly(
+                new AnalysisSummaryResponseDto.FrequentExpression("진짜", 2)
+        );
+        assertThat(result.swearWordUsage().count()).isEqualTo(1);
+        assertThat(result.speakingSpeed().syllablesPerSecond()).isEqualByComparingTo("5.00");
     }
 
     @Test
