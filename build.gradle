@@ -55,4 +55,6 @@ tasks.named('jar') {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// 캐시되는 스프링 컨텍스트가 많아 기본값(512m)으로는 Java heap space가 난다
+	maxHeapSize = '1g'
 }
