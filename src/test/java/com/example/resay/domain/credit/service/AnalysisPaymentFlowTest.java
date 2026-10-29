@@ -1,9 +1,14 @@
 package com.example.resay.domain.credit.service;
 
 import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
+import com.example.resay.domain.analysis.entity.AnalysisStatus;
 import com.example.resay.domain.analysis.entity.ConversationAnalysis;
+import com.example.resay.domain.analysis.dto.AnalysisResultCommand;
+import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
 import com.example.resay.domain.analysis.repository.ConversationAnalysisRepository;
 import com.example.resay.domain.analysis.service.AnalysisFailureReconciler;
+import com.example.resay.domain.analysis.service.AnalysisService;
+import com.example.resay.domain.analysis.service.AnalysisStallService;
 import com.example.resay.domain.credit.dto.AnalysisPaymentResponseDto;
 import com.example.resay.domain.credit.entity.CreditLedgerEntry;
 import com.example.resay.domain.credit.entity.CreditLedgerType;
@@ -62,6 +67,12 @@ class AnalysisPaymentFlowTest {
     private AnalysisFailureReconciler analysisFailureReconciler;
 
     @Autowired
+    private AnalysisStallService analysisStallService;
+
+    @Autowired
+    private AnalysisService analysisService;
+
+    @Autowired
     private CreditService creditService;
 
     @Autowired
@@ -75,6 +86,9 @@ class AnalysisPaymentFlowTest {
 
     @Autowired
     private ConversationAnalysisRepository conversationAnalysisRepository;
+
+    @Autowired
+    private AnalysisResultRepository analysisResultRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -93,6 +107,7 @@ class AnalysisPaymentFlowTest {
         ledgerRepository.deleteAllInBatch();
         usageRepository.deleteAllInBatch();
         walletRepository.deleteAllInBatch();
+        analysisResultRepository.deleteAllInBatch();
         conversationAnalysisRepository.deleteAllInBatch();
         recordingRepository.deleteAllInBatch();
         userRepository.deleteAllInBatch();
@@ -259,6 +274,122 @@ class AnalysisPaymentFlowTest {
         assertThat(balanceOf(userId)).isEqualTo(2000);
         assertThat(usageRepository.findAll().get(0).getStatus()).isEqualTo(UsageStatus.REFUNDED);
         assertThat(analysisFailureReconciler.reconcileFailedAnalyses()).isZero();
+        assertLedgerMatchesBalance(userId);
+    }
+
+    @Test
+    void stalledAnalysisFailsRefundsAndRejectsLateCompletion() {
+        Long userId = userWithCredits(2000);
+        Long recordingId = recordingWithType(userId, RelationshipType.COUPLE_CONFLICT);
+        analysisPaymentService.pay(userId, recordingId);
+        setStatus(recordingId, RecordingStatus.ANALYZING);
+        ConversationAnalysis analysis = conversationAnalysisRepository.saveAndFlush(
+                ConversationAnalysis.start(recordingId)
+        );
+        assertThat(balanceOf(userId)).isZero();
+
+        LocalDateTime now = LocalDateTime.now();
+        boolean failed = analysisStallService.failStalledAnalysis(
+                analysis.getId(),
+                recordingId,
+                now.plusMinutes(1),
+                now
+        );
+
+        assertThat(failed).isTrue();
+        ConversationAnalysis failedAnalysis = conversationAnalysisRepository
+                .findByRecordingId(recordingId)
+                .orElseThrow();
+        assertThat(failedAnalysis.getStatus()).isEqualTo(AnalysisStatus.FAILED);
+        assertThat(failedAnalysis.getFailureReason())
+                .isEqualTo(AnalysisFailureReason.PROCESSING_ERROR);
+        Recording failedRecording = recordingRepository.findById(recordingId).orElseThrow();
+        assertThat(failedRecording.getStatus()).isEqualTo(RecordingStatus.FAILED);
+        assertThat(failedRecording.getFailureReason())
+                .isEqualTo(RecordingFailureReason.PROCESSING_ERROR);
+        assertThat(balanceOf(userId)).isEqualTo(2000);
+        assertThat(usageRepository.findAll().get(0).getStatus()).isEqualTo(UsageStatus.REFUNDED);
+
+        AnalysisResultCommand lateResult = new AnalysisResultCommand(
+                "{}",
+                "late-model",
+                "late-prompt",
+                "late-schema"
+        );
+        assertThatThrownBy(() -> analysisService.complete(recordingId, lateResult))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("ANALYSIS409_2"));
+        assertThat(analysisResultRepository.count()).isZero();
+
+        assertThat(analysisStallService.failStalledAnalysis(
+                analysis.getId(),
+                recordingId,
+                now.plusMinutes(1),
+                now.plusSeconds(1)
+        )).isFalse();
+        assertThat(balanceOf(userId)).isEqualTo(2000);
+        assertThat(ledgerRepository.findByUserIdOrderByIdAsc(userId))
+                .extracting(CreditLedgerEntry::getType)
+                .containsExactly(
+                        CreditLedgerType.ADJUST,
+                        CreditLedgerType.USE,
+                        CreditLedgerType.USE_REFUND
+                );
+        assertLedgerMatchesBalance(userId);
+    }
+
+    @Test
+    void stalledAnalyzingRecordingWithoutAnalysisFailsAndRefunds() {
+        Long userId = userWithCredits(2000);
+        Long recordingId = recordingWithType(userId, RelationshipType.COUPLE_CONFLICT);
+        analysisPaymentService.pay(userId, recordingId);
+        setStatus(recordingId, RecordingStatus.ANALYZING);
+        assertThat(conversationAnalysisRepository.existsByRecordingId(recordingId)).isFalse();
+        assertThat(balanceOf(userId)).isZero();
+
+        boolean failed = analysisStallService.failStalledRecordingWithoutAnalysis(
+                recordingId,
+                LocalDateTime.now().plusMinutes(1)
+        );
+
+        assertThat(failed).isTrue();
+        ConversationAnalysis failedAnalysis = conversationAnalysisRepository
+                .findByRecordingId(recordingId)
+                .orElseThrow();
+        assertThat(failedAnalysis.getStatus()).isEqualTo(AnalysisStatus.FAILED);
+        assertThat(failedAnalysis.getFailureReason())
+                .isEqualTo(AnalysisFailureReason.PROCESSING_ERROR);
+        assertThat(recordingRepository.findById(recordingId).orElseThrow().getStatus())
+                .isEqualTo(RecordingStatus.FAILED);
+        assertThat(balanceOf(userId)).isEqualTo(2000);
+        assertThat(usageRepository.findAll().get(0).getStatus()).isEqualTo(UsageStatus.REFUNDED);
+        assertLedgerMatchesBalance(userId);
+    }
+
+    @Test
+    void recentAnalyzingAnalysisIsLeftInProgress() {
+        Long userId = userWithCredits(2000);
+        Long recordingId = recordingWithType(userId, RelationshipType.COUPLE_CONFLICT);
+        analysisPaymentService.pay(userId, recordingId);
+        setStatus(recordingId, RecordingStatus.ANALYZING);
+        ConversationAnalysis analysis = conversationAnalysisRepository.saveAndFlush(
+                ConversationAnalysis.start(recordingId)
+        );
+
+        boolean failed = analysisStallService.failStalledAnalysis(
+                analysis.getId(),
+                recordingId,
+                LocalDateTime.now().minusMinutes(60),
+                LocalDateTime.now()
+        );
+
+        assertThat(failed).isFalse();
+        assertThat(conversationAnalysisRepository.findById(analysis.getId()).orElseThrow().getStatus())
+                .isEqualTo(AnalysisStatus.ANALYZING);
+        assertThat(recordingRepository.findById(recordingId).orElseThrow().getStatus())
+                .isEqualTo(RecordingStatus.ANALYZING);
+        assertThat(balanceOf(userId)).isZero();
+        assertThat(usageRepository.findAll().get(0).getStatus()).isEqualTo(UsageStatus.USED);
         assertLedgerMatchesBalance(userId);
     }
 

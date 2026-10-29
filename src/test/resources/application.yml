@@ -111,6 +111,8 @@ character:
     generation-enabled: false
 
 analysis:
+  stall:
+    timeout: 60m
   readiness:
     minimum-total-speaking-duration: 60s
     minimum-speaker-speaking-duration: 15s
