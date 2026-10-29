@@ -22,6 +22,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static com.example.resay.domain.analysis.support.AnalysisTestSpeakers.speakersFor;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
@@ -68,9 +71,57 @@ class LinerAnalysisModelClientTest {
                 .contains("\"interestInsights\"")
                 .contains("\"evidenceSegmentIds\":[1,2]");
         then(responseValidator).should().validate(
-                org.mockito.ArgumentMatchers.eq(source),
-                org.mockito.ArgumentMatchers.any(QualitativeAnalysis.class)
+                eq(source),
+                any(QualitativeAnalysis.class)
         );
+    }
+
+    @Test
+    void excludesRepresentativeEvidencesWhenOnlyTheyFailValidation() {
+        AnalysisSource source = source();
+        LinerChatRequest request = request();
+        given(requestFactory.create(source)).willReturn(request);
+        given(requestFactory.promptVersion()).willReturn("analysis-prompt-v2");
+        given(requestFactory.schemaVersion()).willReturn("analysis-result-v2");
+        given(linerApiClient.chat(request)).willReturn(result(
+                contentWithRepresentativeEvidences(),
+                "stop"
+        ));
+        willThrow(new LinerAnalysisException(
+                "invalid_analysis_response",
+                "대표 근거 검증 실패",
+                null
+        )).willDoNothing().given(responseValidator).validate(eq(source), any());
+
+        AnalysisModelResult result = modelClient.analyze(source);
+
+        assertThat(result.resultJson()).contains("\"representativeEvidences\":[]");
+        then(responseValidator).should(org.mockito.Mockito.times(2))
+                .validate(eq(source), any(QualitativeAnalysis.class));
+    }
+
+    @Test
+    void doesNotHideCoreValidationFailureBehindRepresentativeEvidenceFallback() {
+        AnalysisSource source = source();
+        LinerChatRequest request = request();
+        given(requestFactory.create(source)).willReturn(request);
+        given(linerApiClient.chat(request)).willReturn(result(
+                contentWithRepresentativeEvidences(),
+                "stop"
+        ));
+        LinerAnalysisException coreFailure = new LinerAnalysisException(
+                "invalid_analysis_response",
+                "핵심 분석 검증 실패",
+                null
+        );
+        willThrow(coreFailure).given(responseValidator).validate(eq(source), any());
+
+        assertThatThrownBy(() -> modelClient.analyze(source))
+                .isSameAs(coreFailure)
+                .hasMessageContaining("핵심 분석 검증 실패");
+
+        then(responseValidator).should(org.mockito.Mockito.times(2))
+                .validate(eq(source), any(QualitativeAnalysis.class));
     }
 
     @Test
@@ -106,8 +157,8 @@ class LinerAnalysisModelClientTest {
                 .hasMessageContaining("completionTokens=20");
 
         then(responseValidator).should(never()).validate(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any()
+                any(),
+                any()
         );
     }
 
@@ -236,6 +287,83 @@ class LinerAnalysisModelClientTest {
                   "spicinessInsights": [],
                   "reactionStyleInsights": [],
                   "scenarioInsights": []
+                }
+                """;
+    }
+
+    private String contentWithRepresentativeEvidences() {
+        return """
+                {
+                  "overview": {
+                    "title": "학교 근황 대화",
+                    "description": "학교에서 있었던 일을 묻고 답했어요.",
+                    "evidenceSegmentIds": [1, 2]
+                  },
+                  "timeline": [
+                    {
+                      "title": "근황 묻기",
+                      "description": "오늘 한 일을 물었어요.",
+                      "evidenceSegmentIds": [1, 2]
+                    }
+                  ],
+                  "topics": [
+                    {
+                      "title": "학교 이야기",
+                      "description": "학교에서 있었던 일을 이야기했어요.",
+                      "segmentIds": [1, 2]
+                    }
+                  ],
+                  "characterInsights": [],
+                  "speakerInsights": [],
+                  "interestInsights": [],
+                  "spicinessInsights": [],
+                  "reactionStyleInsights": [
+                    {
+                      "speakerRole": "SELF",
+                      "thinkingPercent": 50,
+                      "feelingPercent": 50,
+                      "description": "질문으로 반응했어요.",
+                      "examples": [
+                        {
+                          "category": "THINKING",
+                          "title": "질문",
+                          "description": "근황을 물었어요.",
+                          "evidenceSegmentIds": [1]
+                        }
+                      ]
+                    },
+                    {
+                      "speakerRole": "FRIEND",
+                      "thinkingPercent": 50,
+                      "feelingPercent": 50,
+                      "description": "사실을 답했어요.",
+                      "examples": [
+                        {
+                          "category": "THINKING",
+                          "title": "대답",
+                          "description": "학교 이야기를 했어요.",
+                          "evidenceSegmentIds": [2]
+                        }
+                      ]
+                    }
+                  ],
+                  "scenarioInsights": [],
+                  "representativeEvidences": [
+                    {
+                      "type": "REACTION_STYLE_EXAMPLE",
+                      "speakerRole": "SELF",
+                      "reactionCategory": "THINKING",
+                      "segmentId": 1,
+                      "displayContent": "오늘 뭐 했어?"
+                    },
+                    {
+                      "type": "REACTION_STYLE_EXAMPLE",
+                      "speakerRole": "FRIEND",
+                      "reactionCategory": "THINKING",
+                      "segmentId": 2,
+                      "displayContent": "학교 갔다 왔어"
+                    }
+                  ]
                 }
                 """;
     }
