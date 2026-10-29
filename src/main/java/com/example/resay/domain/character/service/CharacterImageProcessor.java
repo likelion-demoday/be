@@ -33,6 +33,7 @@ public class CharacterImageProcessor {
     private final CharacterImageService characterImageService;
     private final CharacterImageGenerator characterImageGenerator;
     private final CharacterImageStorage characterImageStorage;
+    private final CharacterCardStyleResolver characterCardStyleResolver;
     private final ObjectMapper objectMapper;
 
     public void process(CharacterImageRequestedEvent event) {
@@ -123,7 +124,8 @@ public class CharacterImageProcessor {
                 bounded(insight.description()),
                 bounded(insight.description()),
                 bounded(secondaryTrait),
-                bounded(selectionEvidence)
+                bounded(selectionEvidence),
+                characterCardStyleResolver.resolve(insight.speakerRole(), insight.name())
         );
     }
 

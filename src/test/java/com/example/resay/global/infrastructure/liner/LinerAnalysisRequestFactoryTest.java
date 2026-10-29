@@ -62,6 +62,8 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("비속어가 없으면 swearWords는 빈 배열")
                 .contains("짧고 재미있는 한국어 별칭")
                 .contains("수식어와 기억에 남는 역할·사물 명사를 결합한 2~3어절")
+                .contains("공백을 포함해 12자 이내")
+                .contains("공백을 포함해 24자 이내")
                 .contains("꼬리질문 장인")
                 .contains("예시일 뿐이므로 그대로 고르지 말고")
                 .contains("비하하거나 공격적인 표현")
@@ -87,8 +89,8 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("관찰되지 않은 항목도 value 0으로 작성하세요")
                 .contains("화자별 1개 이상 3개 이하");
 
-        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v13");
-        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v7");
+        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v14");
+        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v8");
 
         Map<?, ?> input = objectMapper.readValue(request.messages().get(1).content(), Map.class);
         assertThat(input.get("recordingId")).isEqualTo(1);
@@ -116,6 +118,14 @@ class LinerAnalysisRequestFactoryTest {
                 "speakerTendencies",
                 "coachingSuggestions"
         );
+        Map<?, ?> characterInsights = (Map<?, ?>) rootProperties.get("characterInsights");
+        Map<?, ?> characterInsightItems = (Map<?, ?>) characterInsights.get("items");
+        Map<?, ?> characterInsightProperties =
+                (Map<?, ?>) characterInsightItems.get("properties");
+        assertThat(((Map<?, ?>) characterInsightProperties.get("name")).get("maxLength"))
+                .isEqualTo(12);
+        assertThat(((Map<?, ?>) characterInsightProperties.get("description"))
+                .get("maxLength")).isEqualTo(24);
         Map<?, ?> representativeEvidences =
                 (Map<?, ?>) rootProperties.get("representativeEvidences");
         assertThat(representativeEvidences.get("minItems")).isEqualTo(2);

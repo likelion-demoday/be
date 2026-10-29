@@ -10,7 +10,8 @@ public record CharacterImageGenerationCommand(
         String characterSummary,
         String mainTrait,
         String secondaryTrait,
-        String selectionEvidence
+        String selectionEvidence,
+        CharacterCardStyle cardStyle
 ) {
 
     private static final int NAME_MAX_LENGTH = 50;
@@ -27,6 +28,9 @@ public record CharacterImageGenerationCommand(
         requireText(characterSummary, "characterSummary");
         requireText(mainTrait, "mainTrait");
         requireText(selectionEvidence, "selectionEvidence");
+        if (cardStyle == null) {
+            throw new IllegalArgumentException("cardStyle은 비어 있을 수 없습니다.");
+        }
         secondaryTrait = hasText(secondaryTrait) ? secondaryTrait : "없음";
         requireMaxLength(characterName, "characterName", NAME_MAX_LENGTH);
         requireMaxLength(characterSummary, "characterSummary", TEXT_MAX_LENGTH);

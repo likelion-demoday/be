@@ -3,6 +3,7 @@ package com.example.resay.global.infrastructure.liner;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisSource;
+import com.example.resay.domain.analysis.model.CharacterInsightTextPolicy;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import java.util.Collection;
@@ -15,8 +16,8 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class LinerAnalysisRequestFactory {
 
-    private static final String PROMPT_VERSION = "analysis-prompt-v13";
-    private static final String SCHEMA_VERSION = "analysis-result-v7";
+    private static final String PROMPT_VERSION = "analysis-prompt-v14";
+    private static final String SCHEMA_VERSION = "analysis-result-v8";
     private static final int MAX_COMPLETION_TOKENS = 32768;
     private static final String REASONING_EFFORT = "medium";
 
@@ -58,6 +59,8 @@ public class LinerAnalysisRequestFactory {
             T/F 비율은 성격 유형 검사가 아니라 이번 대화의 반응을 정보·해결 중심과 감정·공감 중심으로 나눈 비율입니다.
             characterInsights.name은 역할명이나 본인, 상대방 같은 일반 명칭이 아니라 이번 대화의 특징을 담은 짧고 재미있는 한국어 별칭으로 작성하세요.
             characterInsights.name은 대화 특징을 나타내는 수식어와 기억에 남는 역할·사물 명사를 결합한 2~3어절의 별칭으로 작성하세요.
+            characterInsights.name은 공백을 포함해 12자 이내로 작성하세요.
+            characterInsights.description은 카드에 두 줄 이내로 표시할 수 있도록 공백을 포함해 24자 이내의 한 문장으로 작성하세요.
             별칭은 '꼬리질문 장인', '디테일 광부', '리액션 맛집', '맞장구 자판기', '집요한 광부', '포근한 바텐더'처럼 관찰된 대화 행동이 재치 있는 비유로 연상되는 톤이어야 합니다.
             위 별칭은 형식과 분위기를 보여주는 예시일 뿐이므로 그대로 고르지 말고, 해당 화자에게 실제로 나타난 특징에 맞춰 새롭게 작성하세요.
             진단명, 성격 단정, 역할명만 있는 표현, 비하하거나 공격적인 표현, 뜻을 이해하기 어려운 억지 조합은 사용하지 마세요.
@@ -424,8 +427,10 @@ public class LinerAnalysisRequestFactory {
         return objectSchema(
                 Map.of(
                         "speakerRole", enumSchema(scenario.requiredRoles()),
-                        "name", stringSchema(),
-                        "description", stringSchema(),
+                        "name", stringSchema(CharacterInsightTextPolicy.NAME_MAX_LENGTH),
+                        "description", stringSchema(
+                                CharacterInsightTextPolicy.DESCRIPTION_MAX_LENGTH
+                        ),
                         "evidenceSegmentIds", evidenceIdsSchema()
                 ),
                 List.of("speakerRole", "name", "description", "evidenceSegmentIds")
@@ -626,6 +631,13 @@ public class LinerAnalysisRequestFactory {
 
     private Map<String, Object> stringSchema() {
         return Map.of("type", "string");
+    }
+
+    private Map<String, Object> stringSchema(int maxLength) {
+        return Map.of(
+                "type", "string",
+                "maxLength", maxLength
+        );
     }
 
     private Map<String, Object> integerSchema(int minimum, int maximum) {

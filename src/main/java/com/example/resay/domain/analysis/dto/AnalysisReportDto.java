@@ -2,6 +2,7 @@ package com.example.resay.domain.analysis.dto;
 
 import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
+import com.example.resay.domain.analysis.model.CharacterInsightTextPolicy;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -343,16 +344,27 @@ public record AnalysisReportDto(
     }
 
     public record CharacterInsight(
+            @Schema(description = "화자 역할", example = "SELF")
             SpeakerRole speakerRole,
+            @Schema(
+                    description = "카드에 표시할 캐릭터 이름",
+                    example = "질문 수집가",
+                    maxLength = CharacterInsightTextPolicy.NAME_MAX_LENGTH
+            )
             String name,
+            @Schema(
+                    description = "카드에 표시할 캐릭터 설명",
+                    example = "꼬리 질문으로 상대의 이야기를 자연스럽게 이어 가요.",
+                    maxLength = CharacterInsightTextPolicy.DESCRIPTION_MAX_LENGTH
+            )
             String description
     ) {
 
         private static CharacterInsight from(QualitativeAnalysis.CharacterInsight source) {
             return new CharacterInsight(
                     source.speakerRole(),
-                    source.name(),
-                    source.description()
+                    CharacterInsightTextPolicy.fitName(source.name()),
+                    CharacterInsightTextPolicy.fitDescription(source.description())
             );
         }
     }

@@ -2,6 +2,7 @@ package com.example.resay.global.infrastructure.image;
 
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.SpeakerRole;
+import com.example.resay.domain.character.model.CharacterCardStyle;
 import com.example.resay.domain.character.model.CharacterImageGenerationCommand;
 import com.example.resay.domain.character.model.GeneratedCharacterImage;
 import java.nio.charset.StandardCharsets;
@@ -9,11 +10,13 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class OpenAiCharacterImageGeneratorTest {
@@ -25,7 +28,7 @@ class OpenAiCharacterImageGeneratorTest {
             "1024x1024",
             "medium",
             "png",
-            "opaque",
+            "transparent",
             Duration.ofSeconds(3),
             Duration.ofSeconds(180)
     );
@@ -57,7 +60,14 @@ class OpenAiCharacterImageGeneratorTest {
         assertThat(result.content()).isEqualTo(imageBytes);
         assertThat(result.mediaType()).isEqualTo("image/png");
         assertThat(result.model()).isEqualTo("gpt-image-2.5-flare");
-        assertThat(result.promptVersion()).isEqualTo("character-image-prompt-v2");
+        assertThat(result.promptVersion()).isEqualTo("character-image-prompt-v4");
+
+        ArgumentCaptor<OpenAiImageRequest> requestCaptor =
+                ArgumentCaptor.forClass(OpenAiImageRequest.class);
+        verify(apiClient).generate(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().size()).isEqualTo("1024x1024");
+        assertThat(requestCaptor.getValue().outputFormat()).isEqualTo("png");
+        assertThat(requestCaptor.getValue().background()).isEqualTo("transparent");
     }
 
     @Test
@@ -87,7 +97,8 @@ class OpenAiCharacterImageGeneratorTest {
                 "친구의 말을 질문으로 이어 갑니다.",
                 "질문으로 대화를 이어 가요.",
                 "짧게 맞장구쳐요.",
-                "질문과 맞장구가 반복적으로 관찰됐어요."
+                "질문과 맞장구가 반복적으로 관찰됐어요.",
+                new CharacterCardStyle("#6D3A2A", List.of("#FFF5EE", "#F3D2C1"))
         );
     }
 }

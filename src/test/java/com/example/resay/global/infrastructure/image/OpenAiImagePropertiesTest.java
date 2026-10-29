@@ -20,13 +20,13 @@ class OpenAiImagePropertiesTest {
         assertThat(properties.size()).isEqualTo("1024x1024");
         assertThat(properties.quality()).isEqualTo("medium");
         assertThat(properties.outputFormat()).isEqualTo("png");
-        assertThat(properties.background()).isEqualTo("opaque");
+        assertThat(properties.background()).isEqualTo("transparent");
         assertThat(properties.connectTimeout()).isEqualTo(Duration.ofSeconds(3));
         assertThat(properties.readTimeout()).isEqualTo(Duration.ofSeconds(180));
     }
 
     @Test
-    void rejectsTransparentJpeg() {
+    void rejectsNonPngOutput() {
         assertThatThrownBy(() -> new OpenAiImageProperties(
                 "key",
                 null,
@@ -35,6 +35,36 @@ class OpenAiImagePropertiesTest {
                 null,
                 "jpeg",
                 "transparent",
+                null,
+                null
+        )).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsNonStandardSize() {
+        assertThatThrownBy(() -> new OpenAiImageProperties(
+                "key",
+                null,
+                null,
+                "1536x1024",
+                null,
+                null,
+                null,
+                null,
+                null
+        )).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsOpaqueBackground() {
+        assertThatThrownBy(() -> new OpenAiImageProperties(
+                "key",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "opaque",
                 null,
                 null
         )).isInstanceOf(IllegalArgumentException.class);
