@@ -23,24 +23,34 @@ class LinerAnalysisResponseValidatorTest {
     }
 
     @Test
-    void rejectsCharacterCardTextOverDisplayLimits() {
+    void acceptsCharacterCardTextWithoutLengthMutation() {
         QualitativeAnalysis valid = validResponse();
+        String name = "열두자를넘어가는캐릭터이름";
+        String description =
+                "이번 대화에서 상대의 말을 끝까지 듣고 새로운 질문을 계속 덧붙이며 대화를 자연스럽게 이어 가는 모습이 보여요.";
         QualitativeAnalysis response = withCharacterInsights(
                 valid,
                 List.of(
                         new QualitativeAnalysis.CharacterInsight(
                                 SpeakerRole.SELF,
-                                "열두자를넘어가는캐릭터이름",
-                                "이번 대화에서 상대의 말을 끝까지 듣고 새로운 질문을 계속 덧붙이며 대화를 자연스럽게 이어 가는 모습이 보여요.",
+                                name,
+                                description,
                                 List.of(1L)
                         ),
                         character(SpeakerRole.FRIEND, 2L)
                 )
         );
 
-        assertThatThrownBy(() -> validator.validate(source(), response))
-                .isInstanceOf(LinerAnalysisException.class)
-                .hasMessageContaining("12자 이하");
+        assertThatCode(() -> validator.validate(source(), response)).doesNotThrowAnyException();
+
+        QualitativeAnalysis grounded = new LinerAnalysisResponseGrounder()
+                .ground(source(), response);
+
+        assertThatCode(() -> validator.validate(source(), grounded)).doesNotThrowAnyException();
+        assertThat(grounded.characterInsights().get(0).name())
+                .isEqualTo(name);
+        assertThat(grounded.characterInsights().get(0).description())
+                .isEqualTo(description);
     }
 
     @Test

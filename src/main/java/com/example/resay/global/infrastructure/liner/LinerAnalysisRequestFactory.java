@@ -3,7 +3,6 @@ package com.example.resay.global.infrastructure.liner;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisSource;
-import com.example.resay.domain.analysis.model.CharacterInsightTextPolicy;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import java.util.Collection;
@@ -16,8 +15,8 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class LinerAnalysisRequestFactory {
 
-    private static final String PROMPT_VERSION = "analysis-prompt-v14";
-    private static final String SCHEMA_VERSION = "analysis-result-v8";
+    private static final String PROMPT_VERSION = "analysis-prompt-v15";
+    private static final String SCHEMA_VERSION = "analysis-result-v9";
     private static final int MAX_COMPLETION_TOKENS = 32768;
     private static final String REASONING_EFFORT = "medium";
 
@@ -59,8 +58,8 @@ public class LinerAnalysisRequestFactory {
             T/F 비율은 성격 유형 검사가 아니라 이번 대화의 반응을 정보·해결 중심과 감정·공감 중심으로 나눈 비율입니다.
             characterInsights.name은 역할명이나 본인, 상대방 같은 일반 명칭이 아니라 이번 대화의 특징을 담은 짧고 재미있는 한국어 별칭으로 작성하세요.
             characterInsights.name은 대화 특징을 나타내는 수식어와 기억에 남는 역할·사물 명사를 결합한 2~3어절의 별칭으로 작성하세요.
-            characterInsights.name은 공백을 포함해 12자 이내로 작성하세요.
-            characterInsights.description은 카드에 두 줄 이내로 표시할 수 있도록 공백을 포함해 24자 이내의 한 문장으로 작성하세요.
+            characterInsights.name은 카드 레이아웃에 여유 있게 공백을 포함해 10자 이내로 작성하세요.
+            characterInsights.description은 카드에 두 줄 이내로 표시할 수 있도록 공백을 포함해 20자 이내의 한 문장으로 작성하세요.
             별칭은 '꼬리질문 장인', '디테일 광부', '리액션 맛집', '맞장구 자판기', '집요한 광부', '포근한 바텐더'처럼 관찰된 대화 행동이 재치 있는 비유로 연상되는 톤이어야 합니다.
             위 별칭은 형식과 분위기를 보여주는 예시일 뿐이므로 그대로 고르지 말고, 해당 화자에게 실제로 나타난 특징에 맞춰 새롭게 작성하세요.
             진단명, 성격 단정, 역할명만 있는 표현, 비하하거나 공격적인 표현, 뜻을 이해하기 어려운 억지 조합은 사용하지 마세요.
@@ -80,6 +79,8 @@ public class LinerAnalysisRequestFactory {
             FOLLOW_UP_QUESTION은 상대의 직전 답변에서 나온 내용을 이어 묻는 질문이고, EMOTION_QUESTION은 상대의 감정이나 상태를 직접 묻는 질문입니다. 한 화자에게 두 종류가 각각 나타나면 둘 다 작성하세요.
             EXPRESSION_PATTERN은 다른 카테고리로 설명되지 않는 반복적인 말투나 반응 방식이 여러 발화에서 확인될 때 작성하세요.
             speakerInsights.patterns의 evidenceSegmentIds에는 해당 패턴이 나타난 모든 발화를 넣으세요.
+            speakerInsights.patterns의 displayEvidences에는 화면에 보여 줄 대표 발화를 각 패턴마다 1개 이상 최대 3개 작성하세요.
+            displayEvidences의 segmentId는 반드시 같은 패턴의 evidenceSegmentIds에 포함하고, displayContent에는 대표 근거와 같은 최소 보정 규칙을 적용하세요.
             topics의 segmentIds에는 대표 근거만 넣지 말고 해당 주제에 속한다고 판단한 발화를 모두 넣으세요.
             하나의 발화는 가장 관련이 큰 주제 하나에만 포함하고 topics 사이에 segmentIds를 중복해서 넣지 마세요.
             null인 frequentExpressionSummary를 제외한 모든 분석 항목은 입력에 실제로 존재하는 evidenceSegmentIds를 하나 이상 포함해야 합니다.
@@ -101,6 +102,8 @@ public class LinerAnalysisRequestFactory {
             reportMetrics는 화면에 필요한 세부 횟수와 비율입니다. COUNT는 해당 행동이 나타난 서로 다른 발화 수를 value로 작성하고 그 발화를 evidenceSegmentIds에 모두 넣으세요.
             reportMetrics의 PERCENT는 성격 점수가 아니라 이번 대화에서 해당 표현이 관찰된 상대적 정도를 0부터 100까지 추정한 값입니다.
             COUNT가 0이거나 PERCENT가 0이면 evidenceSegmentIds는 빈 배열로 작성하고, 0보다 크면 근거 발화를 하나 이상 작성하세요.
+            reportMetrics의 displayEvidences에는 화면에 문장으로 보여 줄 대표 발화만 작성하세요. segmentId는 반드시 같은 항목의 evidenceSegmentIds에 포함되어야 합니다.
+            displayEvidences의 displayContent에도 representativeEvidences와 같은 최소 보정 규칙을 적용하고, 같은 segmentId에는 항상 같은 displayContent를 작성하세요.
             같은 type이라도 COUNT와 PERCENT가 모두 필요한 경우 각각 별도 항목으로 작성하세요.
             speakerTendencies는 사람의 고정 성향이 아니라 이번 대화에서 반복된 대응 방식을 짧은 label과 설명으로 작성하세요.
             coachingSuggestions는 실제 발화 인용이 아니라 대화를 다시 이어 갈 때 사용할 수 있는 생성 제안입니다.
@@ -196,6 +199,7 @@ public class LinerAnalysisRequestFactory {
                     공격, 방어, 회피는 사람의 성향이 아니라 근거 발화에서 나타난 대화 행동으로만 분류하세요.
                     애착 유형이나 정신 상태를 진단하지 마세요.
                     reportMetrics에는 POSITION_EXPLANATION, REBUTTAL, AVOIDANCE, APOLOGY, YIELDING, EMOTION_CHECK, QUESTION, MISSED_RESPONSE를 화자별 COUNT로 작성하세요.
+                    POSITION_EXPLANATION, REBUTTAL, AVOIDANCE, APOLOGY, YIELDING의 COUNT 항목은 value가 0보다 클 때 displayEvidences에 대표 발화를 1개 이상 최대 3개 작성하세요. value가 0이거나 그 밖의 reportMetric은 displayEvidences를 빈 배열로 작성하세요.
                     DIRECT_EXPRESSION, ASSERTIVE_EXPRESSION, SOFTENING_EXPRESSION, RECOVERY_EXPRESSION은 화자별 PERCENT로 작성하세요. 관찰되지 않은 항목도 value 0으로 작성하세요.
                     speakerTendencies는 두 화자에 대해 각각 한 개, coachingSuggestions는 대화 개선 단계 세 개를 순서대로 작성하세요.
                     representativeEvidences에는 EMOTION_EXPRESSION, MISSED_QUESTION, FOLLOWING_RESPONSE, RECOVERY_START를 각각 한 개씩 작성하세요.
@@ -280,7 +284,8 @@ public class LinerAnalysisRequestFactory {
                         "unit", enumSchema(List.of(QualitativeAnalysis.ReportMetricUnit.values())),
                         "title", stringSchema(),
                         "description", stringSchema(),
-                        "evidenceSegmentIds", arraySchema(Map.of("type", "integer"))
+                        "evidenceSegmentIds", arraySchema(Map.of("type", "integer")),
+                        "displayEvidences", arraySchema(metricDisplayEvidenceSchema(), 0, 3)
                 ),
                 List.of(
                         "type",
@@ -289,8 +294,19 @@ public class LinerAnalysisRequestFactory {
                         "unit",
                         "title",
                         "description",
-                        "evidenceSegmentIds"
+                        "evidenceSegmentIds",
+                        "displayEvidences"
                 )
+        );
+    }
+
+    private Map<String, Object> metricDisplayEvidenceSchema() {
+        return objectSchema(
+                Map.of(
+                        "segmentId", positiveIntegerSchema(),
+                        "displayContent", stringSchema()
+                ),
+                List.of("segmentId", "displayContent")
         );
     }
 
@@ -427,10 +443,8 @@ public class LinerAnalysisRequestFactory {
         return objectSchema(
                 Map.of(
                         "speakerRole", enumSchema(scenario.requiredRoles()),
-                        "name", stringSchema(CharacterInsightTextPolicy.NAME_MAX_LENGTH),
-                        "description", stringSchema(
-                                CharacterInsightTextPolicy.DESCRIPTION_MAX_LENGTH
-                        ),
+                        "name", stringSchema(),
+                        "description", stringSchema(),
                         "evidenceSegmentIds", evidenceIdsSchema()
                 ),
                 List.of("speakerRole", "name", "description", "evidenceSegmentIds")
@@ -481,9 +495,26 @@ public class LinerAnalysisRequestFactory {
                         ),
                         "title", stringSchema(),
                         "description", stringSchema(),
-                        "evidenceSegmentIds", evidenceIdsSchema()
+                        "evidenceSegmentIds", evidenceIdsSchema(),
+                        "displayEvidences", arraySchema(patternDisplayEvidenceSchema(), 1, 3)
                 ),
-                List.of("category", "title", "description", "evidenceSegmentIds")
+                List.of(
+                        "category",
+                        "title",
+                        "description",
+                        "evidenceSegmentIds",
+                        "displayEvidences"
+                )
+        );
+    }
+
+    private Map<String, Object> patternDisplayEvidenceSchema() {
+        return objectSchema(
+                Map.of(
+                        "segmentId", positiveIntegerSchema(),
+                        "displayContent", stringSchema()
+                ),
+                List.of("segmentId", "displayContent")
         );
     }
 
@@ -631,13 +662,6 @@ public class LinerAnalysisRequestFactory {
 
     private Map<String, Object> stringSchema() {
         return Map.of("type", "string");
-    }
-
-    private Map<String, Object> stringSchema(int maxLength) {
-        return Map.of(
-                "type", "string",
-                "maxLength", maxLength
-        );
     }
 
     private Map<String, Object> integerSchema(int minimum, int maximum) {

@@ -6,6 +6,7 @@ import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -34,16 +35,38 @@ public class LinerAnalysisResponseGrounder {
             return response;
         }
 
-        List<QualitativeAnalysis.SpeakerInsight> groundedSpeakerInsights = response.speakerInsights() == null
-                ? null
-                : response.speakerInsights().stream()
-                .map(insight -> groundSpeakerInsight(source, insight))
-                .toList();
         List<QualitativeAnalysis.SpicinessInsight> groundedSpicinessInsights =
                 response.spicinessInsights() == null
                         ? null
                         : response.spicinessInsights().stream()
                         .map(insight -> groundSpicinessInsight(source, insight))
+                        .toList();
+        List<QualitativeAnalysis.RepresentativeEvidence> groundedRepresentativeEvidences =
+                groundRepresentativeEvidences(
+                        source,
+                        response.reactionStyleInsights(),
+                        response.representativeEvidences()
+                );
+        Map<Long, String> displayContentsBySegmentId = new LinkedHashMap<>();
+        if (groundedRepresentativeEvidences != null) {
+            groundedRepresentativeEvidences.stream()
+                    .filter(Objects::nonNull)
+                    .filter(evidence -> evidence.segmentId() != null)
+                    .filter(evidence -> StringUtils.hasText(evidence.displayContent()))
+                    .forEach(evidence -> displayContentsBySegmentId.putIfAbsent(
+                            evidence.segmentId(),
+                            evidence.displayContent()
+                    ));
+        }
+        List<QualitativeAnalysis.SpeakerInsight> groundedSpeakerInsights =
+                response.speakerInsights() == null
+                        ? null
+                        : response.speakerInsights().stream()
+                        .map(insight -> groundSpeakerInsight(
+                                source,
+                                insight,
+                                displayContentsBySegmentId
+                        ))
                         .toList();
 
         return new QualitativeAnalysis(
@@ -56,42 +79,125 @@ public class LinerAnalysisResponseGrounder {
                 groundedSpicinessInsights,
                 response.reactionStyleInsights(),
                 response.scenarioInsights(),
-                groundRepresentativeEvidences(
-                        source,
-                        response.reactionStyleInsights(),
-                        response.representativeEvidences()
-                ),
+                groundedRepresentativeEvidences,
                 response.relationshipSummary(),
-                groundReportMetrics(response.reportMetrics()),
+                groundReportMetrics(
+                        source,
+                        response.reportMetrics(),
+                        displayContentsBySegmentId
+                ),
                 response.speakerTendencies(),
                 response.coachingSuggestions()
         );
     }
 
     private List<QualitativeAnalysis.ReportMetric> groundReportMetrics(
-            List<QualitativeAnalysis.ReportMetric> metrics
+            AnalysisSource source,
+            List<QualitativeAnalysis.ReportMetric> metrics,
+            Map<Long, String> displayContentsBySegmentId
     ) {
         if (metrics == null) {
             return null;
         }
-        return metrics.stream()
+        Map<Long, AnalysisSegment> segmentsById = source.segments().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        AnalysisSegment::segmentId,
+                        segment -> segment
+                ));
+        int requestedEvidenceCount = metrics.stream()
+                .filter(Objects::nonNull)
+                .map(QualitativeAnalysis.ReportMetric::displayEvidences)
+                .filter(Objects::nonNull)
+                .mapToInt(List::size)
+                .sum();
+        List<QualitativeAnalysis.ReportMetric> grounded = metrics.stream()
                 .map(metric -> {
-                    if (metric == null
-                            || metric.unit() != QualitativeAnalysis.ReportMetricUnit.COUNT
-                            || metric.evidenceSegmentIds() == null) {
+                    if (metric == null) {
                         return metric;
+                    }
+                    int value = metric.value();
+                    if (metric.unit() == QualitativeAnalysis.ReportMetricUnit.COUNT
+                            && metric.evidenceSegmentIds() != null) {
+                        value = (int) metric.evidenceSegmentIds().stream().distinct().count();
                     }
                     return new QualitativeAnalysis.ReportMetric(
                             metric.type(),
                             metric.speakerRole(),
-                            (int) metric.evidenceSegmentIds().stream().distinct().count(),
+                            value,
                             metric.unit(),
                             metric.title(),
                             metric.description(),
-                            metric.evidenceSegmentIds()
+                            metric.evidenceSegmentIds(),
+                            groundMetricDisplayEvidences(
+                                    source,
+                                    metric,
+                                    value,
+                                    segmentsById,
+                                    displayContentsBySegmentId
+                            )
                     );
                 })
                 .toList();
+        int groundedEvidenceCount = grounded.stream()
+                .filter(Objects::nonNull)
+                .mapToInt(metric -> metric.displayEvidences().size())
+                .sum();
+        if (requestedEvidenceCount != groundedEvidenceCount) {
+            log.info(
+                    "보고서 지표 대표 근거 정합성 보정: recordingId={}, 요청 {}건, 반영 {}건",
+                    source.recordingId(),
+                    requestedEvidenceCount,
+                    groundedEvidenceCount
+            );
+        }
+        return grounded;
+    }
+
+    private List<QualitativeAnalysis.MetricDisplayEvidence> groundMetricDisplayEvidences(
+            AnalysisSource source,
+            QualitativeAnalysis.ReportMetric metric,
+            int groundedValue,
+            Map<Long, AnalysisSegment> segmentsById,
+            Map<Long, String> displayContentsBySegmentId
+    ) {
+        if (groundedValue == 0
+                || metric.unit() != QualitativeAnalysis.ReportMetricUnit.COUNT
+                || !LinerAnalysisPolicy.supportsMetricEvidenceQuotes(
+                        source.scenario(),
+                        metric.type()
+                )
+                || metric.displayEvidences() == null
+                || metric.evidenceSegmentIds() == null) {
+            return List.of();
+        }
+
+        Set<Long> selected = new LinkedHashSet<>();
+        List<QualitativeAnalysis.MetricDisplayEvidence> grounded = new ArrayList<>();
+        for (QualitativeAnalysis.MetricDisplayEvidence evidence : metric.displayEvidences()) {
+            if (grounded.size() >= 3 || evidence == null || evidence.segmentId() == null
+                    || !metric.evidenceSegmentIds().contains(evidence.segmentId())
+                    || !selected.add(evidence.segmentId())) {
+                continue;
+            }
+            AnalysisSegment segment = segmentsById.get(evidence.segmentId());
+            if (segment == null || metric.speakerRole() == null
+                    || segment.speakerRole() != metric.speakerRole()) {
+                continue;
+            }
+            String displayContent = displayContentsBySegmentId.get(evidence.segmentId());
+            if (!StringUtils.hasText(displayContent)) {
+                String candidate = stripOuterQuotes(evidence.displayContent());
+                displayContent = isConservativeCorrection(segment.content(), candidate)
+                        ? candidate
+                        : segment.content();
+                displayContentsBySegmentId.put(evidence.segmentId(), displayContent);
+            }
+            grounded.add(new QualitativeAnalysis.MetricDisplayEvidence(
+                    evidence.segmentId(),
+                    displayContent
+            ));
+        }
+        return List.copyOf(grounded);
     }
 
     private List<QualitativeAnalysis.RepresentativeEvidence> groundRepresentativeEvidences(
@@ -463,10 +569,27 @@ public class LinerAnalysisResponseGrounder {
 
     private QualitativeAnalysis.SpeakerInsight groundSpeakerInsight(
             AnalysisSource source,
-            QualitativeAnalysis.SpeakerInsight insight
+            QualitativeAnalysis.SpeakerInsight insight,
+            Map<Long, String> displayContentsBySegmentId
     ) {
-        if (insight == null || insight.frequentExpressions() == null) {
+        if (insight == null) {
             return insight;
+        }
+
+        List<QualitativeAnalysis.SpeakerPattern> groundedPatterns =
+                groundSpeakerPatterns(
+                        source,
+                        insight.speakerRole(),
+                        insight.patterns(),
+                        displayContentsBySegmentId
+                );
+        if (insight.frequentExpressions() == null) {
+            return new QualitativeAnalysis.SpeakerInsight(
+                    insight.speakerRole(),
+                    groundedPatterns,
+                    insight.frequentExpressionSummary(),
+                    null
+            );
         }
 
         List<QualitativeAnalysis.FrequentExpression> groundedExpressions =
@@ -481,7 +604,7 @@ public class LinerAnalysisResponseGrounder {
 
         return new QualitativeAnalysis.SpeakerInsight(
                 insight.speakerRole(),
-                insight.patterns(),
+                groundedPatterns,
                 groundedExpressions.isEmpty()
                         ? null
                         : groundFrequentExpressionSummary(
@@ -489,6 +612,93 @@ public class LinerAnalysisResponseGrounder {
                                 groundedExpressions
                         ),
                 groundedExpressions
+        );
+    }
+
+    private List<QualitativeAnalysis.SpeakerPattern> groundSpeakerPatterns(
+            AnalysisSource source,
+            SpeakerRole speakerRole,
+            List<QualitativeAnalysis.SpeakerPattern> patterns,
+            Map<Long, String> displayContentsBySegmentId
+    ) {
+        if (patterns == null) {
+            return null;
+        }
+        int requestedEvidenceCount = patterns.stream()
+                .filter(Objects::nonNull)
+                .map(QualitativeAnalysis.SpeakerPattern::displayEvidences)
+                .filter(Objects::nonNull)
+                .mapToInt(List::size)
+                .sum();
+        List<QualitativeAnalysis.SpeakerPattern> grounded = patterns.stream()
+                .map(pattern -> groundSpeakerPattern(
+                        source,
+                        speakerRole,
+                        pattern,
+                        displayContentsBySegmentId
+                ))
+                .toList();
+        int groundedEvidenceCount = grounded.stream()
+                .filter(Objects::nonNull)
+                .mapToInt(pattern -> pattern.displayEvidences().size())
+                .sum();
+        if (requestedEvidenceCount != groundedEvidenceCount) {
+            log.info(
+                    "화자 패턴 대표 근거 정합성 보정: recordingId={}, 요청 {}건, 반영 {}건",
+                    source.recordingId(),
+                    requestedEvidenceCount,
+                    groundedEvidenceCount
+            );
+        }
+        return grounded;
+    }
+
+    private QualitativeAnalysis.SpeakerPattern groundSpeakerPattern(
+            AnalysisSource source,
+            SpeakerRole speakerRole,
+            QualitativeAnalysis.SpeakerPattern pattern,
+            Map<Long, String> displayContentsBySegmentId
+    ) {
+        if (pattern == null || pattern.displayEvidences() == null
+                || pattern.evidenceSegmentIds() == null) {
+            return pattern;
+        }
+        Map<Long, AnalysisSegment> segmentsById = source.segments().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        AnalysisSegment::segmentId,
+                        segment -> segment
+                ));
+        Set<Long> selected = new LinkedHashSet<>();
+        List<QualitativeAnalysis.PatternDisplayEvidence> grounded = new ArrayList<>();
+        for (QualitativeAnalysis.PatternDisplayEvidence evidence : pattern.displayEvidences()) {
+            if (grounded.size() >= 3 || evidence == null || evidence.segmentId() == null
+                    || !pattern.evidenceSegmentIds().contains(evidence.segmentId())
+                    || !selected.add(evidence.segmentId())) {
+                continue;
+            }
+            AnalysisSegment segment = segmentsById.get(evidence.segmentId());
+            if (segment == null || speakerRole == null || segment.speakerRole() != speakerRole) {
+                continue;
+            }
+            String displayContent = displayContentsBySegmentId.get(evidence.segmentId());
+            if (!StringUtils.hasText(displayContent)) {
+                String candidate = stripOuterQuotes(evidence.displayContent());
+                displayContent = isConservativeCorrection(segment.content(), candidate)
+                        ? candidate
+                        : segment.content();
+                displayContentsBySegmentId.put(evidence.segmentId(), displayContent);
+            }
+            grounded.add(new QualitativeAnalysis.PatternDisplayEvidence(
+                    evidence.segmentId(),
+                    displayContent
+            ));
+        }
+        return new QualitativeAnalysis.SpeakerPattern(
+                pattern.category(),
+                pattern.title(),
+                pattern.description(),
+                pattern.evidenceSegmentIds(),
+                grounded
         );
     }
 

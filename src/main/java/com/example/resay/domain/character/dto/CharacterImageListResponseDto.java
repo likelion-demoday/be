@@ -1,7 +1,6 @@
 package com.example.resay.domain.character.dto;
 
 import com.example.resay.domain.analysis.model.SpeakerRole;
-import com.example.resay.domain.analysis.model.CharacterInsightTextPolicy;
 import com.example.resay.domain.character.entity.CharacterImageStatus;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -29,14 +28,12 @@ public record CharacterImageListResponseDto(
             String contentUrl,
             @Schema(
                     description = "카드에 표시할 캐릭터 이름",
-                    example = "질문 수집가",
-                    maxLength = CharacterInsightTextPolicy.NAME_MAX_LENGTH
+                    example = "질문 수집가"
             )
             String characterName,
             @Schema(
                     description = "카드에 표시할 캐릭터 설명",
-                    example = "꼬리 질문으로 상대의 이야기를 자연스럽게 이어 가요.",
-                    maxLength = CharacterInsightTextPolicy.DESCRIPTION_MAX_LENGTH
+                    example = "꼬리 질문으로 상대의 이야기를 자연스럽게 이어 가요."
             )
             String characterDescription,
             @Schema(

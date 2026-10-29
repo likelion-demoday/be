@@ -43,6 +43,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 class CharacterImageControllerIntegrationTest {
 
+    private static final String LONG_CHARACTER_DESCRIPTION =
+            "상대의 고민을 세심하게 살피고 구체적인 질문으로 대화를 자연스럽게 이어 가요.";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -195,7 +198,7 @@ class CharacterImageControllerIntegrationTest {
                 ).value("차분한 탐험가"))
                 .andExpect(jsonPath(
                         "$.result.images[?(@.speakerRole == 'SELF')].characterDescription"
-                ).value("대화에서 관찰된 캐릭터 설명"))
+                ).value(LONG_CHARACTER_DESCRIPTION))
                 .andExpect(jsonPath(
                         "$.result.images[?(@.speakerRole == 'SELF')].characterNameTextColor"
                 ).value(expectedStyle.characterNameTextColor()))
@@ -293,10 +296,8 @@ class CharacterImageControllerIntegrationTest {
                 .path("properties");
         assertThat(imageItemProperties.path("contentUrl").path("description").asText())
                 .contains("캐릭터 이미지 파일의 상대 URL");
-        assertThat(imageItemProperties.path("characterName").path("maxLength").asInt())
-                .isEqualTo(12);
-        assertThat(imageItemProperties.path("characterDescription").path("maxLength").asInt())
-                .isEqualTo(24);
+        assertThat(imageItemProperties.path("characterName").has("maxLength")).isFalse();
+        assertThat(imageItemProperties.path("characterDescription").has("maxLength")).isFalse();
         assertThat(imageItemProperties.has("characterNameTextColor")).isTrue();
         assertThat(imageItemProperties.has("cardBackgroundGradientColors")).isTrue();
     }
@@ -353,7 +354,9 @@ class CharacterImageControllerIntegrationTest {
         return new QualitativeAnalysis.CharacterInsight(
                 role,
                 name,
-                "대화에서 관찰된 캐릭터 설명",
+                role == SpeakerRole.SELF
+                        ? LONG_CHARACTER_DESCRIPTION
+                        : "대화에서 관찰된 캐릭터 설명",
                 List.of(1L)
         );
     }

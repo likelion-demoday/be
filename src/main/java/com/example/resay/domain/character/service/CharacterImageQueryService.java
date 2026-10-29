@@ -4,7 +4,6 @@ import com.example.resay.domain.analysis.code.AnalysisErrorCode;
 import com.example.resay.domain.analysis.entity.AnalysisResult;
 import com.example.resay.domain.analysis.entity.ConversationAnalysis;
 import com.example.resay.domain.analysis.model.AnalysisReport;
-import com.example.resay.domain.analysis.model.CharacterInsightTextPolicy;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
@@ -75,8 +74,8 @@ public class CharacterImageQueryService {
                 image.getSpeakerRole(),
                 image.getStatus(),
                 contentUrl(recordingId, image),
-                CharacterInsightTextPolicy.fitName(insight.name()),
-                CharacterInsightTextPolicy.fitDescription(insight.description()),
+                insight.name(),
+                insight.description(),
                 style.characterNameTextColor(),
                 style.cardBackgroundGradientColors()
         );

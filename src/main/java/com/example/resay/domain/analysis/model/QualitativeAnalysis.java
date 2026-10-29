@@ -152,11 +152,30 @@ public record QualitativeAnalysis(
             SpeakerPatternCategory category,
             String title,
             String description,
-            List<Long> evidenceSegmentIds
+            List<Long> evidenceSegmentIds,
+            List<PatternDisplayEvidence> displayEvidences
     ) {
         public SpeakerPattern {
             evidenceSegmentIds = copy(evidenceSegmentIds);
+            displayEvidences = displayEvidences == null
+                    ? List.of()
+                    : List.copyOf(displayEvidences);
         }
+
+        public SpeakerPattern(
+                SpeakerPatternCategory category,
+                String title,
+                String description,
+                List<Long> evidenceSegmentIds
+        ) {
+            this(category, title, description, evidenceSegmentIds, List.of());
+        }
+    }
+
+    public record PatternDisplayEvidence(
+            Long segmentId,
+            String displayContent
+    ) {
     }
 
     public record FrequentExpressionSummary(
@@ -298,11 +317,42 @@ public record QualitativeAnalysis(
             ReportMetricUnit unit,
             String title,
             String description,
-            List<Long> evidenceSegmentIds
+            List<Long> evidenceSegmentIds,
+            List<MetricDisplayEvidence> displayEvidences
     ) {
         public ReportMetric {
             evidenceSegmentIds = copy(evidenceSegmentIds);
+            displayEvidences = displayEvidences == null
+                    ? List.of()
+                    : List.copyOf(displayEvidences);
         }
+
+        public ReportMetric(
+                ReportMetricType type,
+                SpeakerRole speakerRole,
+                int value,
+                ReportMetricUnit unit,
+                String title,
+                String description,
+                List<Long> evidenceSegmentIds
+        ) {
+            this(
+                    type,
+                    speakerRole,
+                    value,
+                    unit,
+                    title,
+                    description,
+                    evidenceSegmentIds,
+                    List.of()
+            );
+        }
+    }
+
+    public record MetricDisplayEvidence(
+            Long segmentId,
+            String displayContent
+    ) {
     }
 
     public record SpeakerTendency(
