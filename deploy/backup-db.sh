@@ -11,6 +11,23 @@ cd "$(dirname "$0")/.."
 # 백업 파일은 만든 사람만 읽을 수 있게 한다
 umask 077
 
+# 백업이 실패해도 아무도 모르면 안 되므로 웹훅으로 알린다 (성공 시에는 보내지 않는다)
+on_exit() {
+  local status=$?
+  rm -f "${PARTIAL:-}"
+  [ "$status" -eq 0 ] && return
+  local message="[resay] DB 백업 실패 (종료 코드 $status). 서버의 ~/backup.log 를 확인해 주세요."
+  echo "$(date '+%F %T') $message"
+  # 비밀값이 든 파일 전체를 읽지 않고 웹훅 주소 한 줄만 꺼낸다
+  local url
+  url="$(grep -E '^BACKUP_ALERT_WEBHOOK_URL=' deploy/.env.prod 2>/dev/null | cut -d= -f2- || true)"
+  if [ -n "$url" ]; then
+    curl -fsS --max-time 10 -H "Content-Type: application/json" \
+      -d "{\"content\": \"$message\"}" "$url" >/dev/null || true
+  fi
+}
+trap on_exit EXIT
+
 BACKUP_DIR="${BACKUP_DIR:-$HOME/backups}"
 KEEP_DAYS="${KEEP_DAYS:-7}"
 mkdir -p "$BACKUP_DIR"
@@ -19,7 +36,6 @@ chmod 700 "$BACKUP_DIR"
 FILE="$BACKUP_DIR/resay-$(date '+%Y%m%d-%H%M').sql.gz"
 # 덤프가 중간에 실패하면 반쪽짜리 파일이 백업처럼 남지 않게, 다 끝난 뒤에 이름을 바꾼다
 PARTIAL="$FILE.partial"
-trap 'rm -f "$PARTIAL"' EXIT
 
 # root 비밀번호는 MySQL 컨테이너가 이미 갖고 있는 환경변수를 컨테이너 안에서 꺼내 쓴다.
 # (-e MYSQL_PWD=값 처럼 명령 인자로 넘기면 서버의 프로세스 목록에 그대로 보인다)
