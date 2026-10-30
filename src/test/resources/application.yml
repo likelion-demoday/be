@@ -11,6 +11,9 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password:
+  # 테스트는 Hibernate가 테이블을 만든다. 마이그레이션 자체는 FlywayMigrationTest가 확인한다
+  flyway:
+    enabled: false
   jpa:
     open-in-view: false
     hibernate:
