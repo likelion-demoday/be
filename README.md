@@ -219,6 +219,16 @@ test: 일반 로그인 서비스 테스트 추가
 - 동일 음성의 중복 전사를 막기 위해 파일 해시와 처리 옵션을 기준으로 캐싱합니다.
 - 외부 API 호출에는 timeout, 재시도 횟수와 실패 상태를 명시합니다.
 
+### DB 마이그레이션 (Flyway)
+
+운영 DB는 `src/main/resources/db/migration`의 SQL로만 만들어지고, 운영 서버는 엔티티와 테이블이 다르면 뜨지 않습니다(`ddl-auto=validate`). 로컬 · 테스트는 지금처럼 Hibernate가 테이블을 만듭니다.
+
+- 엔티티의 테이블 · 컬럼 · 유니크 제약을 바꾸면 **같은 PR에 다음 번호의 SQL 파일**을 추가합니다. 예: `V2__add_recordings_memo.sql`
+  - `alter table recordings add column memo varchar(100);` 처럼 MySQL 문법으로 씁니다. 엔티티에 맞는 타입은 `V1__init.sql`의 같은 종류 컬럼을 참고합니다
+- 머지된 SQL 파일은 고치지 않습니다. 잘못됐으면 다음 번호 파일로 바로잡습니다 (Flyway가 체크섬으로 막습니다)
+- 번호는 머지 직전 `develop`의 마지막 번호 + 1. 다른 PR이 먼저 같은 번호로 머지됐으면 번호를 올립니다
+- `./gradlew build`의 `FlywayMigrationTest`가 SQL을 적용한 뒤 엔티티와 비교합니다. 빠진 테이블 · 컬럼 · 유니크 제약이 있으면 실패합니다
+
 ### Security
 
 - API Key, JWT Secret, DB 비밀번호를 저장소에 커밋하지 않습니다.
