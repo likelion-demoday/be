@@ -1,0 +1,104 @@
+package com.example.resay.global.security;
+
+import java.util.Arrays;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    private static final String[] PUBLIC_ENDPOINTS = {
+            "/api/v1/auth/signup",
+            "/api/v1/auth/login",
+            "/api/v1/auth/email/check",
+            // Access Token이 만료된 상태에서 호출하므로 인증 없이 허용하고 Refresh Token으로 검증한다
+            "/api/v1/auth/reissue",
+            "/api/v1/auth/logout",
+            "/api/v1/auth/oauth/**",
+            "/swagger-ui.html",
+            "/swagger-ui/**",
+            "/v3/api-docs/**",
+            // 컨테이너 헬스체크용. 상세 정보는 노출하지 않도록 설정되어 있다
+            "/actuator/health",
+            "/actuator/health/**",
+            // CLOVA가 전사 결과를 보내는 주소. 로그인 대신 주소에 포함된 녹음별 비밀값으로 확인한다
+            "/api/v1/transcriptions/callback/**",
+            // <audio> 태그는 인증 헤더를 붙일 수 없어 로그인 대신 녹음별로 서명된 임시 주소로 확인한다
+            "/api/v1/recordings/*/audio",
+            // 나이스페이 결제창이 브라우저를 통해 인증 결과를 보내는 주소. 로그인 대신 주문 · 금액 · 서명으로 확인한다
+            "/api/v1/payments/nicepay/return",
+            // 나이스페이 서버가 결제 · 취소를 알리는 주소. 로그인 대신 서명으로 확인하고, 상태는 나이스페이에 조회해서 반영한다
+            "/api/v1/payments/nicepay/webhook",
+            // 허용된 API에서 발생한 오류가 /error로 넘어갈 때 401로 바뀌지 않게 한다
+            "/error"
+    };
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            SecurityExceptionDelegator securityExceptionDelegator
+    ) throws Exception {
+        http
+                .csrf(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        // 운영자 전용 API. 권한은 토큰의 role 값으로 판단한다
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .anyRequest().authenticated())
+                // 토큰 없이 보호된 API에 접근한 경우
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(securityExceptionDelegator)
+                        .accessDeniedHandler(securityExceptionDelegator))
+                // 토큰이 잘못됐거나 만료된 경우
+                .oauth2ResourceServer(resourceServer -> resourceServer
+                        .authenticationEntryPoint(securityExceptionDelegator)
+                        .accessDeniedHandler(securityExceptionDelegator)
+                        .bearerTokenResolver(bearerTokenResolver())
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
+        return http.build();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    // 인증 없이 허용된 API는 헤더에 만료된 토큰이 붙어 와도 무시한다.
+    // 프론트가 모든 요청에 토큰을 붙이는 경우 로그인·재발급 요청까지 401로 막히는 것을 방지한다.
+    private BearerTokenResolver bearerTokenResolver() {
+        RequestMatcher publicEndpoints = new OrRequestMatcher(Arrays.stream(PUBLIC_ENDPOINTS)
+                .map(pattern -> (RequestMatcher) PathPatternRequestMatcher.withDefaults().matcher(pattern))
+                .toList());
+        DefaultBearerTokenResolver defaultResolver = new DefaultBearerTokenResolver();
+        return request -> publicEndpoints.matches(request) ? null : defaultResolver.resolve(request);
+    }
+
+    private JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtGrantedAuthoritiesConverter authoritiesConverter = new JwtGrantedAuthoritiesConverter();
+        authoritiesConverter.setAuthoritiesClaimName(JwtTokenProvider.ROLE_CLAIM);
+        authoritiesConverter.setAuthorityPrefix("ROLE_");
+
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        converter.setJwtGrantedAuthoritiesConverter(authoritiesConverter);
+        return converter;
+    }
+}

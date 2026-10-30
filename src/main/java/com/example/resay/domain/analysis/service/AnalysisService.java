@@ -1,0 +1,118 @@
+package com.example.resay.domain.analysis.service;
+
+import com.example.resay.domain.analysis.code.AnalysisErrorCode;
+import com.example.resay.domain.analysis.dto.AnalysisResultCommand;
+import com.example.resay.domain.analysis.entity.AnalysisResult;
+import com.example.resay.domain.analysis.entity.AnalysisFailureReason;
+import com.example.resay.domain.analysis.entity.AnalysisStatus;
+import com.example.resay.domain.analysis.entity.ConversationAnalysis;
+import com.example.resay.domain.analysis.event.AnalysisCompletedEvent;
+import com.example.resay.domain.analysis.event.AnalysisFailedEvent;
+import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
+import com.example.resay.domain.analysis.repository.ConversationAnalysisRepository;
+import com.example.resay.global.exception.GeneralException;
+import java.util.Objects;
+import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class AnalysisService {
+
+    private final ConversationAnalysisRepository conversationAnalysisRepository;
+    private final AnalysisResultRepository analysisResultRepository;
+    private final ApplicationEventPublisher eventPublisher;
+
+    @Transactional
+    public void start(Long recordingId) {
+        ConversationAnalysis analysis = ConversationAnalysis.start(recordingId);
+        if (conversationAnalysisRepository.existsByRecordingId(recordingId)) {
+            throw new GeneralException(AnalysisErrorCode.ANALYSIS_ALREADY_EXISTS);
+        }
+
+        try {
+            conversationAnalysisRepository.saveAndFlush(analysis);
+        } catch (DataIntegrityViolationException exception) {
+            throw new GeneralException(AnalysisErrorCode.ANALYSIS_ALREADY_EXISTS);
+        }
+    }
+
+    @Transactional
+    public void complete(Long recordingId, AnalysisResultCommand command) {
+        Objects.requireNonNull(command, "분석 결과 명령은 비어 있을 수 없습니다.");
+        // 멈춤 정리와 동시에 끝난 경우 한쪽이 행 잠금을 먼저 얻고, 나중 작업은 최신 상태를 본다.
+        // 정리 작업이 먼저 FAILED로 바꿨다면 늦게 도착한 결과를 저장하거나 COMPLETED로 덮지 않는다.
+        ConversationAnalysis analysis = findAnalysisForUpdate(recordingId);
+        AnalysisResult result = AnalysisResult.create(
+                analysis.getId(),
+                command.resultJson(),
+                command.modelName(),
+                command.promptVersion(),
+                command.schemaVersion()
+        );
+        if (analysisResultRepository.existsByAnalysisId(analysis.getId())) {
+            throw new GeneralException(AnalysisErrorCode.ANALYSIS_RESULT_ALREADY_EXISTS);
+        }
+
+        try {
+            analysis.complete();
+            analysisResultRepository.saveAndFlush(result);
+            eventPublisher.publishEvent(new AnalysisCompletedEvent(analysis.getId(), recordingId));
+        } catch (DataIntegrityViolationException exception) {
+            throw new GeneralException(AnalysisErrorCode.ANALYSIS_RESULT_ALREADY_EXISTS);
+        } catch (IllegalStateException exception) {
+            throw new GeneralException(AnalysisErrorCode.INVALID_ANALYSIS_STATUS);
+        }
+    }
+
+    @Transactional
+    public void fail(Long recordingId, AnalysisFailureReason failureReason) {
+        Objects.requireNonNull(failureReason, "분석 실패 사유는 비어 있을 수 없습니다.");
+        ConversationAnalysis analysis = findAnalysis(recordingId);
+        try {
+            analysis.fail(failureReason);
+            eventPublisher.publishEvent(new AnalysisFailedEvent(recordingId, failureReason));
+        } catch (IllegalStateException exception) {
+            throw new GeneralException(AnalysisErrorCode.INVALID_ANALYSIS_STATUS);
+        }
+    }
+
+    @Transactional
+    public boolean recordFailure(Long recordingId, AnalysisFailureReason failureReason) {
+        Objects.requireNonNull(failureReason, "분석 실패 사유는 비어 있을 수 없습니다.");
+        var existing = conversationAnalysisRepository.findByRecordingIdForUpdate(recordingId);
+        if (existing.isPresent()) {
+            ConversationAnalysis analysis = existing.get();
+            if (analysis.getStatus() != AnalysisStatus.ANALYZING) {
+                return false;
+            }
+            analysis.fail(failureReason);
+            eventPublisher.publishEvent(new AnalysisFailedEvent(recordingId, failureReason));
+            return true;
+        }
+
+        ConversationAnalysis failedAnalysis = ConversationAnalysis.start(recordingId);
+        failedAnalysis.fail(failureReason);
+        try {
+            conversationAnalysisRepository.saveAndFlush(failedAnalysis);
+            eventPublisher.publishEvent(new AnalysisFailedEvent(recordingId, failureReason));
+            return true;
+        } catch (DataIntegrityViolationException exception) {
+            throw new GeneralException(AnalysisErrorCode.ANALYSIS_ALREADY_EXISTS);
+        }
+    }
+
+    private ConversationAnalysis findAnalysis(Long recordingId) {
+        return conversationAnalysisRepository.findByRecordingId(recordingId)
+                .orElseThrow(() -> new GeneralException(AnalysisErrorCode.ANALYSIS_NOT_FOUND));
+    }
+
+    private ConversationAnalysis findAnalysisForUpdate(Long recordingId) {
+        return conversationAnalysisRepository.findByRecordingIdForUpdate(recordingId)
+                .orElseThrow(() -> new GeneralException(AnalysisErrorCode.ANALYSIS_NOT_FOUND));
+    }
+}

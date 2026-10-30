@@ -1,0 +1,175 @@
+package com.example.resay.domain.auth.service;
+
+import com.example.resay.domain.auth.code.AuthErrorCode;
+import com.example.resay.domain.auth.dto.EmailCheckRequestDto;
+import com.example.resay.domain.auth.dto.EmailCheckResponseDto;
+import com.example.resay.domain.auth.dto.GoogleLoginRequestDto;
+import com.example.resay.domain.auth.dto.KakaoLoginRequestDto;
+import com.example.resay.domain.auth.dto.LoginRequestDto;
+import com.example.resay.domain.auth.dto.RefreshTokenRequestDto;
+import com.example.resay.domain.auth.dto.SignupRequestDto;
+import com.example.resay.domain.auth.dto.SocialLoginResponseDto;
+import com.example.resay.domain.auth.dto.SocialSignupRequestDto;
+import com.example.resay.domain.auth.dto.TokenResponseDto;
+import com.example.resay.domain.auth.service.SocialSignupTokenStore.PendingSocialSignup;
+import com.example.resay.domain.user.entity.Provider;
+import com.example.resay.domain.user.entity.User;
+import com.example.resay.domain.user.repository.UserRepository;
+import com.example.resay.global.exception.GeneralException;
+import com.example.resay.global.infrastructure.google.GoogleIdTokenVerifier;
+import com.example.resay.global.infrastructure.google.GoogleUserInfo;
+import com.example.resay.global.infrastructure.kakao.KakaoClient;
+import com.example.resay.global.infrastructure.kakao.KakaoProperties;
+import com.example.resay.global.infrastructure.kakao.KakaoUserResponse;
+import com.example.resay.global.security.JwtTokenProvider;
+import java.time.LocalDateTime;
+import java.util.Locale;
+import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class AuthService {
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final RefreshTokenService refreshTokenService;
+    private final SocialLoginService socialLoginService;
+    private final SocialSignupTokenStore socialSignupTokenStore;
+    private final KakaoClient kakaoClient;
+    private final KakaoProperties kakaoProperties;
+    private final GoogleIdTokenVerifier googleIdTokenVerifier;
+    private final AuthRateLimiter authRateLimiter;
+
+    // 가입 직후 바로 서비스를 이용할 수 있도록 로그인과 같은 토큰을 발급한다
+    @Transactional
+    public TokenResponseDto signup(SignupRequestDto request, String clientIp) {
+        authRateLimiter.checkSignup(clientIp);
+
+        String email = normalizeEmail(request.email());
+        if (userRepository.existsByEmail(email)) {
+            throw new GeneralException(AuthErrorCode.DUPLICATE_EMAIL);
+        }
+
+        User user = User.createLocal(
+                email,
+                passwordEncoder.encode(request.password()),
+                request.nickname()
+        );
+        user.agreeToTerms(LocalDateTime.now(), request.agreements().marketingAgreed());
+        try {
+            userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException exception) {
+            // 중복 확인과 저장 사이에 같은 이메일로 동시 가입된 경우
+            throw new GeneralException(AuthErrorCode.DUPLICATE_EMAIL);
+        }
+        return issueToken(user);
+    }
+
+    // 가입(signup)과 같은 기준으로 판단한다: 대소문자 · 앞뒤 공백을 무시하고, 소셜 계정이 쓰는 이메일도 사용 중으로 본다.
+    // 가입 여부를 알려주는 API라 대량 조회를 막기 위해 IP별 횟수를 제한한다
+    public EmailCheckResponseDto checkEmail(EmailCheckRequestDto request, String clientIp) {
+        authRateLimiter.checkEmailCheck(clientIp);
+        return new EmailCheckResponseDto(!userRepository.existsByEmail(normalizeEmail(request.email())));
+    }
+
+    // 시도 횟수 제한에 걸린 동안에는 맞는 비밀번호도 통과시키지 않는다 (비밀번호를 확인하기 전에 막는다)
+    @Transactional
+    public TokenResponseDto login(LoginRequestDto request, String clientIp) {
+        String email = normalizeEmail(request.email());
+        AuthRateLimiter.LoginAttempt attempt = authRateLimiter.beginLogin(clientIp, email);
+        try {
+            User user = userRepository.findByEmail(email)
+                    .filter(found -> found.getProvider() == Provider.LOCAL)
+                    .filter(found -> passwordEncoder.matches(request.password(), found.getPassword()))
+                    .orElseThrow(() -> new GeneralException(AuthErrorCode.INVALID_CREDENTIALS));
+            TokenResponseDto token = issueToken(user);
+            attempt.succeeded();
+            return token;
+        } catch (RuntimeException exception) {
+            if (!isInvalidCredentials(exception)) {
+                attempt.cancelled();
+            }
+            throw exception;
+        }
+    }
+
+    // 프론트가 카카오에서 받은 인가 코드로 로그인한다. 처음 온 사용자는 가입용 임시 토큰을 받는다
+    @Transactional
+    public SocialLoginResponseDto loginWithKakao(KakaoLoginRequestDto request) {
+        if (!kakaoProperties.isConfigured()) {
+            throw new GeneralException(AuthErrorCode.SOCIAL_LOGIN_NOT_CONFIGURED);
+        }
+        if (!kakaoProperties.isAllowedRedirectUri(request.redirectUri())) {
+            throw new GeneralException(AuthErrorCode.INVALID_REDIRECT_URI);
+        }
+
+        KakaoUserResponse kakaoUser = kakaoClient.fetchUser(request.code(), request.redirectUri());
+        return socialLogin(Provider.KAKAO, String.valueOf(kakaoUser.id()), kakaoUser.email());
+    }
+
+    // 프론트가 구글 로그인 버튼으로 받은 ID 토큰으로 로그인한다. 처음 온 사용자는 가입용 임시 토큰을 받는다
+    @Transactional
+    public SocialLoginResponseDto loginWithGoogle(GoogleLoginRequestDto request) {
+        GoogleUserInfo googleUser = googleIdTokenVerifier.verify(request.idToken());
+        return socialLogin(Provider.GOOGLE, googleUser.providerId(), googleUser.email());
+    }
+
+    // 소셜 신규 회원이 온보딩 마지막(약관 동의)에서 가입을 마친다. 이메일 가입처럼 이때 계정이 생긴다
+    @Transactional
+    public TokenResponseDto completeSocialSignup(SocialSignupRequestDto request) {
+        PendingSocialSignup pending = socialSignupTokenStore.consume(request.registerToken())
+                .orElseThrow(() -> new GeneralException(AuthErrorCode.INVALID_REGISTER_TOKEN));
+        User user = socialLoginService.register(
+                pending,
+                request.nickname(),
+                request.agreements().marketingAgreed()
+        );
+        return issueToken(user);
+    }
+
+    // 사용한 리프레시 토큰은 폐기하고 새 토큰 쌍을 발급한다 (rotation)
+    @Transactional
+    public TokenResponseDto reissue(RefreshTokenRequestDto request) {
+        Long userId = refreshTokenService.consume(request.refreshToken());
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new GeneralException(AuthErrorCode.INVALID_REFRESH_TOKEN));
+        return issueToken(user);
+    }
+
+    // 이미 폐기됐거나 없는 토큰이어도 결과는 같으므로 항상 성공으로 응답한다
+    @Transactional
+    public void logout(RefreshTokenRequestDto request) {
+        refreshTokenService.revoke(request.refreshToken());
+    }
+
+    private boolean isInvalidCredentials(RuntimeException exception) {
+        return exception instanceof GeneralException generalException
+                && generalException.getErrorCode() == AuthErrorCode.INVALID_CREDENTIALS;
+    }
+
+    // 약관 동의 전에는 계정을 만들지 않는다 (동의 없이 이메일을 저장하지 않고, 온보딩 중에 떠난 사람이 가입자로 남지 않게)
+    private SocialLoginResponseDto socialLogin(Provider provider, String providerId, String email) {
+        return userRepository.findByProviderAndProviderId(provider, providerId)
+                .map(user -> SocialLoginResponseDto.existingUser(issueToken(user)))
+                .orElseGet(() -> SocialLoginResponseDto.newUser(
+                        socialSignupTokenStore.issue(provider, providerId, email)));
+    }
+
+    private TokenResponseDto issueToken(User user) {
+        return TokenResponseDto.of(
+                jwtTokenProvider.issueAccessToken(user.getId(), user.getRole().name()),
+                refreshTokenService.issue(user.getId())
+        );
+    }
+
+    // 대소문자만 다른 이메일로 중복 가입되지 않게 소문자로 통일한다 (앞뒤 공백은 요청 DTO에서 제거됨)
+    private String normalizeEmail(String email) {
+        return email.toLowerCase(Locale.ROOT);
+    }
+}

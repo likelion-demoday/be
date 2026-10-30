@@ -1,0 +1,52 @@
+# 운영 설정
+# 실제 값은 이 파일에 적지 않는다. 배포 환경의 환경변수로만 주입한다.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+  # 스키마는 Flyway 마이그레이션(db/migration)으로만 바꾼다
+  flyway:
+    enabled: true
+    # 런칭 전 서버처럼 테이블은 있고 Flyway 기록이 없는 DB에서는 V1을 실행하지 않고 "적용됨"으로만 기록한다 (V2부터 실행).
+    # 빈 DB(런칭 때 초기화)와 기록이 생긴 뒤에는 아무 일도 하지 않는다
+    baseline-on-migrate: true
+  jpa:
+    hibernate:
+      # 운영에서는 스키마를 자동 변경하지 않는다
+      ddl-auto: validate
+    show-sql: false
+
+# Caddy(리버스 프록시)가 HTTPS를 처리하고 HTTP로 넘겨주므로, 원래 요청의 https·호스트를 헤더로 인식한다
+server:
+  forward-headers-strategy: framework
+
+logging:
+  level:
+    root: info
+    com.example.resay: info
+
+# 운영에서는 localhost 기본값을 쓰지 않도록 반드시 환경변수로 지정한다
+# 기본값을 빈 값으로 둬야 미설정 시 검증에 걸려 부팅이 실패한다
+# (기본값 없이 ${CORS_ALLOWED_ORIGINS}로 쓰면 미설정 시 이 문자열 자체가 값으로 들어가 조용히 모든 요청이 차단됨)
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+
+# 나이스페이 결제창이 인증 결과를 보내는 주소. 운영 서버의 공개 주소여야 한다
+nicepay:
+  return-url: ${NICEPAY_RETURN_URL:https://api.resay.site/api/v1/payments/nicepay/return}
+
+# 테스트 상점 키가 들어 있는 동안에는 운영자(ADMIN)만 충전할 수 있다 (누구나 가입해 돈 없이 크레딧을 얻지 못하게).
+# 운영 상점 키로 바꾸면 자동으로 풀린다
+payment:
+  sandbox-admin-only: ${PAYMENT_SANDBOX_ADMIN_ONLY:true}
+
+# Swagger는 운영에서 기본적으로 끈다. 런칭 전 테스트 서버에서만 SWAGGER_ENABLED=true로 켠다
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:false}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}

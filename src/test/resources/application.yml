@@ -1,0 +1,130 @@
+# 테스트 전용 설정
+# 테스트는 로컬 MySQL에 의존하지 않고 H2 인메모리 DB만 사용한다.
+# (테스트 클래스패스의 application.yml 이 main 쪽 설정을 대체하므로 필요한 값을 여기에 모두 둔다)
+spring:
+  application:
+    name: resay
+  profiles:
+    default: test
+  datasource:
+    url: jdbc:h2:mem:resay;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  # 테스트는 Hibernate가 테이블을 만든다. 마이그레이션 자체는 FlywayMigrationTest가 확인한다
+  flyway:
+    enabled: false
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 210MB
+
+# 테스트 전용 JWT 키 (실제 환경에서 사용하지 않는 고정값)
+jwt:
+  secret: test-only-jwt-secret-key-for-unit-tests-0123456789
+  issuer: resay
+  access-token-expiration: 1h
+  refresh-token-expiration: 14d
+
+cors:
+  allowed-origins: http://localhost:3000
+
+# 테스트들은 같은 IP(127.0.0.1) · 같은 이메일로 요청을 반복하므로 기본은 꺼 둔다.
+# 시도 횟수 제한 자체는 AuthRateLimitTest가 켜서 확인한다
+rate-limit:
+  enabled: false
+  login:
+    max-failures-per-ip: 20
+    max-failures-per-email: 5
+    window: 10m
+  signup:
+    max-attempts-per-ip: 30
+    window: 1h
+  email-check:
+    max-attempts-per-ip: 60
+    window: 10m
+
+credit:
+  price:
+    analysis-daily: 1500
+    analysis-conflict: 2000
+    character: 500
+  character-stall-timeout: 15m
+
+payment:
+  products:
+    - code: CREDIT_1000
+      amount: 1000
+      credits: 1000
+    - code: CREDIT_3000
+      amount: 3000
+      credits: 3000
+    - code: CREDIT_5000
+      amount: 5000
+      credits: 5000
+    - code: CREDIT_10000
+      amount: 10000
+      credits: 10000
+  order-expiration: 30m
+  approval-grace-period: 3m
+  # 테스트가 느려지지 않게 짧게 둔다 (다시 요청하는 횟수는 2번)
+  approval-retry-delays: 1ms, 1ms
+  sandbox-admin-only: false
+
+# 테스트 전용 나이스페이 키 (실제 상점 키가 아니다). 통합 테스트에서는 API 호출을 목으로 대체한다
+nicepay:
+  client-key: S2_test-client-key
+  secret-key: test-secret-key
+  api-base-url: http://127.0.0.1:1/unused
+  return-url: http://localhost:8080/api/v1/payments/nicepay/return
+  connect-timeout: 5s
+  read-timeout: 30s
+
+oauth:
+  kakao:
+    client-id: test-kakao-client-id
+    client-secret: test-kakao-client-secret
+    allowed-redirect-uris: http://localhost:5173/oauth/kakao/callback
+    token-uri: https://kauth.kakao.com/oauth/token
+    user-info-uri: https://kapi.kakao.com/v2/user/me
+  google:
+    client-id: test-google-client-id
+    # 통합 테스트에서는 검증기를 목으로 대체하므로 실제로 호출되지 않는다
+    jwk-set-uri: http://127.0.0.1:1/unused
+
+openai:
+  image:
+    api-key: ${OPENAI_API_KEY:}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+    model: ${OPENAI_IMAGE_MODEL:gpt-image-2.5-flare}
+    size: 1024x1024
+    quality: ${OPENAI_IMAGE_QUALITY:medium}
+    output-format: png
+    background: transparent
+    connect-timeout: ${OPENAI_CONNECT_TIMEOUT:3s}
+    read-timeout: ${OPENAI_IMAGE_READ_TIMEOUT:180s}
+
+character:
+  image:
+    generation-enabled: false
+
+analysis:
+  stall:
+    timeout: 60m
+  readiness:
+    minimum-total-speaking-duration: 60s
+    minimum-speaker-speaking-duration: 15s
+    minimum-speaker-character-count: 30
+    minimum-speaker-ratio-percent: 5
+
+# 테스트 전용 스토리지 경로 (실제 파일이 쌓이지 않게 임시 폴더 사용)
+storage:
+  local:
+    base-path: ./build/test-storage
+  character:
+    base-path: ./build/test-character-storage

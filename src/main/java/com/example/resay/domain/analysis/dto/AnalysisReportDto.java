@@ -1,0 +1,594 @@
+package com.example.resay.domain.analysis.dto;
+
+import com.example.resay.domain.analysis.model.AnalysisReport;
+import com.example.resay.domain.analysis.model.AnalysisScenario;
+import com.example.resay.domain.analysis.model.QualitativeAnalysis;
+import com.example.resay.domain.analysis.model.SpeakerRole;
+import io.swagger.v3.oas.annotations.media.Schema;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Schema(description = "분석 보고서. 화면에 필요한 대표 발화 근거만 포함합니다.")
+public record AnalysisReportDto(
+        RecordingInfo recordingInfo,
+        QuantitativeAnalysis quantitativeAnalysis,
+        QualitativeReport qualitativeAnalysis
+) {
+
+    public static AnalysisReportDto from(AnalysisReport report) {
+        return new AnalysisReportDto(
+                RecordingInfo.from(report.recordingInfo()),
+                QuantitativeAnalysis.from(report.quantitativeAnalysis()),
+                QualitativeReport.from(report.qualitativeAnalysis())
+        );
+    }
+
+    public record RecordingInfo(
+            Long recordingId,
+            AnalysisScenario scenario,
+            Long durationMs,
+            LocalDateTime recordedAt,
+            List<SpeakerInfo> speakers
+    ) {
+
+        private static RecordingInfo from(AnalysisReport.RecordingInfo source) {
+            return new RecordingInfo(
+                    source.recordingId(),
+                    source.scenario(),
+                    source.durationMs(),
+                    source.recordedAt(),
+                    source.speakers().stream().map(SpeakerInfo::from).toList()
+            );
+        }
+    }
+
+    public record SpeakerInfo(
+            @Schema(description = "분석에서 사용하는 화자 역할", example = "SELF")
+            SpeakerRole speakerRole,
+            @Schema(description = "사용자가 입력한 화자 이름", example = "호준")
+            String speakerName
+    ) {
+
+        private static SpeakerInfo from(
+                com.example.resay.domain.analysis.model.AnalysisSpeaker source
+        ) {
+            return new SpeakerInfo(source.speakerRole(), source.speakerName());
+        }
+    }
+
+    public record QuantitativeAnalysis(
+            List<SpeakerMetrics> speakers,
+            SpeakingSpeedComparison speakingSpeedComparison,
+            int totalTurnCount
+    ) {
+
+        private static QuantitativeAnalysis from(
+                AnalysisReport.QuantitativeAnalysis source
+        ) {
+            return new QuantitativeAnalysis(
+                    source.speakers().stream().map(SpeakerMetrics::from).toList(),
+                    SpeakingSpeedComparison.from(source.speakingSpeedComparison()),
+                    source.totalTurnCount()
+            );
+        }
+    }
+
+    public record SpeakerMetrics(
+            SpeakerRole speakerRole,
+            long speakingDurationMs,
+            int utteranceCount,
+            long transcribedCharacterCount,
+            long transcribedSyllableCount,
+            long transcribedWordCount,
+            BigDecimal speakingRatioPercent,
+            BigDecimal averageUtteranceDurationMs,
+            BigDecimal charactersPerMinute,
+            BigDecimal syllablesPerSecond
+    ) {
+
+        private static SpeakerMetrics from(
+                com.example.resay.domain.analysis.model.SpeakerMetrics source
+        ) {
+            return new SpeakerMetrics(
+                    source.speakerRole(),
+                    source.speakingDurationMs(),
+                    source.utteranceCount(),
+                    source.transcribedCharacterCount(),
+                    source.transcribedSyllableCount(),
+                    source.transcribedWordCount(),
+                    source.speakingRatioPercent(),
+                    source.averageUtteranceDurationMs(),
+                    source.charactersPerMinute(),
+                    source.syllablesPerSecond()
+            );
+        }
+    }
+
+    public record SpeakingSpeedComparison(
+            SpeakerRole fasterSpeakerRole,
+            SpeakerRole slowerSpeakerRole,
+            BigDecimal percentDifference
+    ) {
+
+        private static SpeakingSpeedComparison from(
+                com.example.resay.domain.analysis.model.SpeakingSpeedComparison source
+        ) {
+            if (source == null) {
+                return null;
+            }
+            return new SpeakingSpeedComparison(
+                    source.fasterSpeakerRole(),
+                    source.slowerSpeakerRole(),
+                    source.percentDifference()
+            );
+        }
+    }
+
+    public record QualitativeReport(
+            Overview overview,
+            List<TimelineItem> timeline,
+            List<TopicItem> topics,
+            List<CharacterInsight> characterInsights,
+            List<SpeakerInsight> speakerInsights,
+            List<InterestInsight> interestInsights,
+            List<SpicinessInsight> spicinessInsights,
+            List<ReactionStyleInsight> reactionStyleInsights,
+            List<ScenarioInsight> scenarioInsights,
+            @Schema(description = "Figma 보고서에서 실제 발화로 표시하는 대표 근거만 포함")
+            List<RepresentativeEvidence> representativeEvidences,
+            RelationshipSummary relationshipSummary,
+            List<ReportMetric> reportMetrics,
+            List<SpeakerTendency> speakerTendencies,
+            List<CoachingSuggestion> coachingSuggestions
+    ) {
+
+        private static QualitativeReport from(AnalysisReport.QualitativeReport source) {
+            return new QualitativeReport(
+                    Overview.from(source.overview()),
+                    source.timeline().stream().map(TimelineItem::from).toList(),
+                    source.topics().stream().map(TopicItem::from).toList(),
+                    source.characterInsights().stream().map(CharacterInsight::from).toList(),
+                    source.speakerInsights().stream()
+                            .map(insight -> SpeakerInsight.from(
+                                    insight,
+                                    source.speakerPatternEvidences()
+                            ))
+                            .toList(),
+                    source.interestInsights().stream().map(InterestInsight::from).toList(),
+                    source.spicinessInsights().stream().map(SpicinessInsight::from).toList(),
+                    source.reactionStyleInsights().stream()
+                            .map(ReactionStyleInsight::from)
+                            .toList(),
+                    source.scenarioInsights().stream().map(ScenarioInsight::from).toList(),
+                    source.representativeEvidences().stream()
+                            .map(RepresentativeEvidence::from)
+                            .toList(),
+                    RelationshipSummary.from(source.relationshipSummary()),
+                    source.reportMetrics().stream().map(ReportMetric::from).toList(),
+                    source.speakerTendencies().stream().map(SpeakerTendency::from).toList(),
+                    source.coachingSuggestions().stream().map(CoachingSuggestion::from).toList()
+            );
+        }
+    }
+
+    public record RelationshipSummary(
+            String title,
+            String description
+    ) {
+
+        private static RelationshipSummary from(
+                QualitativeAnalysis.RelationshipSummary source
+        ) {
+            return source == null ? null : new RelationshipSummary(
+                    source.title(),
+                    source.description()
+            );
+        }
+    }
+
+    public record ReportMetric(
+            QualitativeAnalysis.ReportMetricType type,
+            SpeakerRole speakerRole,
+            int value,
+            QualitativeAnalysis.ReportMetricUnit unit,
+            String title,
+            String description,
+            @Schema(description = "화면에 문장으로 표시할 대표 근거. 이전 보고서 또는 미지원 지표는 빈 배열")
+            List<EvidenceQuote> evidenceQuotes
+    ) {
+
+        private static ReportMetric from(AnalysisReport.ReportMetric source) {
+            return new ReportMetric(
+                    source.type(),
+                    source.speakerRole(),
+                    source.value(),
+                    source.unit(),
+                    source.title(),
+                    source.description(),
+                    source.evidenceQuotes().stream().map(EvidenceQuote::from).toList()
+            );
+        }
+    }
+
+    public record SpeakerTendency(
+            SpeakerRole speakerRole,
+            String label,
+            String description
+    ) {
+
+        private static SpeakerTendency from(QualitativeAnalysis.SpeakerTendency source) {
+            return new SpeakerTendency(
+                    source.speakerRole(),
+                    source.label(),
+                    source.description()
+            );
+        }
+    }
+
+    public record CoachingSuggestion(
+            int order,
+            String title,
+            String description,
+            String suggestedPhrase
+    ) {
+
+        private static CoachingSuggestion from(
+                QualitativeAnalysis.CoachingSuggestion source
+        ) {
+            return new CoachingSuggestion(
+                    source.order(),
+                    source.title(),
+                    source.description(),
+                    source.suggestedPhrase()
+            );
+        }
+    }
+
+    public record RepresentativeEvidence(
+            @Schema(description = "보고서에서 근거가 사용되는 위치")
+            QualitativeAnalysis.ReportEvidenceType type,
+            SpeakerRole speakerRole,
+            @Schema(description = "일상 대화 T/F 반응 예시에서만 사용")
+            QualitativeAnalysis.ReactionCategory reactionCategory,
+            EvidenceQuote evidence
+    ) {
+
+        private static RepresentativeEvidence from(
+                AnalysisReport.RepresentativeEvidence source
+        ) {
+            return new RepresentativeEvidence(
+                    source.type(),
+                    source.speakerRole(),
+                    source.reactionCategory(),
+                    EvidenceQuote.from(source.evidence())
+            );
+        }
+    }
+
+    public record EvidenceQuote(
+            Long segmentId,
+            SpeakerRole speakerRole,
+            @Schema(description = "분석 당시 CLOVA 원본 발화")
+            String originalContent,
+            @Schema(description = "문맥상 명확한 오인식만 최소 보정한 화면 표시용 발화")
+            String displayContent,
+            @Schema(description = "표시용 발화가 원문과 달라졌는지 여부")
+            boolean correctionApplied,
+            Long startMs,
+            Long endMs
+    ) {
+
+        private static EvidenceQuote from(AnalysisReport.EvidenceQuote source) {
+            return new EvidenceQuote(
+                    source.segmentId(),
+                    source.speakerRole(),
+                    source.originalContent(),
+                    source.displayContent(),
+                    source.correctionApplied(),
+                    source.startMs(),
+                    source.endMs()
+            );
+        }
+    }
+
+    public record Overview(
+            String title,
+            String description
+    ) {
+
+        private static Overview from(QualitativeAnalysis.Overview source) {
+            return new Overview(source.title(), source.description());
+        }
+    }
+
+    public record TimelineItem(
+            String title,
+            String description,
+            Long startMs,
+            Long endMs
+    ) {
+
+        private static TimelineItem from(AnalysisReport.TimelineItem source) {
+            return new TimelineItem(
+                    source.title(),
+                    source.description(),
+                    source.startMs(),
+                    source.endMs()
+            );
+        }
+    }
+
+    public record TopicItem(
+            String title,
+            String description,
+            List<TopicTimeRange> timeRanges,
+            Integer turnCount,
+            Long speakingDurationMs,
+            boolean longest
+    ) {
+
+        private static TopicItem from(AnalysisReport.TopicItem source) {
+            return new TopicItem(
+                    source.title(),
+                    source.description(),
+                    source.timeRanges().stream().map(TopicTimeRange::from).toList(),
+                    source.turnCount(),
+                    source.speakingDurationMs(),
+                    source.longest()
+            );
+        }
+    }
+
+    public record TopicTimeRange(
+            Long startMs,
+            Long endMs
+    ) {
+
+        private static TopicTimeRange from(AnalysisReport.TopicTimeRange source) {
+            return new TopicTimeRange(source.startMs(), source.endMs());
+        }
+    }
+
+    public record CharacterInsight(
+            @Schema(description = "화자 역할", example = "SELF")
+            SpeakerRole speakerRole,
+            @Schema(
+                    description = "카드에 표시할 캐릭터 이름",
+                    example = "질문 수집가"
+            )
+            String name,
+            @Schema(
+                    description = "카드에 표시할 캐릭터 설명",
+                    example = "꼬리 질문으로 상대의 이야기를 자연스럽게 이어 가요."
+            )
+            String description
+    ) {
+
+        private static CharacterInsight from(QualitativeAnalysis.CharacterInsight source) {
+            return new CharacterInsight(
+                    source.speakerRole(),
+                    source.name(),
+                    source.description()
+            );
+        }
+    }
+
+    public record SpeakerInsight(
+            SpeakerRole speakerRole,
+            List<SpeakerPattern> patterns,
+            FrequentExpressionSummary frequentExpressionSummary,
+            List<FrequentExpression> frequentExpressions
+    ) {
+
+        private static SpeakerInsight from(
+                QualitativeAnalysis.SpeakerInsight source,
+                List<AnalysisReport.SpeakerPatternEvidence> patternEvidences
+        ) {
+            return new SpeakerInsight(
+                    source.speakerRole(),
+                    source.patterns().stream()
+                            .map(pattern -> SpeakerPattern.from(
+                                    source.speakerRole(),
+                                    pattern,
+                                    patternEvidences
+                            ))
+                            .toList(),
+                    FrequentExpressionSummary.from(source.frequentExpressionSummary()),
+                    source.frequentExpressions().stream().map(FrequentExpression::from).toList()
+            );
+        }
+    }
+
+    public record SpeakerPattern(
+            QualitativeAnalysis.SpeakerPatternCategory category,
+            String title,
+            String description,
+            int count,
+            @Schema(description = "해당 패턴을 화면에 문장으로 표시할 대표 근거. 최대 3개")
+            List<EvidenceQuote> evidenceQuotes
+    ) {
+
+        private static SpeakerPattern from(
+                SpeakerRole speakerRole,
+                QualitativeAnalysis.SpeakerPattern source,
+                List<AnalysisReport.SpeakerPatternEvidence> patternEvidences
+        ) {
+            List<EvidenceQuote> evidenceQuotes = patternEvidences.stream()
+                    .filter(evidence -> evidence.speakerRole() == speakerRole
+                            && evidence.category() == source.category())
+                    .findFirst()
+                    .map(evidence -> evidence.evidenceQuotes().stream()
+                            .map(EvidenceQuote::from)
+                            .toList())
+                    .orElseGet(List::of);
+            return new SpeakerPattern(
+                    source.category(),
+                    source.title(),
+                    source.description(),
+                    (int) source.evidenceSegmentIds().stream().distinct().count(),
+                    evidenceQuotes
+            );
+        }
+    }
+
+    public record FrequentExpressionSummary(
+            String title,
+            String description
+    ) {
+
+        private static FrequentExpressionSummary from(
+                QualitativeAnalysis.FrequentExpressionSummary source
+        ) {
+            if (source == null) {
+                return null;
+            }
+            return new FrequentExpressionSummary(source.title(), source.description());
+        }
+    }
+
+    public record FrequentExpression(
+            QualitativeAnalysis.FrequentExpressionCategory category,
+            String expression,
+            int count
+    ) {
+
+        private static FrequentExpression from(QualitativeAnalysis.FrequentExpression source) {
+            return new FrequentExpression(
+                    source.category(),
+                    source.expression(),
+                    source.count()
+            );
+        }
+    }
+
+    public record InterestInsight(
+            SpeakerRole speakerRole,
+            int score,
+            String description,
+            List<InterestObservation> observations
+    ) {
+
+        private static InterestInsight from(QualitativeAnalysis.InterestInsight source) {
+            return new InterestInsight(
+                    source.speakerRole(),
+                    source.score(),
+                    source.description(),
+                    source.observations().stream().map(InterestObservation::from).toList()
+            );
+        }
+    }
+
+    public record InterestObservation(
+            QualitativeAnalysis.InterestCategory category,
+            String title,
+            String description,
+            int count
+    ) {
+
+        private static InterestObservation from(
+                QualitativeAnalysis.InterestObservation source
+        ) {
+            return new InterestObservation(
+                    source.category(),
+                    source.title(),
+                    source.description(),
+                    (int) source.evidenceSegmentIds().stream().distinct().count()
+            );
+        }
+    }
+
+    public record SpicinessInsight(
+            SpeakerRole speakerRole,
+            int score,
+            @Schema(description = "전사문에서 확인된 비속어 총 등장 횟수", example = "3")
+            int swearWordCount,
+            String description,
+            List<SpicinessObservation> observations
+    ) {
+
+        private static SpicinessInsight from(QualitativeAnalysis.SpicinessInsight source) {
+            return new SpicinessInsight(
+                    source.speakerRole(),
+                    source.score(),
+                    source.swearWords() == null ? 0 : source.swearWords().stream()
+                            .mapToInt(QualitativeAnalysis.SwearWordUsage::count)
+                            .sum(),
+                    source.description(),
+                    source.observations().stream().map(SpicinessObservation::from).toList()
+            );
+        }
+    }
+
+    public record SpicinessObservation(
+            QualitativeAnalysis.SpicinessCategory category,
+            String title,
+            String description,
+            int count
+    ) {
+
+        private static SpicinessObservation from(
+                QualitativeAnalysis.SpicinessObservation source
+        ) {
+            return new SpicinessObservation(
+                    source.category(),
+                    source.title(),
+                    source.description(),
+                    (int) source.evidenceSegmentIds().stream().distinct().count()
+            );
+        }
+    }
+
+    public record ReactionStyleInsight(
+            SpeakerRole speakerRole,
+            int thinkingPercent,
+            int feelingPercent,
+            String description,
+            List<ReactionExample> examples
+    ) {
+
+        private static ReactionStyleInsight from(
+                QualitativeAnalysis.ReactionStyleInsight source
+        ) {
+            return new ReactionStyleInsight(
+                    source.speakerRole(),
+                    source.thinkingPercent(),
+                    source.feelingPercent(),
+                    source.description(),
+                    source.examples().stream().map(ReactionExample::from).toList()
+            );
+        }
+    }
+
+    public record ReactionExample(
+            QualitativeAnalysis.ReactionCategory category,
+            String title,
+            String description
+    ) {
+
+        private static ReactionExample from(QualitativeAnalysis.ReactionExample source) {
+            return new ReactionExample(
+                    source.category(),
+                    source.title(),
+                    source.description()
+            );
+        }
+    }
+
+    public record ScenarioInsight(
+            QualitativeAnalysis.ScenarioInsightCategory category,
+            List<SpeakerRole> speakerRoles,
+            String title,
+            String description
+    ) {
+
+        private static ScenarioInsight from(QualitativeAnalysis.ScenarioInsight source) {
+            return new ScenarioInsight(
+                    source.category(),
+                    source.speakerRoles(),
+                    source.title(),
+                    source.description()
+            );
+        }
+    }
+}

@@ -1,0 +1,180 @@
+package com.example.resay.domain.recording.entity;
+
+import com.example.resay.domain.recording.code.RecordingErrorCode;
+import com.example.resay.global.entity.BaseEntity;
+import com.example.resay.global.exception.GeneralException;
+import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
+@Entity
+@Table(name = "recordings")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class Recording extends BaseEntity {
+
+    private static final DateTimeFormatter TITLE_DATE_FORMAT = DateTimeFormatter.ofPattern("M월 d일");
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private Long userId;
+
+    private String title;
+
+    @Column(nullable = false)
+    private String audioFilePath;
+
+    // 업로드 시 읽은 재생시간 (보고서의 녹음 길이 표시에 사용)
+    @Column(nullable = false)
+    private Integer durationSeconds;
+
+    @Enumerated(EnumType.STRING)
+    @Column(columnDefinition = "varchar(30)")
+    private RelationshipType relationshipType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "varchar(20)")
+    private RecordingStatus status;
+
+    // 음성 보관 기간(완료·실패 후 3일)의 기준 시각
+    private LocalDateTime completedAt;
+
+    private LocalDateTime failedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(columnDefinition = "varchar(40)")
+    private RecordingFailureReason failureReason;
+
+    // 값이 있으면 음성 파일이 이미 삭제된 녹음 (보고서·전사 텍스트는 남는다)
+    private LocalDateTime audioDeletedAt;
+
+    // 사용자가 고른 본인 화자 (전사 서비스가 붙인 화자 번호, 나머지 화자는 상대)
+    @Column(length = 10)
+    private String selfSpeakerLabel;
+
+    // 보고서에서 상대를 부를 이름
+    @Column(length = 20)
+    private String partnerNickname;
+
+    // 부모-자녀 대화에서만 사용
+    @Enumerated(EnumType.STRING)
+    @Column(columnDefinition = "varchar(10)")
+    private ParentChildRole parentChildRole;
+
+    // 사용자가 대화를 삭제한 시각. 녹음 행은 보고서의 소유자 확인에 필요해 남기고 숨김 처리한다
+    private LocalDateTime deletedAt;
+
+    private Recording(Long userId, String audioFilePath, Integer durationSeconds) {
+        this.userId = userId;
+        this.title = LocalDate.now().format(TITLE_DATE_FORMAT) + " 녹음";
+        this.audioFilePath = audioFilePath;
+        this.durationSeconds = durationSeconds;
+        this.status = RecordingStatus.UPLOADED;
+    }
+
+    public static Recording create(Long userId, String audioFilePath, Integer durationSeconds) {
+        if (userId == null) {
+            throw new GeneralException(RecordingErrorCode.VALIDATION_ERROR);
+        }
+        if (audioFilePath == null || audioFilePath.isBlank()) {
+            throw new GeneralException(RecordingErrorCode.VALIDATION_ERROR);
+        }
+        if (durationSeconds == null || durationSeconds <= 0) {
+            throw new GeneralException(RecordingErrorCode.VALIDATION_ERROR);
+        }
+        return new Recording(userId, audioFilePath, durationSeconds);
+    }
+
+    public void selectType(RelationshipType relationshipType) {
+        if (this.status != RecordingStatus.UPLOADED) {
+            throw new GeneralException(RecordingErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        if (relationshipType == null) {
+            throw new GeneralException(RecordingErrorCode.VALIDATION_ERROR);
+        }
+        this.relationshipType = relationshipType;
+        this.title = relationshipType.displayName() + " - " + getCreatedAt().toLocalDate().format(TITLE_DATE_FORMAT);
+        this.status = RecordingStatus.TYPE_SELECTED;
+    }
+
+    // 결제 완료(TYPE_SELECTED → PAYMENT_COMPLETED)는 동시 요청을 막기 위해
+    // RecordingRepository.markPaymentCompleted의 조건부 UPDATE로 바꾼다
+    public void startTranscribing() {
+        if (this.status != RecordingStatus.PAYMENT_COMPLETED) {
+            throw new GeneralException(RecordingErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        this.status = RecordingStatus.TRANSCRIBING;
+    }
+
+    // 전사가 끝난 녹음에 화자를 지정하고 분석 단계로 넘긴다
+    public void mapSpeakers(String selfSpeakerLabel, String partnerNickname, ParentChildRole parentChildRole) {
+        if (this.status != RecordingStatus.TRANSCRIBING) {
+            throw new GeneralException(RecordingErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        if (selfSpeakerLabel == null || selfSpeakerLabel.isBlank()
+                || partnerNickname == null || partnerNickname.isBlank()) {
+            throw new GeneralException(RecordingErrorCode.INVALID_SPEAKER_MAPPING);
+        }
+        boolean parentChild = this.relationshipType == RelationshipType.PARENT_CHILD_CONFLICT;
+        // 부모-자녀 대화는 본인이 부모인지 자녀인지 알아야 하고, 그 외 대화에서는 받지 않는다
+        if (parentChild != (parentChildRole != null)) {
+            throw new GeneralException(RecordingErrorCode.INVALID_SPEAKER_MAPPING);
+        }
+        this.selfSpeakerLabel = selfSpeakerLabel;
+        this.partnerNickname = partnerNickname.strip();
+        this.parentChildRole = parentChildRole;
+        this.status = RecordingStatus.ANALYZING;
+    }
+
+    public void complete() {
+        if (this.status != RecordingStatus.ANALYZING) {
+            throw new GeneralException(RecordingErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        this.status = RecordingStatus.COMPLETED;
+        this.completedAt = LocalDateTime.now();
+    }
+
+    public void fail(RecordingFailureReason reason) {
+        if (reason == null) {
+            throw new GeneralException(RecordingErrorCode.VALIDATION_ERROR);
+        }
+        if (this.status == RecordingStatus.COMPLETED) {
+            throw new GeneralException(RecordingErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        this.status = RecordingStatus.FAILED;
+        this.failureReason = reason;
+        this.failedAt = LocalDateTime.now();
+    }
+
+    // 분석이 끝난(완료·실패) 녹음만 사용자가 삭제할 수 있다 (진행 중에 지우면 결제한 작업이 망가진다)
+    public void markDeleted() {
+        if (this.status != RecordingStatus.COMPLETED && this.status != RecordingStatus.FAILED) {
+            throw new GeneralException(RecordingErrorCode.DELETE_NOT_ALLOWED);
+        }
+        if (this.deletedAt == null) {
+            this.deletedAt = LocalDateTime.now();
+        }
+    }
+
+    public boolean isDeleted() {
+        return this.deletedAt != null;
+    }
+
+    public boolean hasAudio() {
+        return this.audioDeletedAt == null;
+    }
+
+    public void markAudioDeleted() {
+        if (hasAudio()) {
+            this.audioDeletedAt = LocalDateTime.now();
+        }
+    }
+}

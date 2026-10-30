@@ -1,0 +1,19 @@
+{
+  "scenario": "PARENT_CHILD_CONFLICT",
+  "noiseLevel": "MILD_WITH_SEMANTIC_ERRORS",
+  "notableCorruptedSegmentIds": [2, 4, 7, 9, 14, 36, 45, 53],
+  "meaningRiskSegmentIds": [7, 36, 45, 53],
+  "expectedTopics": ["늦은 귀가와 연락", "통제받는 느낌과 자율성", "갈등 중 대화 중단 방식", "귀가 시간과 정보 공유 범위", "연락 규칙과 신뢰 회복"],
+  "expectedObservations": [
+    {"category": "CONFLICT_TOPIC", "evidenceSegmentIds": [1, 2, 3, 4]},
+    {"category": "CONFLICT_POSITION", "speakerRole": "PARENT", "evidenceSegmentIds": [1, 5, 7, 11, 25, 29, 31, 33, 35, 39, 43]},
+    {"category": "CONFLICT_POSITION", "speakerRole": "CHILD", "evidenceSegmentIds": [2, 4, 6, 8, 20, 22, 24, 28, 30, 34, 36, 44]},
+    {"category": "CARE_EXPRESSION", "speakerRole": "PARENT", "evidenceSegmentIds": [1, 5, 19, 21, 41, 43, 45, 47]},
+    {"category": "SOLUTION", "evidenceSegmentIds": [13, 14, 15, 16, 17, 18, 26, 27, 31, 32, 35, 36, 37, 40, 41, 42, 47, 48, 51, 52, 53, 54]}
+  ],
+  "forbiddenClaims": [
+    "부모가 자녀를 학대한다",
+    "자녀가 부모를 싫어한다",
+    "부모 또는 자녀에게 정신적 문제가 있다"
+  ]
+}

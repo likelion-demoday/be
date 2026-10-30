@@ -1,0 +1,214 @@
+spring:
+  application:
+    name: resay
+  profiles:
+    default: local
+  # 운영(prod)에서만 Flyway가 src/main/resources/db/migration 의 SQL로 스키마를 만든다.
+  # 로컬 · mock은 지금처럼 Hibernate(ddl-auto)가 만든다 (이미 테이블이 있는 로컬 DB에서 Flyway가 실패하지 않게)
+  flyway:
+    enabled: false
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 100
+  servlet:
+    multipart:
+      # 최대 30분 음성 파일 업로드를 전제로 한 값
+      max-file-size: 200MB
+      max-request-size: 210MB
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+# 헬스체크
+# - /actuator/health/liveness : 앱이 살아있는지만 본다 (컨테이너 재시작 판단용)
+# - /actuator/health          : DB 연결·디스크 여유까지 본다 (모니터링용). 상세 내용은 외부에 노출하지 않는다
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    diskspace:
+      # 음성 파일이 쌓이는 서비스라 여유 공간이 이보다 적으면 DOWN으로 본다 (60GB 디스크의 약 10%)
+      threshold: 6GB
+
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:true}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+# JWT
+# 서명 키는 HS256 기준 32바이트 이상이어야 한다. 실제 값은 환경변수 JWT_SECRET으로만 주입한다.
+jwt:
+  secret: ${JWT_SECRET:}
+  issuer: resay
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:1h}
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:14d}
+
+# CORS 허용 도메인 (쉼표로 구분). 로컬 기본값은 프론트 개발 서버 포트
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+
+# 로그인 · 가입 시도 횟수 제한
+# 기록은 서버 메모리에 둔다 (서버 1대 기준. 재시작하면 초기화된다)
+rate-limit:
+  # 정상 사용자가 막히는 문제가 생겼을 때 급히 끄기 위한 스위치
+  enabled: ${RATE_LIMIT_ENABLED:true}
+  login:
+    # "실패"한 로그인만 센다. 한도를 넘으면 window가 지날 때까지 맞는 비밀번호도 429로 거부한다
+    # IP 한도가 더 큰 이유: 학교 · 회사 · 통신사망은 여러 사람이 IP 하나를 같이 쓴다
+    max-failures-per-ip: 20
+    max-failures-per-email: 5
+    window: 10m
+  signup:
+    # 성공 여부와 관계없이 가입 시도를 센다
+    max-attempts-per-ip: 30
+    window: 1h
+  email-check:
+    # 가입 화면의 이메일 중복 확인. 가입 여부를 대량으로 조회하지 못하게 요청 횟수를 센다
+    max-attempts-per-ip: 60
+    window: 10m
+
+# 크레딧 가격 (1원 = 1크레딧)
+# 분석은 일상 중심인지 갈등 중심인지에 따라 다르고, 캐릭터 생성은 계정당 첫 1회가 무료다
+credit:
+  price:
+    analysis-daily: 1500
+    analysis-conflict: 2000
+    character: 500
+  # 캐릭터 생성을 요청한 뒤 이 시간 동안 이미지 진행이 없으면(서버 재시작 등으로 멈춘 경우) 정리 작업이 환급한다.
+  # 진행은 이미지 상태가 바뀐 시각으로 본다. 생성 작업은 한 번에 한 건씩 처리되므로, 대기열이 길면 정상 건도 이 시간을 넘길 수 있다
+  # 이미지 2장 생성(각 180초)과 단일 작업 스레드의 최대 큐 대기(20건)를 합친 약 126분보다 길게 둔다.
+  character-stall-timeout: ${CHARACTER_STALL_TIMEOUT:150m}
+
+# 크레딧 충전 (카드 결제). 1원 = 1크레딧
+payment:
+  # 금액은 프론트가 아니라 여기서 정한다. code는 주문에 기록되므로, 금액을 바꿀 때는 기존 code를 고치지 말고 새 code를 만든다
+  products:
+    - code: CREDIT_1000
+      amount: 1000
+      credits: 1000
+    - code: CREDIT_3000
+      amount: 3000
+      credits: 3000
+    - code: CREDIT_5000
+      amount: 5000
+      credits: 5000
+    - code: CREDIT_10000
+      amount: 10000
+      credits: 10000
+  # 결제창을 닫는 등 결제하지 않은 주문은 이 시간이 지나면 만료 처리한다
+  order-expiration: 30m
+  # 승인을 요청한 주문이 이 시간이 지나도 확정되지 않으면 정리 작업이 나이스페이에 조회해 맞춘다.
+  # 승인 · 망취소 요청이 끝나기 전에 끼어들지 않도록 두 요청의 타임아웃을 더한 것보다 길어야 한다 (짧으면 서버가 뜨지 않는다)
+  approval-grace-period: 3m
+  # 승인 요청에 "그런 인증 내역이 없다"는 답이 오면 이 간격으로 다시 요청한다.
+  # 인증 결과를 받자마자 승인을 요청하면 나이스페이 쪽에 인증 내역이 아직 보이지 않을 때가 있다 (사용자는 그동안 결제창이 닫힌 화면에서 기다린다)
+  # 테스트 상점에서 잰 값: 인증 결과를 받고 3.5~6.5초 뒤에야 승인된 결제가 이어졌다 (10/13, 2건 모두 5번째 요청에서 승인).
+  # 그보다 넉넉하게 합계 25.5초까지 다시 요청한다. 이 응답은 아무것도 승인되지 않았다는 뜻이라 두 번 결제되지 않는다
+  approval-retry-delays: 500ms, 1s, 2s, 3s, 4s, 5s, 5s, 5s
+  # 테스트 상점 키로 동작하는 동안 운영자(ADMIN)만 충전할 수 있게 할지. 테스트 결제는 돈이 나가지 않는데 크레딧은 지급된다.
+  # 로컬에서는 끄고, 누구나 가입할 수 있는 서버(application-prod.yml)에서는 켠다. 운영 상점 키를 넣으면 이 값과 무관하게 모두 충전할 수 있다
+  sandbox-admin-only: ${PAYMENT_SANDBOX_ADMIN_ONLY:false}
+
+# 나이스페이 (결제창 Server 승인 · Basic 인증)
+# 키가 없어도 서버는 뜬다. 충전 주문을 만들 때 설정을 확인한다.
+nicepay:
+  # Server 승인 방식으로 발급한 키만 동작한다: 테스트 상점은 S2_, 운영 상점은 R2_로 시작한다 (S1_ · R1_은 Client 승인 키라 주문을 받지 않는다)
+  client-key: ${NICEPAY_CLIENT_KEY:}
+  secret-key: ${NICEPAY_SECRET_KEY:}
+  # 비워 두면 키에 맞는 주소를 쓴다: 운영 상점 키(R로 시작) → https://api.nicepay.co.kr, 그 외(테스트 상점 키) → 샌드박스
+  api-base-url: ${NICEPAY_API_BASE_URL:}
+  # 결제창이 인증 결과를 보내는 백엔드 주소 (운영 값은 application-prod.yml)
+  return-url: ${NICEPAY_RETURN_URL:http://localhost:8080/api/v1/payments/nicepay/return}
+  # 나이스페이 권장값. 응답을 못 받은 승인은 망취소를 요청한다
+  connect-timeout: 5s
+  read-timeout: 30s
+
+# 소셜 로그인
+# 키가 없어도 서버는 뜬다. 해당 소셜 로그인 API를 호출할 때만 설정을 확인한다.
+oauth:
+  kakao:
+    client-id: ${KAKAO_REST_API_KEY:}
+    client-secret: ${KAKAO_CLIENT_SECRET:}
+    # 프론트가 Kakao.Auth.authorize에 사용한 값과 정확히 같아야 한다
+    allowed-redirect-uris: ${KAKAO_ALLOWED_REDIRECT_URIS:http://localhost:5173/oauth/kakao/callback}
+    token-uri: https://kauth.kakao.com/oauth/token
+    user-info-uri: https://kapi.kakao.com/v2/user/me
+  google:
+    # 프론트가 Google Identity Services에 사용하는 Client ID. ID 토큰의 aud와 같아야 한다
+    client-id: ${GOOGLE_CLIENT_ID:}
+    jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
+
+# 외부 연동 설정
+# 실제 값은 저장소에 두지 않고 환경변수로 주입한다. 담당자별로 본인 값만 채우면 된다.
+clova:
+  speech:
+    invoke-url: ${CLOVA_SPEECH_INVOKE_URL:}
+    secret-key: ${CLOVA_SPEECH_SECRET_KEY:}
+    # 비동기 전사가 끝나면 CLOVA가 전사 결과를 보내는 주소 (비동기 요청 필수값)
+    # 요청마다 뒤에 추측할 수 없는 비밀값을 붙여 보낸다
+    callback-base-url: ${CLOVA_SPEECH_CALLBACK_BASE_URL:}
+
+liner:
+  api-key: ${LINER_API_KEY:}
+  base-url: ${LINER_BASE_URL:https://platform.liner.com}
+  model: ${LINER_MODEL:liner-mark-1.1}
+  connect-timeout: ${LINER_CONNECT_TIMEOUT:3s}
+  read-timeout: ${LINER_READ_TIMEOUT:300s}
+  retry:
+    max-attempts: ${LINER_RETRY_MAX_ATTEMPTS:3}
+    initial-delay: ${LINER_RETRY_INITIAL_DELAY:200ms}
+    max-delay: ${LINER_RETRY_MAX_DELAY:2s}
+
+openai:
+  image:
+    api-key: ${OPENAI_API_KEY:}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+    model: ${OPENAI_IMAGE_MODEL:gpt-image-2.5-flare}
+    size: 1024x1024
+    quality: ${OPENAI_IMAGE_QUALITY:medium}
+    output-format: png
+    background: transparent
+    connect-timeout: ${OPENAI_CONNECT_TIMEOUT:3s}
+    read-timeout: ${OPENAI_IMAGE_READ_TIMEOUT:180s}
+
+character:
+  image:
+    generation-enabled: ${CHARACTER_IMAGE_GENERATION_ENABLED:true}
+    # 환급 정리와 30초 어긋나게 실행해 같은 시각의 DB 부하를 피한다
+    stall-reconcile-cron: ${CHARACTER_IMAGE_STALL_RECONCILE_CRON:30 */10 * * * *}
+
+analysis:
+  stall:
+    # LINER 최대 대기·재시도와 작업 대기열 시간을 넘긴 분석만 실패 처리한다
+    timeout: ${ANALYSIS_STALL_TIMEOUT:60m}
+    # 기존 실패 반영 정리와 실행 시각을 어긋나게 해 DB 부하를 분산한다
+    reconcile-cron: ${ANALYSIS_STALL_RECONCILE_CRON:0 */10 * * * *}
+  failure-reconcile:
+    # 분석 실패 저장 뒤 녹음 실패 반영 전에 서버가 종료된 건을 다시 연결한다
+    cron: ${ANALYSIS_FAILURE_RECONCILE_CRON:30 */10 * * * *}
+  readiness:
+    minimum-total-speaking-duration: ${ANALYSIS_MIN_TOTAL_SPEAKING_DURATION:60s}
+    minimum-speaker-speaking-duration: ${ANALYSIS_MIN_SPEAKER_SPEAKING_DURATION:15s}
+    minimum-speaker-character-count: ${ANALYSIS_MIN_SPEAKER_CHARACTER_COUNT:30}
+    minimum-speaker-ratio-percent: ${ANALYSIS_MIN_SPEAKER_RATIO_PERCENT:5}
+
+storage:
+  local:
+    base-path: ${STORAGE_BASE_PATH:./storage/recordings}
+  character:
+    base-path: ${CHARACTER_IMAGE_STORAGE_BASE_PATH:./storage/characters}

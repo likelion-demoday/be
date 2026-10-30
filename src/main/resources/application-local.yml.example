@@ -1,0 +1,37 @@
+# 로컬 개발용 설정 예시
+#   1. 이 파일을 application-local.yml 로 복사한다 (복사본은 .gitignore 처리되어 커밋되지 않는다)
+#   2. MySQL을 준비한다
+#      - Docker 사용: docker compose -f docker-compose.local.yml up -d (DB/계정 자동 생성)
+#      - 로컬 설치 MySQL 사용: mysql -u root -p < scripts/init-local-db.sql 로 DB/계정 생성
+#   3. 아래 값은 위 두 방식의 기본값과 맞춰져 있다
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/resay?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: resay
+    password: 로컬_DB_비밀번호
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+# 로컬 전용 JWT 서명 키. 32자 이상 아무 문자열로 바꿔서 사용한다 (운영 키와 절대 같게 쓰지 않는다)
+jwt:
+  secret: 로컬_전용_JWT_서명키를_32자_이상으로_입력하세요
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+    org.hibernate.orm.jdbc.bind: trace
+
+# 나이스페이 테스트 상점 키 (개발자 사이트 가입 → 테스트 상점 → 개발정보. Server 승인 / Basic 인증으로 발급)
+# 충전 기능을 로컬에서 돌려 볼 때만 채운다. 비워 두면 충전 주문 생성이 503으로 응답한다
+nicepay:
+  client-key:
+  secret-key:
+
+# true면 LINER 크레딧 없이 고정된 정성 분석 결과를 사용한다.
+# 실제 LINER 연결을 확인할 때만 false로 변경하고 LINER_API_KEY를 설정한다.
+analysis:
+  mock:
+    model-enabled: ${ANALYSIS_MOCK_MODEL_ENABLED:true}

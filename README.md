@@ -6,9 +6,9 @@
 
 - 일반 로그인 및 소셜 로그인
 - 최대 30분 음성 파일 업로드
-- 최대 4명 화자 분리 및 스크립트 생성
-- 사용자 본인 화자 확인
-- 개인·단체 대화 분석 리포트 생성
+- 2명 화자 분리 및 역할 선택
+- 친구 일상, 연인 일상·갈등, 부모·자녀 갈등 분석
+- 관계·상황별 1:1 대화 분석 리포트 생성
 - 근거 발화 스크립트 및 원본 음성 구간 재생
 - 분석 기록 조회 및 삭제
 - 대화 캐릭터 생성
@@ -16,11 +16,13 @@
 ## 처리 흐름
 
 ```text
-음성 업로드
+녹음 또는 음성 파일 업로드
   → CLOVA Speech 전사·화자 분리
+  → 사용자 화자 역할 및 대화 유형 선택
   → 서버 정량 지표 계산
-  → OpenAI 대화 습관 분석
+  → LINER 관계·상황별 대화 분석
   → 근거 발화 연결
+  → 분석 캐릭터 이미지 생성
   → 리포트 저장·조회
 ```
 
@@ -39,12 +41,25 @@ src
 │   │       │   ├── recording
 │   │       │   ├── transcription
 │   │       │   ├── analysis
-│   │       │   └── report
+│   │       │   │   ├── code
+│   │       │   │   ├── dto
+│   │       │   │   ├── entity
+│   │       │   │   ├── model
+│   │       │   │   ├── port
+│   │       │   │   ├── repository
+│   │       │   │   └── service
+│   │       │   ├── report
+│   │       │   └── character
 │   │       ├── global
 │   │       │   ├── apiPayload
 │   │       │   ├── config
 │   │       │   ├── exception
 │   │       │   ├── infrastructure
+│   │       │   │   ├── kakao
+│   │       │   │   ├── clova
+│   │       │   │   ├── liner
+│   │       │   │   ├── image
+│   │       │   │   └── storage
 │   │       │   └── security
 │   │       └── Application.java
 │   └── resources
@@ -61,7 +76,11 @@ src
 | `global/apiPayload` | 공통 응답 형식과 상태 코드 |
 | `global/config` | 애플리케이션 공통 설정 |
 | `global/exception` | 공통 예외와 예외 처리 |
-| `global/infrastructure` | CLOVA, OpenAI, 스토리지 등 외부 연동 |
+| `domain/analysis` | 1:1 대화의 정량 지표와 관계·상황별 분석 |
+| `domain/analysis/model` | 외부 서비스에 종속되지 않는 분석 입력·결과 모델 |
+| `domain/analysis/port` | 전사 데이터 조회와 AI 분석 호출 경계 |
+| `domain/character` | 분석 결과 기반 캐릭터 유형과 생성 상태 |
+| `global/infrastructure` | Kakao, CLOVA, LINER, 이미지 생성, 스토리지 등 외부 연동 |
 | `global/security` | 인증·인가와 JWT 처리 |
 
 각 도메인의 기본 구성은 다음을 따릅니다. 필요하지 않은 패키지는 만들지 않습니다.
@@ -159,7 +178,9 @@ test: 일반 로그인 서비스 테스트 추가
 - Reviewer를 최소 1명 지정하고 1명 이상의 Approve 후 Merge합니다.
 - 리뷰 반영 여부와 테스트 결과를 반드시 작성합니다.
 - 리뷰 가능한 크기를 유지하고 서로 무관한 변경을 한 PR에 넣지 않습니다.
-- Merge 방식은 `Squash and merge`를 기본으로 합니다.
+- 기능 브랜치 → `develop` 머지는 `Squash and merge`를 기본으로 합니다.
+- `develop` → `main` 배포 머지는 `Create a merge commit`을 사용합니다.
+  - Squash하면 여러 팀원의 커밋이 하나로 합쳐져 `main` 기준 Contributors에서 개별 authorship이 사라집니다.
 
 예시:
 
@@ -192,11 +213,21 @@ test: 일반 로그인 서비스 테스트 추가
 
 ### External API
 
-- CLOVA Speech와 OpenAI 응답 객체를 도메인 계층에서 직접 사용하지 않습니다.
+- CLOVA Speech, LINER와 이미지 생성 API 응답 객체를 도메인 계층에서 직접 사용하지 않습니다.
 - 외부 API 응답은 `global/infrastructure`에서 내부 모델로 변환합니다.
 - 전사 결과에는 provider, 모델, 처리 시각과 원본 응답 위치를 기록합니다.
 - 동일 음성의 중복 전사를 막기 위해 파일 해시와 처리 옵션을 기준으로 캐싱합니다.
 - 외부 API 호출에는 timeout, 재시도 횟수와 실패 상태를 명시합니다.
+
+### DB 마이그레이션 (Flyway)
+
+운영 DB는 `src/main/resources/db/migration`의 SQL로만 만들어지고, 운영 서버는 엔티티와 테이블이 다르면 뜨지 않습니다(`ddl-auto=validate`). 로컬 · 테스트는 지금처럼 Hibernate가 테이블을 만듭니다.
+
+- 엔티티의 테이블 · 컬럼 · 유니크 제약을 바꾸면 **같은 PR에 다음 번호의 SQL 파일**을 추가합니다. 예: `V2__add_recordings_memo.sql`
+  - `alter table recordings add column memo varchar(100);` 처럼 MySQL 문법으로 씁니다. 엔티티에 맞는 타입은 `V1__init.sql`의 같은 종류 컬럼을 참고합니다
+- 머지된 SQL 파일은 고치지 않습니다. 잘못됐으면 다음 번호 파일로 바로잡습니다 (Flyway가 체크섬으로 막습니다)
+- 번호는 머지 직전 `develop`의 마지막 번호 + 1. 다른 PR이 먼저 같은 번호로 머지됐으면 번호를 올립니다
+- `./gradlew build`의 `FlywayMigrationTest`가 SQL을 적용한 뒤 엔티티와 비교합니다. 빠진 테이블 · 컬럼 · 유니크 제약이 있으면 실패합니다
 
 ### Security
 

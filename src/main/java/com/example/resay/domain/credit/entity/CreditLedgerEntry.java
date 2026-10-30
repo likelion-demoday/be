@@ -1,0 +1,155 @@
+package com.example.resay.domain.credit.entity;
+
+import com.example.resay.global.entity.BaseEntity;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+/**
+ * 크레딧 장부. 잔액이 바뀔 때마다 한 줄씩 추가한다.
+ * 추가만 하고 고치거나 지우지 않는다. 한 사용자의 amount 합계는 항상 그 사용자의 잔액과 같다.
+ */
+@Getter
+@Entity
+@Table(
+        name = "credit_ledger",
+        uniqueConstraints = @UniqueConstraint(name = "uk_credit_ledger_unique_key", columnNames = "unique_key"),
+        indexes = @Index(name = "idx_credit_ledger_user_id_id", columnList = "user_id, id")
+)
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class CreditLedgerEntry extends BaseEntity {
+
+    public static final int MEMO_MAX_LENGTH = 200;
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private Long userId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, updatable = false, columnDefinition = "varchar(20)")
+    private CreditLedgerType type;
+
+    // 잔액에 더해진 값 (늘면 양수, 줄면 음수)
+    @Column(nullable = false, updatable = false)
+    private int amount;
+
+    @Column(name = "balance_after", nullable = false, updatable = false)
+    private int balanceAfter;
+
+    // 사용 · 환급이면 어떤 사용 건 때문인지
+    @Column(name = "usage_id", updatable = false)
+    private Long usageId;
+
+    // 내역 화면에서 사용 건을 다시 조회하지 않도록 용도와 녹음을 함께 적어 둔다
+    @Enumerated(EnumType.STRING)
+    @Column(updatable = false, columnDefinition = "varchar(20)")
+    private UsagePurpose purpose;
+
+    @Column(name = "recording_id", updatable = false)
+    private Long recordingId;
+
+    // 충전 · 환불이면 어떤 결제 주문 때문인지
+    @Column(name = "payment_id", updatable = false)
+    private Long paymentId;
+
+    // "결제 주문 하나에 충전은 한 번", "환불 시도 하나에 회수 · 되돌리기는 각각 한 번"을 DB가 보장하게 하는 값.
+    // 충전과 환불 관련 줄에만 값이 있다. 유니크 제약은 null끼리는 겹친다고 보지 않으므로 다른 종류의 줄에는 영향이 없다
+    @Column(name = "unique_key", updatable = false, length = 50)
+    private String uniqueKey;
+
+    // 운영자 조정 사유 (사용자에게는 보여주지 않는다)
+    @Column(updatable = false, length = MEMO_MAX_LENGTH)
+    private String memo;
+
+    // 운영자 조정이면 처리한 운영자
+    @Column(name = "created_by", updatable = false)
+    private Long createdBy;
+
+    private CreditLedgerEntry(Long userId, CreditLedgerType type, int amount, int balanceAfter) {
+        this.userId = userId;
+        this.type = type;
+        this.amount = amount;
+        this.balanceAfter = balanceAfter;
+    }
+
+    /** @param chargedAmount 결제로 충전한 크레딧 (양수) */
+    public static CreditLedgerEntry charge(Long userId, Long paymentId, int chargedAmount, int balanceAfter) {
+        CreditLedgerEntry entry = new CreditLedgerEntry(userId, CreditLedgerType.CHARGE, chargedAmount, balanceAfter);
+        entry.paymentId = paymentId;
+        entry.uniqueKey = CreditLedgerType.CHARGE.name() + ":" + paymentId;
+        return entry;
+    }
+
+    /**
+     * @param cancelId        환불 시도(취소 기록)의 ID
+     * @param collectedAmount 환불하면서 회수한 크레딧 (양수). 장부에는 음수로 적힌다
+     */
+    public static CreditLedgerEntry chargeRefund(
+            Long userId, Long paymentId, Long cancelId, int collectedAmount, int balanceAfter
+    ) {
+        return ofChargeRefund(
+                CreditLedgerType.CHARGE_REFUND, userId, paymentId, cancelId, -collectedAmount, balanceAfter);
+    }
+
+    /** @param restoredAmount 환불이 되지 않아 되돌려 준 크레딧 (양수) */
+    public static CreditLedgerEntry chargeRefundUndo(
+            Long userId, Long paymentId, Long cancelId, int restoredAmount, int balanceAfter
+    ) {
+        return ofChargeRefund(
+                CreditLedgerType.CHARGE_REFUND_UNDO, userId, paymentId, cancelId, restoredAmount, balanceAfter);
+    }
+
+    /** @param usedAmount 차감한 크레딧 (양수 또는 무료면 0). 장부에는 음수로 적힌다 */
+    public static CreditLedgerEntry use(
+            Long userId, Long usageId, UsagePurpose purpose, Long recordingId, int usedAmount, int balanceAfter
+    ) {
+        CreditLedgerEntry entry = new CreditLedgerEntry(userId, CreditLedgerType.USE, -usedAmount, balanceAfter);
+        entry.linkToUsage(usageId, purpose, recordingId);
+        return entry;
+    }
+
+    /** @param refundedAmount 되돌려 준 크레딧 (양수 또는 무료였다면 0) */
+    public static CreditLedgerEntry useRefund(
+            Long userId, Long usageId, UsagePurpose purpose, Long recordingId, int refundedAmount, int balanceAfter
+    ) {
+        CreditLedgerEntry entry =
+                new CreditLedgerEntry(userId, CreditLedgerType.USE_REFUND, refundedAmount, balanceAfter);
+        entry.linkToUsage(usageId, purpose, recordingId);
+        return entry;
+    }
+
+    public static CreditLedgerEntry adjust(Long userId, int amount, int balanceAfter, String memo, Long adminId) {
+        CreditLedgerEntry entry = new CreditLedgerEntry(userId, CreditLedgerType.ADJUST, amount, balanceAfter);
+        entry.memo = memo;
+        entry.createdBy = adminId;
+        return entry;
+    }
+
+    private static CreditLedgerEntry ofChargeRefund(
+            CreditLedgerType type, Long userId, Long paymentId, Long cancelId, int amount, int balanceAfter
+    ) {
+        CreditLedgerEntry entry = new CreditLedgerEntry(userId, type, amount, balanceAfter);
+        entry.paymentId = paymentId;
+        entry.uniqueKey = type.name() + ":" + cancelId;
+        return entry;
+    }
+
+    private void linkToUsage(Long usageId, UsagePurpose purpose, Long recordingId) {
+        this.usageId = usageId;
+        this.purpose = purpose;
+        this.recordingId = recordingId;
+    }
+}
