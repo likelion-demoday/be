@@ -18,6 +18,11 @@ import static com.example.resay.domain.analysis.support.AnalysisTestSpeakers.spe
 
 class AnalysisReportAssemblerTest {
 
+    private static final String LONG_CHARACTER_NAME =
+            "상대의 이야기를 끝까지 따라가는 질문 수집가";
+    private static final String LONG_CHARACTER_DESCRIPTION =
+            "상대가 들려주는 이야기를 끝까지 듣고 새로운 질문으로 대화를 자연스럽게 이어 가요.";
+
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ConversationMetricsCalculator metricsCalculator = new ConversationMetricsCalculator();
     private final AnalysisReportAssembler assembler = new AnalysisReportAssembler(objectMapper);
@@ -48,7 +53,14 @@ class AnalysisReportAssemblerTest {
                               "segmentIds": [1, 3]
                             }
                           ],
-                          "characterInsights": [],
+                          "characterInsights": [
+                            {
+                              "speakerRole": "SELF",
+                              "name": "상대의 이야기를 끝까지 따라가는 질문 수집가",
+                              "description": "상대가 들려주는 이야기를 끝까지 듣고 새로운 질문으로 대화를 자연스럽게 이어 가요.",
+                              "evidenceSegmentIds": [1]
+                            }
+                          ],
                           "speakerInsights": [
                             {
                               "speakerRole": "SELF",
@@ -57,7 +69,13 @@ class AnalysisReportAssemblerTest {
                                   "category": "EXPRESSION_PATTERN",
                                   "title": "확인 표현",
                                   "description": "상대의 말을 확인하며 반응했어요.",
-                                  "evidenceSegmentIds": [1, 3]
+                                  "evidenceSegmentIds": [1, 3],
+                                  "displayEvidences": [
+                                    {
+                                      "segmentId": 1,
+                                      "displayContent": "주말에 만날까?"
+                                    }
+                                  ]
                                 }
                               ],
                               "frequentExpressionSummary": {
@@ -95,13 +113,19 @@ class AnalysisReportAssemblerTest {
                           },
                           "reportMetrics": [
                             {
-                              "type": "ENCOURAGEMENT",
+                              "type": "POSITION_EXPLANATION",
                               "speakerRole": "SELF",
                               "value": 2,
                               "unit": "COUNT",
                               "title": "응원 표현",
                               "description": "대화를 이어 주는 표현이 보여요.",
-                              "evidenceSegmentIds": [1, 3]
+                              "evidenceSegmentIds": [1, 3],
+                              "displayEvidences": [
+                                {
+                                  "segmentId": 1,
+                                  "displayContent": "주말에 만날까?"
+                                }
+                              ]
                             }
                           ],
                           "speakerTendencies": [],
@@ -124,6 +148,15 @@ class AnalysisReportAssemblerTest {
                 .containsExactly("호준", "호석");
         assertThat(json.quantitativeAnalysis().speakers()).hasSize(2);
         assertThat(json.quantitativeAnalysis().totalTurnCount()).isEqualTo(3);
+        assertThat(json.qualitativeAnalysis().characterInsights().get(0).name())
+                .isEqualTo(LONG_CHARACTER_NAME);
+        assertThat(json.qualitativeAnalysis().characterInsights().get(0).description())
+                .isEqualTo(LONG_CHARACTER_DESCRIPTION);
+        assertThat(AnalysisReportDto.from(json).qualitativeAnalysis()
+                .characterInsights().get(0).name()).isEqualTo(LONG_CHARACTER_NAME);
+        assertThat(AnalysisReportDto.from(json).qualitativeAnalysis()
+                .characterInsights().get(0).description())
+                .isEqualTo(LONG_CHARACTER_DESCRIPTION);
         AnalysisReport.TimelineItem timeline = json.qualitativeAnalysis().timeline().get(0);
         assertThat(timeline.startMs()).isEqualTo(100L);
         assertThat(timeline.endMs()).isEqualTo(1_800L);
@@ -139,6 +172,13 @@ class AnalysisReportAssemblerTest {
                 .frequentExpressions().get(0).count()).isEqualTo(2);
         assertThat(AnalysisReportDto.from(json).qualitativeAnalysis()
                 .speakerInsights().get(0).patterns().get(0).count()).isEqualTo(2);
+        AnalysisReportDto.EvidenceQuote patternEvidence = AnalysisReportDto.from(json)
+                .qualitativeAnalysis().speakerInsights().get(0)
+                .patterns().get(0).evidenceQuotes().get(0);
+        assertThat(patternEvidence.originalContent()).isEqualTo("주말에 만날가?");
+        assertThat(patternEvidence.displayContent()).isEqualTo("주말에 만날까?");
+        assertThat(patternEvidence.correctionApplied()).isTrue();
+        assertThat(patternEvidence.startMs()).isEqualTo(100L);
         AnalysisReport.RepresentativeEvidence representativeEvidence = json.qualitativeAnalysis()
                 .representativeEvidences().get(0);
         assertThat(representativeEvidence.evidence().originalContent())
@@ -152,8 +192,34 @@ class AnalysisReportAssemblerTest {
                 .relationshipSummary().title()).contains("계획하는 사람");
         assertThat(AnalysisReportDto.from(json).qualitativeAnalysis()
                 .reportMetrics().get(0).value()).isEqualTo(2);
+        AnalysisReportDto.EvidenceQuote metricEvidence = AnalysisReportDto.from(json)
+                .qualitativeAnalysis().reportMetrics().get(0).evidenceQuotes().get(0);
+        assertThat(metricEvidence.originalContent()).isEqualTo("주말에 만날가?");
+        assertThat(metricEvidence.displayContent()).isEqualTo("주말에 만날까?");
+        assertThat(metricEvidence.correctionApplied()).isTrue();
+        assertThat(metricEvidence.startMs()).isEqualTo(100L);
         assertThat(report.modelName()).isEqualTo("liner-mark-1.1");
-        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v10");
+        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v11");
+    }
+
+    @Test
+    void defaultsMetricEvidenceQuotesForLegacyReport() throws Exception {
+        AnalysisReport.ReportMetric metric = objectMapper.readValue(
+                """
+                        {
+                          "type": "POSITION_EXPLANATION",
+                          "speakerRole": "SELF",
+                          "value": 1,
+                          "unit": "COUNT",
+                          "title": "입장 설명",
+                          "description": "입장을 설명했어요.",
+                          "evidenceSegmentIds": [1]
+                        }
+                        """,
+                AnalysisReport.ReportMetric.class
+        );
+
+        assertThat(metric.evidenceQuotes()).isEmpty();
     }
 
     private AnalysisSource source() {

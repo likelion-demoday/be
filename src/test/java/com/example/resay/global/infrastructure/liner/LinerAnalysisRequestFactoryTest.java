@@ -62,8 +62,8 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("비속어가 없으면 swearWords는 빈 배열")
                 .contains("짧고 재미있는 한국어 별칭")
                 .contains("수식어와 기억에 남는 역할·사물 명사를 결합한 2~3어절")
-                .contains("공백을 포함해 12자 이내")
-                .contains("공백을 포함해 24자 이내")
+                .contains("공백을 포함해 10자 이내")
+                .contains("공백을 포함해 20자 이내")
                 .contains("꼬리질문 장인")
                 .contains("예시일 뿐이므로 그대로 고르지 말고")
                 .contains("비하하거나 공격적인 표현")
@@ -85,12 +85,14 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("음성 인식 오류가 포함될 수 있습니다")
                 .contains("대표 근거만 작성하세요")
                 .contains("displayContent를 요약하거나")
+                .contains("speakerInsights.patterns의 displayEvidences에는")
                 .contains("reportMetrics는 화면에 필요한 세부 횟수와 비율")
+                .contains("reportMetrics의 displayEvidences에는")
                 .contains("관찰되지 않은 항목도 value 0으로 작성하세요")
                 .contains("화자별 1개 이상 3개 이하");
 
-        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v14");
-        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v8");
+        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v15");
+        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v9");
 
         Map<?, ?> input = objectMapper.readValue(request.messages().get(1).content(), Map.class);
         assertThat(input.get("recordingId")).isEqualTo(1);
@@ -122,10 +124,10 @@ class LinerAnalysisRequestFactoryTest {
         Map<?, ?> characterInsightItems = (Map<?, ?>) characterInsights.get("items");
         Map<?, ?> characterInsightProperties =
                 (Map<?, ?>) characterInsightItems.get("properties");
-        assertThat(((Map<?, ?>) characterInsightProperties.get("name")).get("maxLength"))
-                .isEqualTo(12);
+        assertThat(((Map<?, ?>) characterInsightProperties.get("name"))
+                .containsKey("maxLength")).isFalse();
         assertThat(((Map<?, ?>) characterInsightProperties.get("description"))
-                .get("maxLength")).isEqualTo(24);
+                .containsKey("maxLength")).isFalse();
         Map<?, ?> representativeEvidences =
                 (Map<?, ?>) rootProperties.get("representativeEvidences");
         assertThat(representativeEvidences.get("minItems")).isEqualTo(2);
@@ -149,6 +151,13 @@ class LinerAnalysisRequestFactoryTest {
         assertThat(speakerInsightProperties.keySet().stream().map(Object::toString).toList())
                 .contains("frequentExpressionSummary", "frequentExpressions")
                 .doesNotContain("sentenceStyle");
+        Map<?, ?> patterns = (Map<?, ?>) speakerInsightProperties.get("patterns");
+        Map<?, ?> patternItems = (Map<?, ?>) patterns.get("items");
+        Map<?, ?> patternProperties = (Map<?, ?>) patternItems.get("properties");
+        Map<?, ?> patternDisplayEvidences =
+                (Map<?, ?>) patternProperties.get("displayEvidences");
+        assertThat(patternDisplayEvidences.get("minItems")).isEqualTo(1);
+        assertThat(patternDisplayEvidences.get("maxItems")).isEqualTo(3);
         Map<?, ?> frequentExpressions =
                 (Map<?, ?>) speakerInsightProperties.get("frequentExpressions");
         Map<?, ?> frequentExpressionItems = (Map<?, ?>) frequentExpressions.get("items");
@@ -244,6 +253,7 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("공격, 방어, 회피는 사람의 성향이 아니라")
                 .contains("애착 유형이나 정신 상태를 진단하지 마세요")
                 .contains("coachingSuggestions는 대화 개선 단계 세 개")
+                .contains("displayEvidences에 대표 발화를 1개 이상 최대 3개")
                 .contains("총 6개가 되게 하세요");
 
         Map<?, ?> jsonSchema = (Map<?, ?>) request.responseFormat().get("json_schema");
@@ -256,6 +266,13 @@ class LinerAnalysisRequestFactoryTest {
         Map<?, ?> coachingSuggestions = (Map<?, ?>) rootProperties.get("coachingSuggestions");
         assertThat(coachingSuggestions.get("minItems")).isEqualTo(3);
         assertThat(coachingSuggestions.get("maxItems")).isEqualTo(3);
+        Map<?, ?> reportMetrics = (Map<?, ?>) rootProperties.get("reportMetrics");
+        Map<?, ?> reportMetricItems = (Map<?, ?>) reportMetrics.get("items");
+        Map<?, ?> reportMetricProperties = (Map<?, ?>) reportMetricItems.get("properties");
+        Map<?, ?> displayEvidences =
+                (Map<?, ?>) reportMetricProperties.get("displayEvidences");
+        assertThat(displayEvidences.get("minItems")).isEqualTo(0);
+        assertThat(displayEvidences.get("maxItems")).isEqualTo(3);
     }
 
     private AnalysisSource friendSource() {

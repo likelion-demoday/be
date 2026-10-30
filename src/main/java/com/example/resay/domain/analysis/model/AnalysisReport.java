@@ -56,13 +56,14 @@ public record AnalysisReport(
             List<TopicItem> topics,
             List<QualitativeAnalysis.CharacterInsight> characterInsights,
             List<QualitativeAnalysis.SpeakerInsight> speakerInsights,
+            List<SpeakerPatternEvidence> speakerPatternEvidences,
             List<QualitativeAnalysis.InterestInsight> interestInsights,
             List<QualitativeAnalysis.SpicinessInsight> spicinessInsights,
             List<QualitativeAnalysis.ReactionStyleInsight> reactionStyleInsights,
             List<QualitativeAnalysis.ScenarioInsight> scenarioInsights,
             List<RepresentativeEvidence> representativeEvidences,
             QualitativeAnalysis.RelationshipSummary relationshipSummary,
-            List<QualitativeAnalysis.ReportMetric> reportMetrics,
+            List<ReportMetric> reportMetrics,
             List<QualitativeAnalysis.SpeakerTendency> speakerTendencies,
             List<QualitativeAnalysis.CoachingSuggestion> coachingSuggestions
     ) {
@@ -72,6 +73,9 @@ public record AnalysisReport(
             topics = List.copyOf(topics);
             characterInsights = List.copyOf(characterInsights);
             speakerInsights = List.copyOf(speakerInsights);
+            speakerPatternEvidences = speakerPatternEvidences == null
+                    ? List.of()
+                    : List.copyOf(speakerPatternEvidences);
             interestInsights = List.copyOf(interestInsights);
             spicinessInsights = List.copyOf(spicinessInsights);
             reactionStyleInsights = List.copyOf(reactionStyleInsights);
@@ -105,6 +109,7 @@ public record AnalysisReport(
                     topics,
                     characterInsights,
                     speakerInsights,
+                    List.of(),
                     interestInsights,
                     spicinessInsights,
                     reactionStyleInsights,
@@ -135,6 +140,7 @@ public record AnalysisReport(
                     topics,
                     characterInsights,
                     speakerInsights,
+                    List.of(),
                     interestInsights,
                     spicinessInsights,
                     reactionStyleInsights,
@@ -156,6 +162,17 @@ public record AnalysisReport(
     ) {
     }
 
+    public record SpeakerPatternEvidence(
+            SpeakerRole speakerRole,
+            QualitativeAnalysis.SpeakerPatternCategory category,
+            List<EvidenceQuote> evidenceQuotes
+    ) {
+
+        public SpeakerPatternEvidence {
+            evidenceQuotes = evidenceQuotes == null ? List.of() : List.copyOf(evidenceQuotes);
+        }
+    }
+
     public record EvidenceQuote(
             Long segmentId,
             SpeakerRole speakerRole,
@@ -165,6 +182,25 @@ public record AnalysisReport(
             Long startMs,
             Long endMs
     ) {
+    }
+
+    public record ReportMetric(
+            QualitativeAnalysis.ReportMetricType type,
+            SpeakerRole speakerRole,
+            int value,
+            QualitativeAnalysis.ReportMetricUnit unit,
+            String title,
+            String description,
+            List<Long> evidenceSegmentIds,
+            List<EvidenceQuote> evidenceQuotes
+    ) {
+
+        public ReportMetric {
+            evidenceSegmentIds = evidenceSegmentIds == null
+                    ? List.of()
+                    : List.copyOf(evidenceSegmentIds);
+            evidenceQuotes = evidenceQuotes == null ? List.of() : List.copyOf(evidenceQuotes);
+        }
     }
 
     public record TimelineItem(

@@ -7,6 +7,15 @@ import java.util.Set;
 
 final class LinerAnalysisPolicy {
 
+    private static final Set<QualitativeAnalysis.ReportMetricType>
+            REPORT_METRIC_EVIDENCE_QUOTE_TYPES = Set.of(
+                    QualitativeAnalysis.ReportMetricType.POSITION_EXPLANATION,
+                    QualitativeAnalysis.ReportMetricType.REBUTTAL,
+                    QualitativeAnalysis.ReportMetricType.AVOIDANCE,
+                    QualitativeAnalysis.ReportMetricType.APOLOGY,
+                    QualitativeAnalysis.ReportMetricType.YIELDING
+            );
+
     private static final Set<QualitativeAnalysis.SpeakerPatternCategory> DAILY_PATTERNS = Set.of(
             QualitativeAnalysis.SpeakerPatternCategory.SHORT_RESPONSE,
             QualitativeAnalysis.SpeakerPatternCategory.REPEAT_OR_CONFIRM,
@@ -115,6 +124,14 @@ final class LinerAnalysisPolicy {
                     QualitativeAnalysis.ReportMetricType.PARENT_CONFIRMATION
             );
         };
+    }
+
+    static boolean supportsMetricEvidenceQuotes(
+            AnalysisScenario scenario,
+            QualitativeAnalysis.ReportMetricType type
+    ) {
+        return scenario == AnalysisScenario.COUPLE_CONFLICT
+                && REPORT_METRIC_EVIDENCE_QUOTE_TYPES.contains(type);
     }
 
     private static Set<QualitativeAnalysis.SpeakerPatternCategory> conflictPatterns() {

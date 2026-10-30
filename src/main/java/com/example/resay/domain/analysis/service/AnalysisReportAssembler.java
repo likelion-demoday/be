@@ -18,7 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class AnalysisReportAssembler {
 
-    private static final String REPORT_SCHEMA_VERSION = "analysis-report-v10";
+    private static final String REPORT_SCHEMA_VERSION = "analysis-report-v11";
 
     private final ObjectMapper objectMapper;
 
@@ -97,16 +97,45 @@ public class AnalysisReportAssembler {
                 enrichTopics(result.topics(), source.segments()),
                 result.characterInsights(),
                 result.speakerInsights(),
+                enrichSpeakerPatternEvidences(result.speakerInsights(), source.segments()),
                 result.interestInsights(),
                 result.spicinessInsights(),
                 result.reactionStyleInsights(),
                 result.scenarioInsights(),
                 enrichRepresentativeEvidences(result.representativeEvidences(), source.segments()),
                 result.relationshipSummary(),
-                result.reportMetrics(),
+                enrichReportMetrics(result.reportMetrics(), source.segments()),
                 result.speakerTendencies(),
                 result.coachingSuggestions()
         );
+    }
+
+    private List<AnalysisReport.SpeakerPatternEvidence> enrichSpeakerPatternEvidences(
+            List<QualitativeAnalysis.SpeakerInsight> insights,
+            List<AnalysisSegment> segments
+    ) {
+        if (insights == null) {
+            return List.of();
+        }
+        Map<Long, AnalysisSegment> segmentsById = new java.util.LinkedHashMap<>();
+        segments.forEach(segment -> segmentsById.put(segment.segmentId(), segment));
+        return insights.stream()
+                .filter(java.util.Objects::nonNull)
+                .flatMap(insight -> insight.patterns().stream()
+                        .map(pattern -> new AnalysisReport.SpeakerPatternEvidence(
+                                insight.speakerRole(),
+                                pattern.category(),
+                                pattern.displayEvidences().stream()
+                                        .map(evidence -> evidenceQuote(
+                                                requireSegment(
+                                                        segmentsById,
+                                                        evidence.segmentId()
+                                                ),
+                                                evidence.displayContent()
+                                        ))
+                                        .toList()
+                        )))
+                .toList();
     }
 
     private List<AnalysisReport.RepresentativeEvidence> enrichRepresentativeEvidences(
@@ -132,20 +161,66 @@ public class AnalysisReportAssembler {
         if (segment == null) {
             throw new IllegalStateException("대표 근거에 존재하지 않는 발화가 포함되어 있습니다.");
         }
-        String displayContent = evidence.displayContent().trim();
         return new AnalysisReport.RepresentativeEvidence(
                 evidence.type(),
                 evidence.speakerRole(),
                 evidence.reactionCategory(),
-                new AnalysisReport.EvidenceQuote(
-                        segment.segmentId(),
-                        segment.speakerRole(),
-                        segment.content(),
-                        displayContent,
-                        !segment.content().equals(displayContent),
-                        segment.startMs(),
-                        segment.endMs()
-                )
+                evidenceQuote(segment, evidence.displayContent())
+        );
+    }
+
+    private List<AnalysisReport.ReportMetric> enrichReportMetrics(
+            List<QualitativeAnalysis.ReportMetric> metrics,
+            List<AnalysisSegment> segments
+    ) {
+        if (metrics == null) {
+            return List.of();
+        }
+        Map<Long, AnalysisSegment> segmentsById = new java.util.LinkedHashMap<>();
+        segments.forEach(segment -> segmentsById.put(segment.segmentId(), segment));
+        return metrics.stream()
+                .map(metric -> new AnalysisReport.ReportMetric(
+                        metric.type(),
+                        metric.speakerRole(),
+                        metric.value(),
+                        metric.unit(),
+                        metric.title(),
+                        metric.description(),
+                        metric.evidenceSegmentIds(),
+                        metric.displayEvidences().stream()
+                                .map(evidence -> evidenceQuote(
+                                        requireSegment(segmentsById, evidence.segmentId()),
+                                        evidence.displayContent()
+                                ))
+                                .toList()
+                ))
+                .toList();
+    }
+
+    private AnalysisSegment requireSegment(
+            Map<Long, AnalysisSegment> segmentsById,
+            Long segmentId
+    ) {
+        AnalysisSegment segment = segmentsById.get(segmentId);
+        if (segment == null) {
+            throw new IllegalStateException("보고서 지표에 존재하지 않는 대표 발화가 포함되어 있습니다.");
+        }
+        return segment;
+    }
+
+    private AnalysisReport.EvidenceQuote evidenceQuote(
+            AnalysisSegment segment,
+            String displayContent
+    ) {
+        String trimmedDisplayContent = displayContent.trim();
+        return new AnalysisReport.EvidenceQuote(
+                segment.segmentId(),
+                segment.speakerRole(),
+                segment.content(),
+                trimmedDisplayContent,
+                !segment.content().equals(trimmedDisplayContent),
+                segment.startMs(),
+                segment.endMs()
         );
     }
 

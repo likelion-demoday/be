@@ -17,6 +17,35 @@ class LinerAnalysisResponseGrounderTest {
             new LinerAnalysisResponseGrounder();
 
     @Test
+    void preservesCharacterTextEvenWhenItExceedsPromptTargetLength() {
+        String name = "상대의 이야기를 끝까지 따라가는 질문 수집가";
+        String description =
+                "상대가 들려주는 이야기를 끝까지 듣고 새로운 질문으로 대화를 자연스럽게 이어 가요.";
+        QualitativeAnalysis response = new QualitativeAnalysis(
+                null,
+                null,
+                null,
+                List.of(new QualitativeAnalysis.CharacterInsight(
+                        SpeakerRole.SELF,
+                        name,
+                        description,
+                        List.of(1L)
+                )),
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        QualitativeAnalysis grounded = grounder.ground(source(), response);
+
+        assertThat(grounded.characterInsights().get(0).name()).isEqualTo(name);
+        assertThat(grounded.characterInsights().get(0).description())
+                .isEqualTo(description);
+    }
+
+    @Test
     void recalculatesFrequentExpressionCountAndEvidenceFromTranscript() {
         QualitativeAnalysis response = responseWithExpression(
                 new QualitativeAnalysis.FrequentExpression(
@@ -255,6 +284,89 @@ class LinerAnalysisResponseGrounderTest {
     }
 
     @Test
+    void groundsConflictMetricEvidenceAndDropsOnlyInvalidQuotes() {
+        AnalysisSource source = conflictMetricSource();
+        QualitativeAnalysis response = responseWithMetric(new QualitativeAnalysis.ReportMetric(
+                QualitativeAnalysis.ReportMetricType.POSITION_EXPLANATION,
+                SpeakerRole.SELF,
+                99,
+                QualitativeAnalysis.ReportMetricUnit.COUNT,
+                "입장 설명",
+                "자신의 입장을 설명한 표현이에요.",
+                List.of(1L, 2L),
+                List.of(
+                        new QualitativeAnalysis.MetricDisplayEvidence(
+                                1L,
+                                "“나는 기다리고 있었던 거야.”"
+                        ),
+                        new QualitativeAnalysis.MetricDisplayEvidence(999L, "없는 발화"),
+                        new QualitativeAnalysis.MetricDisplayEvidence(1L, "중복 발화")
+                )
+        ));
+
+        QualitativeAnalysis grounded = grounder.ground(source, response);
+
+        QualitativeAnalysis.ReportMetric metric = grounded.reportMetrics().get(0);
+        assertThat(metric.value()).isEqualTo(2);
+        assertThat(metric.displayEvidences()).containsExactly(
+                new QualitativeAnalysis.MetricDisplayEvidence(
+                        1L,
+                        "나는 기다리고 있었던 거야."
+                )
+        );
+    }
+
+    @Test
+    void removesDisplayEvidenceFromUnsupportedMetricWithoutFailingAnalysis() {
+        AnalysisSource source = conflictMetricSource();
+        QualitativeAnalysis response = responseWithMetric(new QualitativeAnalysis.ReportMetric(
+                QualitativeAnalysis.ReportMetricType.EMOTION_CHECK,
+                SpeakerRole.SELF,
+                1,
+                QualitativeAnalysis.ReportMetricUnit.COUNT,
+                "감정 확인",
+                "상대의 감정을 확인했어요.",
+                List.of(1L),
+                List.of(new QualitativeAnalysis.MetricDisplayEvidence(1L, "기다리고 있었어?"))
+        ));
+
+        QualitativeAnalysis grounded = grounder.ground(source, response);
+
+        assertThat(grounded.reportMetrics().get(0).displayEvidences()).isEmpty();
+    }
+
+    @Test
+    void groundsSpeakerPatternEvidenceAndDropsOnlyInvalidQuotes() {
+        AnalysisSource source = evidenceSource();
+        QualitativeAnalysis response = responseWithPattern(
+                new QualitativeAnalysis.SpeakerPattern(
+                        QualitativeAnalysis.SpeakerPatternCategory.SITUATION_ACKNOWLEDGEMENT,
+                        "상황 이해 표현",
+                        "상대의 상황을 이해한다는 뜻을 표현했어요.",
+                        List.of(1L),
+                        List.of(
+                                new QualitativeAnalysis.PatternDisplayEvidence(
+                                        1L,
+                                        "“아니, 그거 진짜 힘들었을 것 같아.”"
+                                ),
+                                new QualitativeAnalysis.PatternDisplayEvidence(
+                                        999L,
+                                        "없는 발화"
+                                )
+                        )
+                )
+        );
+
+        QualitativeAnalysis grounded = grounder.ground(source, response);
+
+        assertThat(grounded.speakerInsights().get(0).patterns().get(0).displayEvidences())
+                .containsExactly(new QualitativeAnalysis.PatternDisplayEvidence(
+                        1L,
+                        "아니, 그거 진짜 힘들었을 것 같아."
+                ));
+    }
+
+    @Test
     void replacesDailyRepresentativeEvidenceNotLinkedToReactionExample() {
         AnalysisSource source = new AnalysisSource(
                 4L,
@@ -447,6 +559,78 @@ class LinerAnalysisResponseGrounderTest {
                         1L,
                         displayContent
                 ))
+        );
+    }
+
+    private AnalysisSource conflictMetricSource() {
+        return new AnalysisSource(
+                5L,
+                AnalysisScenario.COUPLE_CONFLICT,
+                10_000L,
+                speakersFor(AnalysisScenario.COUPLE_CONFLICT),
+                List.of(
+                        new AnalysisSegment(
+                                1L,
+                                SpeakerRole.SELF,
+                                0L,
+                                1_000L,
+                                "나는 기다리고 있었던 거야"
+                        ),
+                        new AnalysisSegment(
+                                2L,
+                                SpeakerRole.SELF,
+                                1_100L,
+                                2_000L,
+                                "연락이 없어서 걱정했어"
+                        ),
+                        new AnalysisSegment(
+                                3L,
+                                SpeakerRole.PARTNER,
+                                2_100L,
+                                3_000L,
+                                "회의 중이었어"
+                        )
+                )
+        );
+    }
+
+    private QualitativeAnalysis responseWithMetric(QualitativeAnalysis.ReportMetric metric) {
+        return new QualitativeAnalysis(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(metric),
+                List.of(),
+                List.of()
+        );
+    }
+
+    private QualitativeAnalysis responseWithPattern(
+            QualitativeAnalysis.SpeakerPattern pattern
+    ) {
+        return new QualitativeAnalysis(
+                null,
+                null,
+                null,
+                null,
+                List.of(new QualitativeAnalysis.SpeakerInsight(
+                        SpeakerRole.SELF,
+                        List.of(pattern),
+                        null,
+                        List.of()
+                )),
+                null,
+                null,
+                null,
+                null
         );
     }
 

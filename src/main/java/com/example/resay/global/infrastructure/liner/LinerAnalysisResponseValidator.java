@@ -4,7 +4,6 @@ import com.example.resay.domain.analysis.service.AnalysisFailureCategory;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSource;
-import com.example.resay.domain.analysis.model.CharacterInsightTextPolicy;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import java.util.HashMap;
@@ -266,6 +265,7 @@ public class LinerAnalysisResponseValidator {
             return;
         }
         Set<String> uniqueMetrics = new HashSet<>();
+        Map<Long, String> displayContentsBySegmentId = new HashMap<>();
         for (QualitativeAnalysis.ReportMetric metric : metrics) {
             if (metric == null || metric.type() == null || metric.unit() == null) {
                 throw invalidResponse("reportMetric 항목이 올바르지 않습니다.");
@@ -290,15 +290,28 @@ public class LinerAnalysisResponseValidator {
                     && metric.value() > 100) {
                 throw invalidResponse("PERCENT reportMetric.value는 100 이하여야 합니다.");
             }
-            validateMetricEvidence(metric, segmentsById);
+            validateMetricEvidence(
+                    source,
+                    metric,
+                    segmentsById,
+                    displayContentsBySegmentId
+            );
         }
     }
 
     private void validateMetricEvidence(
+            AnalysisSource source,
             QualitativeAnalysis.ReportMetric metric,
-            Map<Long, AnalysisSegment> segmentsById
+            Map<Long, AnalysisSegment> segmentsById,
+            Map<Long, String> displayContentsBySegmentId
     ) {
         List<Long> evidenceIds = metric.evidenceSegmentIds();
+        validateMetricDisplayEvidences(
+                source,
+                metric,
+                segmentsById,
+                displayContentsBySegmentId
+        );
         if (metric.value() == 0) {
             if (evidenceIds == null || evidenceIds.isEmpty()) {
                 return;
@@ -314,6 +327,58 @@ public class LinerAnalysisResponseValidator {
         if (metric.unit() == QualitativeAnalysis.ReportMetricUnit.COUNT
                 && metric.value() != evidenceIds.stream().distinct().count()) {
             throw invalidResponse("COUNT reportMetric.value는 근거 발화 수와 일치해야 합니다.");
+        }
+    }
+
+    private void validateMetricDisplayEvidences(
+            AnalysisSource source,
+            QualitativeAnalysis.ReportMetric metric,
+            Map<Long, AnalysisSegment> segmentsById,
+            Map<Long, String> displayContentsBySegmentId
+    ) {
+        List<QualitativeAnalysis.MetricDisplayEvidence> displayEvidences =
+                metric.displayEvidences();
+        if (displayEvidences == null || displayEvidences.isEmpty()) {
+            return;
+        }
+        if (metric.value() == 0) {
+            throw invalidResponse("값이 0인 reportMetric에는 대표 근거를 넣을 수 없습니다.");
+        }
+        if (!LinerAnalysisPolicy.supportsMetricEvidenceQuotes(
+                source.scenario(),
+                metric.type()
+        )) {
+            throw invalidResponse("대표 근거를 제공하지 않는 reportMetric입니다.");
+        }
+        if (displayEvidences.size() > 3) {
+            throw invalidResponse("reportMetric 대표 근거는 최대 3개까지 작성할 수 있습니다.");
+        }
+
+        Set<Long> uniqueSegmentIds = new HashSet<>();
+        for (QualitativeAnalysis.MetricDisplayEvidence evidence : displayEvidences) {
+            if (evidence == null || evidence.segmentId() == null
+                    || !StringUtils.hasText(evidence.displayContent())) {
+                throw invalidResponse("reportMetric 대표 근거가 올바르지 않습니다.");
+            }
+            if (!uniqueSegmentIds.add(evidence.segmentId())) {
+                throw invalidResponse("reportMetric 대표 근거를 중복해서 작성할 수 없습니다.");
+            }
+            if (metric.evidenceSegmentIds() == null
+                    || !metric.evidenceSegmentIds().contains(evidence.segmentId())) {
+                throw invalidResponse("reportMetric 대표 근거는 같은 지표의 근거 발화여야 합니다.");
+            }
+            AnalysisSegment segment = segmentsById.get(evidence.segmentId());
+            if (segment == null || metric.speakerRole() == null
+                    || segment.speakerRole() != metric.speakerRole()) {
+                throw invalidResponse("reportMetric 대표 근거의 화자가 올바르지 않습니다.");
+            }
+            String previous = displayContentsBySegmentId.putIfAbsent(
+                    evidence.segmentId(),
+                    evidence.displayContent()
+            );
+            if (previous != null && !previous.equals(evidence.displayContent())) {
+                throw invalidResponse("같은 발화의 표시 문장은 동일해야 합니다.");
+            }
         }
     }
 
@@ -447,16 +512,6 @@ public class LinerAnalysisResponseValidator {
         for (QualitativeAnalysis.CharacterInsight insight : insights) {
             requireText(insight.name(), "characterInsight.name");
             requireText(insight.description(), "characterInsight.description");
-            requireMaxLength(
-                    insight.name(),
-                    CharacterInsightTextPolicy.NAME_MAX_LENGTH,
-                    "characterInsight.name"
-            );
-            requireMaxLength(
-                    insight.description(),
-                    CharacterInsightTextPolicy.DESCRIPTION_MAX_LENGTH,
-                    "characterInsight.description"
-            );
             validateSpeakerEvidence(
                     insight.evidenceSegmentIds(),
                     insight.speakerRole(),
@@ -515,6 +570,39 @@ public class LinerAnalysisResponseValidator {
                 segmentsById,
                 "speakerPattern"
         );
+        validateSpeakerPatternDisplayEvidences(pattern, speakerRole, segmentsById);
+    }
+
+    private void validateSpeakerPatternDisplayEvidences(
+            QualitativeAnalysis.SpeakerPattern pattern,
+            SpeakerRole speakerRole,
+            Map<Long, AnalysisSegment> segmentsById
+    ) {
+        List<QualitativeAnalysis.PatternDisplayEvidence> displayEvidences =
+                pattern.displayEvidences();
+        if (displayEvidences == null || displayEvidences.isEmpty()) {
+            return;
+        }
+        if (displayEvidences.size() > 3) {
+            throw invalidResponse("speakerPattern 대표 근거는 최대 3개까지 작성할 수 있습니다.");
+        }
+        Set<Long> uniqueSegmentIds = new HashSet<>();
+        for (QualitativeAnalysis.PatternDisplayEvidence evidence : displayEvidences) {
+            if (evidence == null || evidence.segmentId() == null
+                    || !StringUtils.hasText(evidence.displayContent())) {
+                throw invalidResponse("speakerPattern 대표 근거가 올바르지 않습니다.");
+            }
+            if (!uniqueSegmentIds.add(evidence.segmentId())) {
+                throw invalidResponse("speakerPattern 대표 근거를 중복해서 작성할 수 없습니다.");
+            }
+            if (!pattern.evidenceSegmentIds().contains(evidence.segmentId())) {
+                throw invalidResponse("speakerPattern 대표 근거는 같은 패턴의 근거 발화여야 합니다.");
+            }
+            AnalysisSegment segment = segmentsById.get(evidence.segmentId());
+            if (segment == null || segment.speakerRole() != speakerRole) {
+                throw invalidResponse("speakerPattern 대표 근거의 화자가 올바르지 않습니다.");
+            }
+        }
     }
 
     private void validateFrequentExpressionSummary(
@@ -928,12 +1016,6 @@ public class LinerAnalysisResponseValidator {
     private void requireText(String value, String fieldName) {
         if (!StringUtils.hasText(value)) {
             throw invalidResponse(fieldName + "은(는) 비어 있을 수 없습니다.");
-        }
-    }
-
-    private void requireMaxLength(String value, int maxLength, String fieldName) {
-        if (value.length() > maxLength) {
-            throw invalidResponse(fieldName + "은(는) " + maxLength + "자 이하여야 합니다.");
         }
     }
 

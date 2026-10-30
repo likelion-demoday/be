@@ -2,7 +2,6 @@ package com.example.resay.domain.analysis.dto;
 
 import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
-import com.example.resay.domain.analysis.model.CharacterInsightTextPolicy;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -150,7 +149,12 @@ public record AnalysisReportDto(
                     source.timeline().stream().map(TimelineItem::from).toList(),
                     source.topics().stream().map(TopicItem::from).toList(),
                     source.characterInsights().stream().map(CharacterInsight::from).toList(),
-                    source.speakerInsights().stream().map(SpeakerInsight::from).toList(),
+                    source.speakerInsights().stream()
+                            .map(insight -> SpeakerInsight.from(
+                                    insight,
+                                    source.speakerPatternEvidences()
+                            ))
+                            .toList(),
                     source.interestInsights().stream().map(InterestInsight::from).toList(),
                     source.spicinessInsights().stream().map(SpicinessInsight::from).toList(),
                     source.reactionStyleInsights().stream()
@@ -189,17 +193,20 @@ public record AnalysisReportDto(
             int value,
             QualitativeAnalysis.ReportMetricUnit unit,
             String title,
-            String description
+            String description,
+            @Schema(description = "화면에 문장으로 표시할 대표 근거. 이전 보고서 또는 미지원 지표는 빈 배열")
+            List<EvidenceQuote> evidenceQuotes
     ) {
 
-        private static ReportMetric from(QualitativeAnalysis.ReportMetric source) {
+        private static ReportMetric from(AnalysisReport.ReportMetric source) {
             return new ReportMetric(
                     source.type(),
                     source.speakerRole(),
                     source.value(),
                     source.unit(),
                     source.title(),
-                    source.description()
+                    source.description(),
+                    source.evidenceQuotes().stream().map(EvidenceQuote::from).toList()
             );
         }
     }
@@ -348,14 +355,12 @@ public record AnalysisReportDto(
             SpeakerRole speakerRole,
             @Schema(
                     description = "카드에 표시할 캐릭터 이름",
-                    example = "질문 수집가",
-                    maxLength = CharacterInsightTextPolicy.NAME_MAX_LENGTH
+                    example = "질문 수집가"
             )
             String name,
             @Schema(
                     description = "카드에 표시할 캐릭터 설명",
-                    example = "꼬리 질문으로 상대의 이야기를 자연스럽게 이어 가요.",
-                    maxLength = CharacterInsightTextPolicy.DESCRIPTION_MAX_LENGTH
+                    example = "꼬리 질문으로 상대의 이야기를 자연스럽게 이어 가요."
             )
             String description
     ) {
@@ -363,8 +368,8 @@ public record AnalysisReportDto(
         private static CharacterInsight from(QualitativeAnalysis.CharacterInsight source) {
             return new CharacterInsight(
                     source.speakerRole(),
-                    CharacterInsightTextPolicy.fitName(source.name()),
-                    CharacterInsightTextPolicy.fitDescription(source.description())
+                    source.name(),
+                    source.description()
             );
         }
     }
@@ -376,10 +381,19 @@ public record AnalysisReportDto(
             List<FrequentExpression> frequentExpressions
     ) {
 
-        private static SpeakerInsight from(QualitativeAnalysis.SpeakerInsight source) {
+        private static SpeakerInsight from(
+                QualitativeAnalysis.SpeakerInsight source,
+                List<AnalysisReport.SpeakerPatternEvidence> patternEvidences
+        ) {
             return new SpeakerInsight(
                     source.speakerRole(),
-                    source.patterns().stream().map(SpeakerPattern::from).toList(),
+                    source.patterns().stream()
+                            .map(pattern -> SpeakerPattern.from(
+                                    source.speakerRole(),
+                                    pattern,
+                                    patternEvidences
+                            ))
+                            .toList(),
                     FrequentExpressionSummary.from(source.frequentExpressionSummary()),
                     source.frequentExpressions().stream().map(FrequentExpression::from).toList()
             );
@@ -390,15 +404,30 @@ public record AnalysisReportDto(
             QualitativeAnalysis.SpeakerPatternCategory category,
             String title,
             String description,
-            int count
+            int count,
+            @Schema(description = "해당 패턴을 화면에 문장으로 표시할 대표 근거. 최대 3개")
+            List<EvidenceQuote> evidenceQuotes
     ) {
 
-        private static SpeakerPattern from(QualitativeAnalysis.SpeakerPattern source) {
+        private static SpeakerPattern from(
+                SpeakerRole speakerRole,
+                QualitativeAnalysis.SpeakerPattern source,
+                List<AnalysisReport.SpeakerPatternEvidence> patternEvidences
+        ) {
+            List<EvidenceQuote> evidenceQuotes = patternEvidences.stream()
+                    .filter(evidence -> evidence.speakerRole() == speakerRole
+                            && evidence.category() == source.category())
+                    .findFirst()
+                    .map(evidence -> evidence.evidenceQuotes().stream()
+                            .map(EvidenceQuote::from)
+                            .toList())
+                    .orElseGet(List::of);
             return new SpeakerPattern(
                     source.category(),
                     source.title(),
                     source.description(),
-                    (int) source.evidenceSegmentIds().stream().distinct().count()
+                    (int) source.evidenceSegmentIds().stream().distinct().count(),
+                    evidenceQuotes
             );
         }
     }
