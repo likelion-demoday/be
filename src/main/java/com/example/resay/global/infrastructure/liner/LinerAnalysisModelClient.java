@@ -1,11 +1,14 @@
 package com.example.resay.global.infrastructure.liner;
 
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
+import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.port.AnalysisModelClient;
 import com.example.resay.domain.analysis.service.AnalysisFailureCategory;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -47,7 +50,7 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
 
         QualitativeAnalysis response = parseResponse(result.content());
         QualitativeAnalysis groundedResponse = responseGrounder.ground(source, response);
-        QualitativeAnalysis validatedResponse = validateWithRepresentativeEvidenceFallback(
+        QualitativeAnalysis validatedResponse = validateWithBestEffortFallback(
                 source,
                 groundedResponse
         );
@@ -60,7 +63,7 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
         );
     }
 
-    private QualitativeAnalysis validateWithRepresentativeEvidenceFallback(
+    private QualitativeAnalysis validateWithBestEffortFallback(
             AnalysisSource source,
             QualitativeAnalysis response
     ) {
@@ -68,29 +71,163 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
             responseValidator.validate(source, response);
             return response;
         } catch (LinerAnalysisException validationException) {
-            if (response.representativeEvidences() == null
-                    || response.representativeEvidences().isEmpty()) {
+            if (validationException.getCategory()
+                    != AnalysisFailureCategory.RESPONSE_VALIDATION_ERROR) {
                 throw validationException;
             }
 
-            QualitativeAnalysis withoutRepresentativeEvidences =
-                    withoutRepresentativeEvidences(response);
-            try {
-                responseValidator.validate(source, withoutRepresentativeEvidences);
-            } catch (LinerAnalysisException nonRepresentativeValidationException) {
-                if (validationException != nonRepresentativeValidationException) {
-                    validationException.addSuppressed(nonRepresentativeValidationException);
+            QualitativeAnalysis fallbackResponse = response;
+            if (response.representativeEvidences() != null
+                    && !response.representativeEvidences().isEmpty()) {
+                fallbackResponse = withoutRepresentativeEvidences(response);
+                try {
+                    responseValidator.validate(source, fallbackResponse);
+                    log.warn(
+                            "대표 근거 검증 실패로 부가 항목 제외: "
+                                    + "recordingId={}, scenario={}, 제외 {}건",
+                            source.recordingId(),
+                            source.scenario(),
+                            response.representativeEvidences().size()
+                    );
+                    return fallbackResponse;
+                } catch (LinerAnalysisException representativeFallbackException) {
+                    if (representativeFallbackException.getCategory()
+                            != AnalysisFailureCategory.RESPONSE_VALIDATION_ERROR) {
+                        throw representativeFallbackException;
+                    }
+                    if (validationException != representativeFallbackException) {
+                        validationException.addSuppressed(representativeFallbackException);
+                    }
                 }
-                throw validationException;
             }
 
-            log.warn(
-                    "대표 근거 검증 실패로 부가 항목 제외: recordingId={}, 제외 {}건",
-                    source.recordingId(),
-                    response.representativeEvidences().size()
+            QualitativeAnalysis coreResponse = withoutOptionalReportFields(fallbackResponse);
+            if (!coreResponse.equals(fallbackResponse)) {
+                try {
+                    responseValidator.validate(source, coreResponse);
+                    logBestEffortFallback(
+                            source,
+                            response,
+                            coreResponse,
+                            validationException,
+                            false
+                    );
+                    return coreResponse;
+                } catch (LinerAnalysisException coreValidationException) {
+                    if (coreValidationException.getCategory()
+                            != AnalysisFailureCategory.RESPONSE_VALIDATION_ERROR) {
+                        throw coreValidationException;
+                    }
+                    if (validationException != coreValidationException) {
+                        validationException.addSuppressed(coreValidationException);
+                    }
+                }
+            }
+
+            // JSON Schema 파싱과 Grounder 보정까지 끝난 응답은 가능한 범위에서 저장한다.
+            // 화면 조립에 꼭 필요한 타임라인·주제 근거가 깨졌다면 기존 검증 실패를 유지한다.
+            if (!isRenderableCore(source, fallbackResponse)) {
+                throw validationException;
+            }
+            logBestEffortFallback(
+                    source,
+                    response,
+                    fallbackResponse,
+                    validationException,
+                    true
             );
-            return withoutRepresentativeEvidences;
+            return fallbackResponse;
         }
+    }
+
+    private boolean isRenderableCore(AnalysisSource source, QualitativeAnalysis response) {
+        if (response.overview() == null
+                || response.timeline() == null || response.timeline().isEmpty()
+                || response.topics() == null || response.topics().isEmpty()
+                || response.characterInsights() == null
+                || response.speakerInsights() == null
+                || response.interestInsights() == null
+                || response.spicinessInsights() == null
+                || response.reactionStyleInsights() == null
+                || response.scenarioInsights() == null) {
+            return false;
+        }
+
+        Set<Long> segmentIds = source.segments().stream()
+                .map(AnalysisSegment::segmentId)
+                .collect(Collectors.toSet());
+        boolean timelineRenderable = response.timeline().stream().allMatch(item ->
+                item != null
+                        && item.evidenceSegmentIds() != null
+                        && !item.evidenceSegmentIds().isEmpty()
+                        && segmentIds.containsAll(item.evidenceSegmentIds()));
+        boolean topicsRenderable = response.topics().stream().allMatch(topic ->
+                topic != null
+                        && topic.segmentIds() != null
+                        && !topic.segmentIds().isEmpty()
+                        && segmentIds.containsAll(topic.segmentIds()));
+        return timelineRenderable && topicsRenderable;
+    }
+
+    private void logBestEffortFallback(
+            AnalysisSource source,
+            QualitativeAnalysis originalResponse,
+            QualitativeAnalysis fallbackResponse,
+            LinerAnalysisException validationException,
+            boolean coreValidationFailed
+    ) {
+        log.warn(
+                "분석 응답 의미 검증 실패, best-effort 보고서 저장: "
+                        + "recordingId={}, scenario={}, promptVersion={}, schemaVersion={}, "
+                        + "제외 대표근거={}건, 관계요약={}, 지표={}건, 화자경향={}건, 코칭={}건, "
+                        + "coreValidationFailed={}, reason={}",
+                source.recordingId(),
+                source.scenario(),
+                requestFactory.promptVersion(),
+                requestFactory.schemaVersion(),
+                excludedCount(
+                        originalResponse.representativeEvidences(),
+                        fallbackResponse.representativeEvidences()
+                ),
+                originalResponse.relationshipSummary() != null
+                        && fallbackResponse.relationshipSummary() == null,
+                excludedCount(originalResponse.reportMetrics(), fallbackResponse.reportMetrics()),
+                excludedCount(
+                        originalResponse.speakerTendencies(),
+                        fallbackResponse.speakerTendencies()
+                ),
+                excludedCount(
+                        originalResponse.coachingSuggestions(),
+                        fallbackResponse.coachingSuggestions()
+                ),
+                coreValidationFailed,
+                validationException.getMessage()
+        );
+    }
+
+    private int excludedCount(List<?> original, List<?> fallback) {
+        int originalSize = original == null ? 0 : original.size();
+        int fallbackSize = fallback == null ? 0 : fallback.size();
+        return Math.max(0, originalSize - fallbackSize);
+    }
+
+    private QualitativeAnalysis withoutOptionalReportFields(QualitativeAnalysis source) {
+        return new QualitativeAnalysis(
+                source.overview(),
+                source.timeline(),
+                source.topics(),
+                source.characterInsights(),
+                source.speakerInsights(),
+                source.interestInsights(),
+                source.spicinessInsights(),
+                source.reactionStyleInsights(),
+                source.scenarioInsights(),
+                List.of(),
+                null,
+                List.of(),
+                List.of(),
+                List.of()
+        );
     }
 
     private QualitativeAnalysis withoutRepresentativeEvidences(QualitativeAnalysis source) {

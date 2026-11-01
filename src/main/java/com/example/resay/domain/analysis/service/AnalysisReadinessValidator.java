@@ -1,6 +1,7 @@
 package com.example.resay.domain.analysis.service;
 
 import com.example.resay.domain.analysis.config.AnalysisReadinessProperties;
+import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.ConversationMetrics;
 import com.example.resay.domain.analysis.model.SpeakerRole;
@@ -27,6 +28,13 @@ public class AnalysisReadinessValidator {
         Set<SpeakerRole> actualRoles = metrics.speakerMetrics().keySet();
         if (!actualRoles.equals(source.scenario().requiredRoles())) {
             throw new AnalysisReadinessException("두 화자의 정량 지표가 모두 필요합니다.");
+        }
+
+        // 부모·자녀 갈등에서는 한쪽이 단답 위주인 상황 자체가 중요한 분석 대상이다.
+        // SpeakerMetrics가 존재하면 각 역할에 유효한 발화가 하나 이상 있으므로,
+        // 런칭 중에는 발화량 임계값 때문에 분석을 막지 않는다.
+        if (source.scenario() == AnalysisScenario.PARENT_CHILD_CONFLICT) {
+            return;
         }
 
         long totalSpeakingDurationMs = metrics.speakerMetrics().values().stream()
