@@ -9,17 +9,18 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 브라우저(MediaRecorder)로 녹음한 MP4의 재생시간을 읽는다.
- * 브라우저는 녹음하면서 조각(moof)을 이어 붙이기 때문에 앞쪽 헤더(mvhd)의 총 재생시간이 0으로 남는다.
- * 그래서 조각마다 적힌 시작 시각(tfdt)과 샘플 길이(trun)를 더해 실제 재생시간을 구한다.
+ * jaudiotagger가 읽지 못하는 MP4의 재생시간을 직접 읽는다.
+ * 브라우저(MediaRecorder)는 녹음하면서 조각(moof)을 이어 붙이기 때문에 앞쪽 헤더(mvhd)의 총 재생시간이 0으로 남는다.
+ * 그래서 조각이 있으면 조각마다 적힌 시작 시각(tfdt)과 샘플 길이(trun)를 더해 실제 재생시간을 구하고,
+ * 조각이 없는 일반 MP4(예: 삼성 통화 녹음)는 헤더(mvhd)의 재생시간을 쓴다.
  */
-final class FragmentedMp4DurationReader {
+final class Mp4DurationReader {
 
     private static final int HEADER_SIZE = 8;
     // 헤더(moov)와 조각 헤더(moof)만 메모리에 올린다. 음성 데이터(mdat)는 건너뛴다
     private static final long MAX_METADATA_BOX_SIZE = 16L * 1024 * 1024;
 
-    private FragmentedMp4DurationReader() {
+    private Mp4DurationReader() {
     }
 
     static boolean isMp4(Path path) throws IOException {
@@ -29,11 +30,12 @@ final class FragmentedMp4DurationReader {
         }
     }
 
-    // 조각이 없거나 읽을 수 없는 구조면 0을 돌려준다
+    // 재생시간을 알 수 없는 구조면 0을 돌려준다
     static long readMillis(Path path) throws IOException {
         Map<Long, Long> timescales = new HashMap<>();
         Map<Long, Long> defaultSampleDurations = new HashMap<>();
         Map<Long, Long> trackEnds = new HashMap<>();
+        long[] movieMillis = {0};
 
         try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
             long fileSize = channel.size();
@@ -61,7 +63,7 @@ final class FragmentedMp4DurationReader {
                     ByteBuffer box = ByteBuffer.allocate((int) (size - headerSize));
                     channel.read(box, position + headerSize);
                     if (type.equals("moov")) {
-                        readMovie(box, timescales, defaultSampleDurations);
+                        readMovie(box, timescales, defaultSampleDurations, movieMillis);
                     } else {
                         readFragment(box, defaultSampleDurations, trackEnds);
                     }
@@ -70,6 +72,9 @@ final class FragmentedMp4DurationReader {
             }
         }
 
+        if (trackEnds.isEmpty()) {
+            return movieMillis[0];
+        }
         long millis = 0;
         for (Map.Entry<Long, Long> trackEnd : trackEnds.entrySet()) {
             Long timescale = timescales.get(trackEnd.getKey());
@@ -80,10 +85,18 @@ final class FragmentedMp4DurationReader {
         return millis;
     }
 
-    // moov > trak > (tkhd: 트랙 번호, mdia > mdhd: 시간 단위), moov > mvex > trex: 기본 샘플 길이
-    private static void readMovie(ByteBuffer moov, Map<Long, Long> timescales, Map<Long, Long> defaultSampleDurations) {
+    // moov > mvhd: 전체 재생시간, moov > trak > (tkhd: 트랙 번호, mdia > mdhd: 시간 단위), moov > mvex > trex: 기본 샘플 길이
+    private static void readMovie(ByteBuffer moov, Map<Long, Long> timescales, Map<Long, Long> defaultSampleDurations,
+                                  long[] movieMillis) {
         forEachChild(moov, (type, child) -> {
-            if (type.equals("trak")) {
+            if (type.equals("mvhd")) {
+                boolean version1 = child.get(0) == 1;
+                long timescale = Integer.toUnsignedLong(child.getInt(version1 ? 20 : 12));
+                long duration = version1 ? child.getLong(24) : Integer.toUnsignedLong(child.getInt(16));
+                if (timescale > 0) {
+                    movieMillis[0] = duration * 1000 / timescale;
+                }
+            } else if (type.equals("trak")) {
                 long[] trackId = {-1};
                 long[] timescale = {0};
                 forEachChild(child, (trakChild, trakBox) -> {

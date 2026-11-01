@@ -18,7 +18,8 @@ public class AudioDurationReader {
             return seconds;
         }
         // 브라우저 녹음 MP4는 헤더의 재생시간이 0이고, Opus 코덱이면 헤더 읽기 자체가 실패한다
-        return readFragmentedMp4Seconds(filePath);
+        // 삼성 통화 녹음은 전용 메타데이터(meta) 때문에 태그 읽기에서 실패한다
+        return readMp4Seconds(filePath);
     }
 
     private int readHeaderSeconds(String filePath) {
@@ -29,13 +30,13 @@ public class AudioDurationReader {
         }
     }
 
-    private int readFragmentedMp4Seconds(String filePath) {
+    private int readMp4Seconds(String filePath) {
         try {
             Path path = Path.of(filePath);
-            if (!FragmentedMp4DurationReader.isMp4(path)) {
+            if (!Mp4DurationReader.isMp4(path)) {
                 throw new GeneralException(RecordingErrorCode.UNSUPPORTED_MEDIA_TYPE);
             }
-            long millis = FragmentedMp4DurationReader.readMillis(path);
+            long millis = Mp4DurationReader.readMillis(path);
             if (millis <= 0) {
                 throw new GeneralException(RecordingErrorCode.UNSUPPORTED_MEDIA_TYPE);
             }
