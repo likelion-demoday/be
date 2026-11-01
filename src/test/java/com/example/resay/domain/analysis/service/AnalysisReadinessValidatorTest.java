@@ -99,6 +99,27 @@ class AnalysisReadinessValidatorTest {
                 .hasMessageContaining("발화 비율");
     }
 
+    @Test
+    void acceptsParentChildConversationWithShortChildResponses() {
+        AnalysisSource source = new AnalysisSource(
+                1L,
+                AnalysisScenario.PARENT_CHILD_CONFLICT,
+                90_000L,
+                speakersFor(AnalysisScenario.PARENT_CHILD_CONFLICT),
+                List.of(
+                        new AnalysisSegment(1L, SpeakerRole.PARENT, 100L, 70_000L,
+                                "어디에 다녀왔는지 이야기해 줄래?"),
+                        new AnalysisSegment(2L, SpeakerRole.CHILD, 70_100L, 70_500L, "응")
+                )
+        );
+        ConversationMetrics metrics = new ConversationMetrics(Map.of(
+                SpeakerRole.PARENT, metrics(SpeakerRole.PARENT, 69_900L, 40L, 99),
+                SpeakerRole.CHILD, metrics(SpeakerRole.CHILD, 400L, 1L, 1)
+        ));
+
+        assertThatCode(() -> validator.validate(source, metrics)).doesNotThrowAnyException();
+    }
+
     private AnalysisSource source() {
         return new AnalysisSource(
                 1L,

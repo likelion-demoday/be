@@ -1,12 +1,15 @@
 package com.example.resay.global.infrastructure.liner;
 
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
+import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import com.example.resay.domain.analysis.service.AnalysisFailureCategory;
+import com.example.resay.domain.analysis.service.AnalysisReportAssembler;
+import com.example.resay.domain.analysis.service.ConversationMetricsCalculator;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -101,10 +104,12 @@ class LinerAnalysisModelClientTest {
     }
 
     @Test
-    void doesNotHideCoreValidationFailureBehindRepresentativeEvidenceFallback() {
+    void returnsBestEffortResponseWhenCoreSemanticValidationFails() {
         AnalysisSource source = source();
         LinerChatRequest request = request();
         given(requestFactory.create(source)).willReturn(request);
+        given(requestFactory.promptVersion()).willReturn("analysis-prompt-v15");
+        given(requestFactory.schemaVersion()).willReturn("analysis-result-v9");
         given(linerApiClient.chat(request)).willReturn(result(
                 contentWithRepresentativeEvidences(),
                 "stop"
@@ -116,12 +121,120 @@ class LinerAnalysisModelClientTest {
         );
         willThrow(coreFailure).given(responseValidator).validate(eq(source), any());
 
-        assertThatThrownBy(() -> modelClient.analyze(source))
-                .isSameAs(coreFailure)
-                .hasMessageContaining("핵심 분석 검증 실패");
+        AnalysisModelResult result = modelClient.analyze(source);
+
+        assertThat(result.resultJson())
+                .contains("\"overview\"")
+                .contains("\"representativeEvidences\":[]");
+        assertThat(result.promptVersion()).isEqualTo("analysis-prompt-v15");
 
         then(responseValidator).should(org.mockito.Mockito.times(2))
                 .validate(eq(source), any(QualitativeAnalysis.class));
+    }
+
+    @Test
+    void excludesOptionalReportFieldsWhenTheirValidationFails() {
+        AnalysisSource source = source();
+        LinerChatRequest request = request();
+        given(requestFactory.create(source)).willReturn(request);
+        given(requestFactory.promptVersion()).willReturn("analysis-prompt-v15");
+        given(requestFactory.schemaVersion()).willReturn("analysis-result-v9");
+        given(linerApiClient.chat(request)).willReturn(result(
+                contentWithOptionalReportFields(),
+                "stop"
+        ));
+        willThrow(new LinerAnalysisException(
+                "invalid_analysis_response",
+                "부가 보고서 검증 실패",
+                null
+        )).willDoNothing().given(responseValidator).validate(eq(source), any());
+
+        AnalysisModelResult result = modelClient.analyze(source);
+
+        assertThat(result.resultJson())
+                .contains("\"relationshipSummary\":null")
+                .contains("\"reportMetrics\":[]")
+                .contains("\"speakerTendencies\":[]")
+                .contains("\"coachingSuggestions\":[]");
+        then(responseValidator).should(org.mockito.Mockito.times(2))
+                .validate(eq(source), any(QualitativeAnalysis.class));
+    }
+
+    @Test
+    void doesNotRelaxNonValidationFailure() {
+        AnalysisSource source = source();
+        LinerChatRequest request = request();
+        given(requestFactory.create(source)).willReturn(request);
+        given(linerApiClient.chat(request)).willReturn(result(validContent(), "stop"));
+        LinerAnalysisException configurationFailure = new LinerAnalysisException(
+                AnalysisFailureCategory.PROVIDER_CONFIGURATION,
+                "not_configured",
+                "설정 오류",
+                null
+        );
+        willThrow(configurationFailure).given(responseValidator).validate(eq(source), any());
+
+        assertThatThrownBy(() -> modelClient.analyze(source))
+                .isSameAs(configurationFailure);
+    }
+
+    @Test
+    void rejectsBestEffortResponseWhenCoreReportCannotBeRendered() {
+        AnalysisSource source = source();
+        LinerChatRequest request = request();
+        given(requestFactory.create(source)).willReturn(request);
+        given(linerApiClient.chat(request)).willReturn(result(contentWithoutOverview(), "stop"));
+        LinerAnalysisException validationFailure = new LinerAnalysisException(
+                "invalid_analysis_response",
+                "핵심 보고서 구조 오류",
+                null
+        );
+        willThrow(validationFailure).given(responseValidator).validate(eq(source), any());
+
+        assertThatThrownBy(() -> modelClient.analyze(source))
+                .isSameAs(validationFailure);
+    }
+
+    @Test
+    void preservesValidOptionalFieldsWhenActualParentChildValidationFallsBack()
+            throws Exception {
+        AnalysisSource source = parentChildSource();
+        LinerChatRequest request = request();
+        given(requestFactory.create(source)).willReturn(request);
+        given(requestFactory.promptVersion()).willReturn("analysis-prompt-v15");
+        given(requestFactory.schemaVersion()).willReturn("analysis-result-v9");
+        given(linerApiClient.chat(request)).willReturn(result(
+                parentChildContentWithRenderableCore(),
+                "stop"
+        ));
+        ObjectMapper objectMapper = new ObjectMapper();
+        LinerAnalysisModelClient actualValidatorClient = new LinerAnalysisModelClient(
+                linerApiClient,
+                requestFactory,
+                new LinerAnalysisResponseGrounder(),
+                new LinerAnalysisResponseValidator(),
+                objectMapper
+        );
+
+        AnalysisModelResult qualitativeResult = actualValidatorClient.analyze(source);
+        AnalysisModelResult reportResult = new AnalysisReportAssembler(objectMapper).assemble(
+                source,
+                new ConversationMetricsCalculator().calculate(source),
+                qualitativeResult
+        );
+        AnalysisReport report = objectMapper.readValue(
+                reportResult.resultJson(),
+                AnalysisReport.class
+        );
+
+        assertThat(report.qualitativeAnalysis().relationshipSummary()).isNotNull();
+        assertThat(report.qualitativeAnalysis().reportMetrics())
+                .singleElement()
+                .satisfies(metric -> {
+                    assertThat(metric.type())
+                            .isEqualTo(QualitativeAnalysis.ReportMetricType.SITUATION_QUESTION);
+                    assertThat(metric.value()).isEqualTo(1);
+                });
     }
 
     @Test
@@ -215,6 +328,20 @@ class LinerAnalysisModelClientTest {
                 List.of(
                         new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "오늘 뭐 했어?"),
                         new AnalysisSegment(2L, SpeakerRole.FRIEND, 600L, 900L, "학교 갔다 왔어")
+                )
+        );
+    }
+
+    private AnalysisSource parentChildSource() {
+        return new AnalysisSource(
+                2L,
+                AnalysisScenario.PARENT_CHILD_CONFLICT,
+                10_000L,
+                speakersFor(AnalysisScenario.PARENT_CHILD_CONFLICT),
+                List.of(
+                        new AnalysisSegment(1L, SpeakerRole.PARENT, 100L, 1_500L,
+                                "오늘 학교에서 무슨 일이 있었는지 말해 줄래?"),
+                        new AnalysisSegment(2L, SpeakerRole.CHILD, 1_600L, 2_000L, "그냥 그랬어")
                 )
         );
     }
@@ -364,6 +491,93 @@ class LinerAnalysisModelClientTest {
                       "displayContent": "학교 갔다 왔어"
                     }
                   ]
+                }
+                """;
+    }
+
+    private String contentWithOptionalReportFields() {
+        return validContent().replace(
+                "\"scenarioInsights\": []",
+                """
+                "scenarioInsights": [],
+                "relationshipSummary": {
+                  "title": "편안한 대화",
+                  "description": "학교 이야기를 주고받았어요.",
+                  "evidenceSegmentIds": [1, 2]
+                },
+                "reportMetrics": [
+                  {
+                    "type": "COMPLIMENT",
+                    "speakerRole": "SELF",
+                    "value": 1,
+                    "unit": "COUNT",
+                    "title": "칭찬",
+                    "description": "칭찬 표현을 사용했어요.",
+                    "evidenceSegmentIds": [1],
+                    "displayEvidences": []
+                  }
+                ],
+                "speakerTendencies": [],
+                "coachingSuggestions": []
+                """
+        );
+    }
+
+    private String contentWithoutOverview() {
+        return validContent().replaceFirst(
+                "(?s)\"overview\"\\s*:\\s*\\{.*?}\\s*,",
+                "\"overview\": null,"
+        );
+    }
+
+    private String parentChildContentWithRenderableCore() {
+        return """
+                {
+                  "overview": {
+                    "title": "학교 이야기",
+                    "description": "학교에서 있었던 일을 물어봤어요.",
+                    "evidenceSegmentIds": [1, 2]
+                  },
+                  "timeline": [
+                    {
+                      "title": "대화 시작",
+                      "description": "부모가 학교생활을 물어봤어요.",
+                      "evidenceSegmentIds": [1, 2]
+                    }
+                  ],
+                  "topics": [
+                    {
+                      "title": "학교생활",
+                      "description": "학교에서 있었던 일을 이야기했어요.",
+                      "segmentIds": [1, 2]
+                    }
+                  ],
+                  "characterInsights": [],
+                  "speakerInsights": [],
+                  "interestInsights": [],
+                  "spicinessInsights": [],
+                  "reactionStyleInsights": [],
+                  "scenarioInsights": [],
+                  "representativeEvidences": [],
+                  "relationshipSummary": {
+                    "title": "조심스러운 문답",
+                    "description": "부모가 묻고 자녀가 짧게 답했어요.",
+                    "evidenceSegmentIds": [1, 2]
+                  },
+                  "reportMetrics": [
+                    {
+                      "type": "SITUATION_QUESTION",
+                      "speakerRole": "PARENT",
+                      "value": 1,
+                      "unit": "COUNT",
+                      "title": "상황 질문",
+                      "description": "학교에서 있었던 일을 물어봤어요.",
+                      "evidenceSegmentIds": [1],
+                      "displayEvidences": []
+                    }
+                  ],
+                  "speakerTendencies": [],
+                  "coachingSuggestions": []
                 }
                 """;
     }
