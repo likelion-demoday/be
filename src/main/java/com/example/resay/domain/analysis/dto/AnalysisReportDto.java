@@ -4,6 +4,7 @@ import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
+import com.example.resay.domain.analysis.model.SpeakingSpeedReference;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -59,6 +60,11 @@ public record AnalysisReportDto(
 
     public record QuantitativeAnalysis(
             List<SpeakerMetrics> speakers,
+            @Schema(
+                    description = "화자 간 상대 속도 비교(하위 호환용). 화자별 기준 대비 표시는 "
+                            + "speakers[].speakingSpeedDifferencePercent 사용",
+                    deprecated = true
+            )
             SpeakingSpeedComparison speakingSpeedComparison,
             int totalTurnCount
     ) {
@@ -84,7 +90,13 @@ public record AnalysisReportDto(
             BigDecimal speakingRatioPercent,
             BigDecimal averageUtteranceDurationMs,
             BigDecimal charactersPerMinute,
-            BigDecimal syllablesPerSecond
+            BigDecimal syllablesPerSecond,
+            @Schema(
+                    description = "한국어 기준 발화 속도(초당 5.79음절) 대비 차이 비율. "
+                            + "양수는 기준보다 빠름, 음수는 기준보다 느림",
+                    example = "12.26"
+            )
+            BigDecimal speakingSpeedDifferencePercent
     ) {
 
         private static SpeakerMetrics from(
@@ -100,7 +112,8 @@ public record AnalysisReportDto(
                     source.speakingRatioPercent(),
                     source.averageUtteranceDurationMs(),
                     source.charactersPerMinute(),
-                    source.syllablesPerSecond()
+                    source.syllablesPerSecond(),
+                    SpeakingSpeedReference.differencePercent(source.syllablesPerSecond())
             );
         }
     }

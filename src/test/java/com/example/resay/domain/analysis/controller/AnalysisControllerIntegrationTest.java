@@ -105,6 +105,12 @@ class AnalysisControllerIntegrationTest {
                         .value("SELF"))
                 .andExpect(jsonPath("$.result.report.recordingInfo.speakers[0].speakerName")
                         .value("호준"))
+                .andExpect(jsonPath("$.result.report.quantitativeAnalysis.speakers[0]"
+                                + ".speakingSpeedDifferencePercent")
+                        .value(0.0))
+                .andExpect(jsonPath("$.result.report.quantitativeAnalysis.speakers[1]"
+                                + ".speakingSpeedDifferencePercent")
+                        .value(5.35))
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.overview.title")
                         .value("연락 방식 조율"))
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.overview.evidenceSegmentIds")
@@ -238,18 +244,32 @@ class AnalysisControllerIntegrationTest {
                         600_000L,
                         speakersFor(AnalysisScenario.FRIEND_DAILY)
                 ),
-                new AnalysisReport.QuantitativeAnalysis(List.of(new SpeakerMetrics(
-                        SpeakerRole.SELF,
-                        300_000L,
-                        20,
-                        500,
-                        1_737,
-                        100,
-                        BigDecimal.valueOf(55),
-                        BigDecimal.valueOf(15_000),
-                        BigDecimal.valueOf(100),
-                        BigDecimal.valueOf(5.79)
-                )), null),
+                new AnalysisReport.QuantitativeAnalysis(List.of(
+                        new SpeakerMetrics(
+                                SpeakerRole.SELF,
+                                300_000L,
+                                20,
+                                500,
+                                1_737,
+                                100,
+                                BigDecimal.valueOf(55),
+                                BigDecimal.valueOf(15_000),
+                                BigDecimal.valueOf(100),
+                                BigDecimal.valueOf(5.79)
+                        ),
+                        new SpeakerMetrics(
+                                SpeakerRole.FRIEND,
+                                240_000L,
+                                18,
+                                450,
+                                1_464,
+                                90,
+                                BigDecimal.valueOf(45),
+                                BigDecimal.valueOf(13_333.33),
+                                BigDecimal.valueOf(112.5),
+                                BigDecimal.valueOf(6.10)
+                        )
+                ), null),
                 new AnalysisReport.QualitativeReport(
                         new QualitativeAnalysis.Overview(
                                 "연락 방식 조율",

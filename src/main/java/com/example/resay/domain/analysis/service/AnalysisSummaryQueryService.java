@@ -7,6 +7,7 @@ import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerMetrics;
 import com.example.resay.domain.analysis.model.SpeakerRole;
+import com.example.resay.domain.analysis.model.SpeakingSpeedReference;
 import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
 import com.example.resay.domain.analysis.repository.AnalysisSummarySourceProjection;
 import com.example.resay.domain.recording.entity.ParentChildRole;
@@ -32,7 +33,6 @@ public class AnalysisSummaryQueryService {
     private static final int FREQUENT_EXPRESSION_LIMIT = 5;
     private static final BigDecimal ONE_HUNDRED = BigDecimal.valueOf(100);
     private static final BigDecimal MILLIS_PER_SECOND = BigDecimal.valueOf(1_000);
-    private static final BigDecimal REFERENCE_SYLLABLES_PER_SECOND = new BigDecimal("5.79");
     private static final BigDecimal RELAXED_UPPER_BOUND = new BigDecimal("5.00");
     private static final BigDecimal TYPICAL_UPPER_BOUND = new BigDecimal("6.50");
 
@@ -174,16 +174,15 @@ public class AnalysisSummaryQueryService {
         BigDecimal syllablesPerSecond = BigDecimal.valueOf(syllableCount)
                 .multiply(MILLIS_PER_SECOND)
                 .divide(BigDecimal.valueOf(durationMs), 2, RoundingMode.HALF_UP);
-        BigDecimal differencePercent = syllablesPerSecond
-                .subtract(REFERENCE_SYLLABLES_PER_SECOND)
-                .multiply(ONE_HUNDRED)
-                .divide(REFERENCE_SYLLABLES_PER_SECOND, 2, RoundingMode.HALF_UP);
+        BigDecimal differencePercent = SpeakingSpeedReference.differencePercent(
+                syllablesPerSecond
+        );
         AnalysisSummaryResponseDto.SpeakingSpeedLevel level = speakingSpeedLevel(
                 syllablesPerSecond
         );
         return new AnalysisSummaryResponseDto.SpeakingSpeed(
                 syllablesPerSecond,
-                REFERENCE_SYLLABLES_PER_SECOND,
+                SpeakingSpeedReference.SYLLABLES_PER_SECOND,
                 differencePercent,
                 level,
                 speakingSpeedDescription(level, differencePercent)

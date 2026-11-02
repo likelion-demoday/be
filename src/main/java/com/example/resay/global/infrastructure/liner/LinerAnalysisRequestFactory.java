@@ -15,7 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class LinerAnalysisRequestFactory {
 
-    private static final String PROMPT_VERSION = "analysis-prompt-v15";
+    private static final String PROMPT_VERSION = "analysis-prompt-v16";
     private static final String SCHEMA_VERSION = "analysis-result-v9";
     private static final int MAX_COMPLETION_TOKENS = 32768;
     private static final String REASONING_EFFORT = "medium";
@@ -46,8 +46,11 @@ public class LinerAnalysisRequestFactory {
             관심도와 표독력 점수는 성격이나 관계의 점수가 아니라 이번 대화에서 관련 표현이 나타난 정도를 0부터 100까지 추정한 값입니다.
             관심도는 0~20 거의 관찰되지 않음, 21~40 제한적으로 나타남, 41~60 보통, 61~80 지속적으로 나타남, 81~100 여러 종류의 관심 표현이 대화 전반에 반복됨을 기준으로 평가하세요.
             관심도 90점 이상은 질문, 공감, 맞장구, 호감 표현 중 세 종류 이상이 대화 전반에 반복된 경우에만 사용하세요.
-            표독력은 0~10 강한 표현 없음, 11~30 가벼운 장난이나 단발성 직설 표현, 31~50 반복되는 직설·강한 표현, 51~70 공격·비하·비속어가 뚜렷함, 71~100 심한 공격 표현이 지속됨을 기준으로 평가하세요.
-            장난 맥락이나 완충·회복 표현이 함께 나타나면 이를 반영해 표독력 점수를 낮추세요.
+            표독력은 대화의 평균 분위기가 아니라 해당 화자가 실제로 사용한 강한 표현의 강도와 반복성을 함께 기준으로 평가하세요.
+            표독력은 0~10 강한 표현 없음, 11~30 상호 장난 맥락의 표현이나 단발성 직설, 31~50 반복되는 직설·명령·압박·강한 반박, 51~70 반복되는 공격·비하·위협·비속어 또는 단 한 번이어도 명확한 인신공격, 71~100 심한 공격·위협·비속어가 대화 전반에 지속됨을 기준으로 평가하세요.
+            비속어가 없다는 이유만으로 표독력 점수를 50 이하로 제한하지 말고, 상대를 겨냥한 비하·압박·위협이나 강한 명령이 명확하면 강도에 맞게 51점 이상을 사용할 수 있습니다.
+            장난 맥락은 상대도 장난으로 받아 주는 반응이 발화에서 확인될 때만 점수를 낮추는 근거로 사용하세요.
+            완충·사과·회복 표현은 별도로 반영하되, 앞서 나타난 강한 표현의 강도와 반복 사실을 없던 것으로 간주해 전체 점수를 과도하게 낮추지 마세요.
             각 화자의 비속어는 실제 전사문에 존재하는 정확한 표현만 swearWords에 작성하세요.
             같은 비속어 표현은 한 번만 작성하고, count에는 등장 횟수, evidenceSegmentIds에는 그 표현이 등장한 모든 발화를 넣으세요.
             전사 결과에서 같은 비속어가 발음이나 표기 차이로 '시발', '씨발', '시바', '씨바'처럼 나타날 수 있습니다. 문맥상 비속어로 사용된 명백한 변형은 빠뜨리지 마세요.
