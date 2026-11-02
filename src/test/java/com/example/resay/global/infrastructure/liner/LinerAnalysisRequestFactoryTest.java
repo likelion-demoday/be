@@ -56,6 +56,11 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("정량 지표는 계산하지 마세요")
                 .contains("T/F 비율은 성격 유형 검사가 아니라")
                 .contains("관심도 90점 이상은")
+                .contains("대화의 평균 분위기가 아니라")
+                .contains("반복되는 직설·명령·압박·강한 반박")
+                .contains("비속어가 없다는 이유만으로 표독력 점수를 50 이하로 제한하지 말고")
+                .contains("상대도 장난으로 받아 주는 반응이 발화에서 확인될 때만")
+                .contains("전체 점수를 과도하게 낮추지 마세요")
                 .contains("실제 전사문에 존재하는 정확한 표현만 swearWords에 작성하세요")
                 .contains("발음이나 표기 차이로 '시발', '씨발', '시바', '씨바'처럼")
                 .contains("서로 다른 표기는 각각 별도 항목으로 작성하세요")
@@ -91,7 +96,7 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("관찰되지 않은 항목도 value 0으로 작성하세요")
                 .contains("화자별 1개 이상 3개 이하");
 
-        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v15");
+        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v16");
         assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v9");
 
         Map<?, ?> input = objectMapper.readValue(request.messages().get(1).content(), Map.class);
