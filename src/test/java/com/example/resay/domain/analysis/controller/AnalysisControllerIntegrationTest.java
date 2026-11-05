@@ -101,6 +101,8 @@ class AnalysisControllerIntegrationTest {
                 .andExpect(jsonPath("$.result.failureReason").isEmpty())
                 .andExpect(jsonPath("$.result.report.recordingInfo.recordingId")
                         .value(recording.getId()))
+                .andExpect(jsonPath("$.result.report.recordingInfo.durationMs").value(600000))
+                .andExpect(jsonPath("$.result.report.recordingInfo.durationSeconds").value(600))
                 .andExpect(jsonPath("$.result.report.recordingInfo.speakers[0].speakerRole")
                         .value("SELF"))
                 .andExpect(jsonPath("$.result.report.recordingInfo.speakers[0].speakerName")
@@ -108,9 +110,15 @@ class AnalysisControllerIntegrationTest {
                 .andExpect(jsonPath("$.result.report.quantitativeAnalysis.speakers[0]"
                                 + ".speakingSpeedDifferencePercent")
                         .value(0.0))
+                .andExpect(jsonPath("$.result.report.quantitativeAnalysis.speakers[0]"
+                                + ".speakingSpeedDirection")
+                        .value("SIMILAR"))
                 .andExpect(jsonPath("$.result.report.quantitativeAnalysis.speakers[1]"
                                 + ".speakingSpeedDifferencePercent")
                         .value(5.35))
+                .andExpect(jsonPath("$.result.report.quantitativeAnalysis.speakers[1]"
+                                + ".speakingSpeedDirection")
+                        .value("FASTER"))
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.overview.title")
                         .value("연락 방식 조율"))
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.overview.evidenceSegmentIds")

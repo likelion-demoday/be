@@ -7,6 +7,7 @@ import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerMetrics;
 import com.example.resay.domain.analysis.model.SpeakerRole;
+import com.example.resay.domain.analysis.model.SpeakingSpeedDirection;
 import com.example.resay.domain.analysis.model.SpeakingSpeedReference;
 import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
 import com.example.resay.domain.analysis.repository.AnalysisSummarySourceProjection;
@@ -33,9 +34,6 @@ public class AnalysisSummaryQueryService {
     private static final int FREQUENT_EXPRESSION_LIMIT = 5;
     private static final BigDecimal ONE_HUNDRED = BigDecimal.valueOf(100);
     private static final BigDecimal MILLIS_PER_SECOND = BigDecimal.valueOf(1_000);
-    private static final BigDecimal RELAXED_UPPER_BOUND = new BigDecimal("5.00");
-    private static final BigDecimal TYPICAL_UPPER_BOUND = new BigDecimal("6.50");
-
     private final AnalysisResultRepository analysisResultRepository;
     private final ObjectMapper objectMapper;
 
@@ -177,6 +175,9 @@ public class AnalysisSummaryQueryService {
         BigDecimal differencePercent = SpeakingSpeedReference.differencePercent(
                 syllablesPerSecond
         );
+        SpeakingSpeedDirection direction = SpeakingSpeedReference.direction(
+                syllablesPerSecond
+        );
         AnalysisSummaryResponseDto.SpeakingSpeedLevel level = speakingSpeedLevel(
                 syllablesPerSecond
         );
@@ -184,33 +185,34 @@ public class AnalysisSummaryQueryService {
                 syllablesPerSecond,
                 SpeakingSpeedReference.SYLLABLES_PER_SECOND,
                 differencePercent,
+                direction,
                 level,
-                speakingSpeedDescription(level, differencePercent)
+                speakingSpeedDescription(direction, differencePercent)
         );
     }
 
     private AnalysisSummaryResponseDto.SpeakingSpeedLevel speakingSpeedLevel(
             BigDecimal syllablesPerSecond
     ) {
-        if (syllablesPerSecond.compareTo(RELAXED_UPPER_BOUND) < 0) {
+        if (syllablesPerSecond.compareTo(SpeakingSpeedReference.TYPICAL_LOWER_BOUND) < 0) {
             return AnalysisSummaryResponseDto.SpeakingSpeedLevel.RELAXED;
         }
-        if (syllablesPerSecond.compareTo(TYPICAL_UPPER_BOUND) <= 0) {
+        if (syllablesPerSecond.compareTo(SpeakingSpeedReference.TYPICAL_UPPER_BOUND) <= 0) {
             return AnalysisSummaryResponseDto.SpeakingSpeedLevel.TYPICAL;
         }
         return AnalysisSummaryResponseDto.SpeakingSpeedLevel.FAST;
     }
 
     private String speakingSpeedDescription(
-            AnalysisSummaryResponseDto.SpeakingSpeedLevel level,
+            SpeakingSpeedDirection direction,
             BigDecimal differencePercent
     ) {
-        return switch (level) {
-            case RELAXED -> "한국인 평균보다 약 "
+        return switch (direction) {
+            case SLOWER -> "한국인 평균보다 약 "
                     + differencePercent.abs().setScale(0, RoundingMode.HALF_UP)
                     + "% 여유롭게 말해요.";
-            case TYPICAL -> "한국인 평균과 비슷한 속도로 말해요.";
-            case FAST -> "한국인 평균보다 약 "
+            case SIMILAR -> "한국인 평균과 비슷한 속도로 말해요.";
+            case FASTER -> "한국인 평균보다 약 "
                     + differencePercent.abs().setScale(0, RoundingMode.HALF_UP)
                     + "% 빠르게 말해요.";
         };

@@ -106,8 +106,19 @@ public class AnalysisReportAssembler {
                 result.relationshipSummary(),
                 enrichReportMetrics(result.reportMetrics(), source.segments()),
                 result.speakerTendencies(),
-                result.coachingSuggestions()
+                orderedCoachingSuggestions(result.coachingSuggestions())
         );
+    }
+
+    private List<QualitativeAnalysis.CoachingSuggestion> orderedCoachingSuggestions(
+            List<QualitativeAnalysis.CoachingSuggestion> suggestions
+    ) {
+        if (suggestions == null) {
+            return List.of();
+        }
+        return suggestions.stream()
+                .sorted(Comparator.comparingInt(QualitativeAnalysis.CoachingSuggestion::order))
+                .toList();
     }
 
     private List<AnalysisReport.SpeakerPatternEvidence> enrichSpeakerPatternEvidences(

@@ -4,6 +4,7 @@ import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
+import com.example.resay.domain.analysis.model.SpeakingSpeedDirection;
 import com.example.resay.domain.analysis.model.SpeakingSpeedReference;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
@@ -28,7 +29,10 @@ public record AnalysisReportDto(
     public record RecordingInfo(
             Long recordingId,
             AnalysisScenario scenario,
+            @Schema(description = "녹음 전체 길이(밀리초). 화자별 발화 시간 합계가 아님", example = "600000")
             Long durationMs,
+            @Schema(description = "녹음 전체 길이(초). 화면 표시용", example = "600")
+            Long durationSeconds,
             LocalDateTime recordedAt,
             List<SpeakerInfo> speakers
     ) {
@@ -38,6 +42,7 @@ public record AnalysisReportDto(
                     source.recordingId(),
                     source.scenario(),
                     source.durationMs(),
+                    source.durationMs() == null ? null : source.durationMs() / 1_000L,
                     source.recordedAt(),
                     source.speakers().stream().map(SpeakerInfo::from).toList()
             );
@@ -92,11 +97,13 @@ public record AnalysisReportDto(
             BigDecimal charactersPerMinute,
             BigDecimal syllablesPerSecond,
             @Schema(
-                    description = "한국어 기준 발화 속도(초당 5.79음절) 대비 차이 비율. "
-                            + "양수는 기준보다 빠름, 음수는 기준보다 느림",
+                    description = "한국어 기준 발화 속도(초당 5.79음절) 대비 차이의 절댓값. "
+                            + "방향은 speakingSpeedDirection 사용",
                     example = "12.26"
             )
-            BigDecimal speakingSpeedDifferencePercent
+            BigDecimal speakingSpeedDifferencePercent,
+            @Schema(description = "한국어 기준 대비 발화 속도 방향", example = "FASTER")
+            SpeakingSpeedDirection speakingSpeedDirection
     ) {
 
         private static SpeakerMetrics from(
@@ -113,7 +120,8 @@ public record AnalysisReportDto(
                     source.averageUtteranceDurationMs(),
                     source.charactersPerMinute(),
                     source.syllablesPerSecond(),
-                    SpeakingSpeedReference.differencePercent(source.syllablesPerSecond())
+                    SpeakingSpeedReference.differencePercent(source.syllablesPerSecond()),
+                    SpeakingSpeedReference.direction(source.syllablesPerSecond())
             );
         }
     }

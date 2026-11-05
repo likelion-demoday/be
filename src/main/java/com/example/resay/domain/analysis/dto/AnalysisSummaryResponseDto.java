@@ -1,5 +1,6 @@
 package com.example.resay.domain.analysis.dto;
 
+import com.example.resay.domain.analysis.model.SpeakingSpeedDirection;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -39,8 +40,10 @@ public record AnalysisSummaryResponseDto(
             BigDecimal syllablesPerSecond,
             @Schema(description = "한국어 2인 대화 연구 기준 초당 음절 수", example = "5.79")
             BigDecimal referenceSyllablesPerSecond,
-            @Schema(description = "연구 기준 대비 차이. 양수는 빠름, 음수는 느림", example = "11.92")
+            @Schema(description = "연구 기준 대비 차이의 절댓값", example = "11.92")
             BigDecimal differencePercent,
+            @Schema(description = "연구 기준 대비 발화 속도 방향", example = "FASTER")
+            SpeakingSpeedDirection speakingSpeedDirection,
             SpeakingSpeedLevel level,
             String description
     ) {

@@ -129,7 +129,29 @@ class AnalysisReportAssemblerTest {
                             }
                           ],
                           "speakerTendencies": [],
-                          "coachingSuggestions": []
+                          "coachingSuggestions": [
+                            {
+                              "order": 3,
+                              "title": "다음 약속 정하기",
+                              "description": "다음 행동을 구체적으로 정해요.",
+                              "suggestedPhrase": "토요일 오후에 다시 이야기해 볼까?",
+                              "evidenceSegmentIds": [3]
+                            },
+                            {
+                              "order": 1,
+                              "title": "상대 말 확인하기",
+                              "description": "상대가 원하는 내용을 먼저 확인해요.",
+                              "suggestedPhrase": "주말에 만나고 싶다는 말이지?",
+                              "evidenceSegmentIds": [1]
+                            },
+                            {
+                              "order": 2,
+                              "title": "내 생각 설명하기",
+                              "description": "내가 원하는 시간을 차분하게 설명해요.",
+                              "suggestedPhrase": "나는 오후 시간이 더 편해.",
+                              "evidenceSegmentIds": [2]
+                            }
+                          ]
                         }
                         """,
                 "liner-mark-1.1",
@@ -143,6 +165,9 @@ class AnalysisReportAssemblerTest {
         assertThat(json.recordingInfo().recordingId()).isEqualTo(10L);
         assertThat(json.recordingInfo().recordedAt())
                 .isEqualTo(LocalDateTime.of(2026, 10, 28, 12, 30));
+        assertThat(json.recordingInfo().durationMs()).isEqualTo(2_000L);
+        assertThat(AnalysisReportDto.from(json).recordingInfo().durationSeconds())
+                .isEqualTo(2L);
         assertThat(json.recordingInfo().speakers())
                 .extracting("speakerName")
                 .containsExactly("호준", "호석");
@@ -198,6 +223,9 @@ class AnalysisReportAssemblerTest {
         assertThat(metricEvidence.displayContent()).isEqualTo("주말에 만날까?");
         assertThat(metricEvidence.correctionApplied()).isTrue();
         assertThat(metricEvidence.startMs()).isEqualTo(100L);
+        assertThat(json.qualitativeAnalysis().coachingSuggestions())
+                .extracting("order")
+                .containsExactly(1, 2, 3);
         assertThat(report.modelName()).isEqualTo("liner-mark-1.1");
         assertThat(report.schemaVersion()).isEqualTo("analysis-report-v11");
     }
