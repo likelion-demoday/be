@@ -101,16 +101,27 @@ class AnalysisControllerIntegrationTest {
                 .andExpect(jsonPath("$.result.failureReason").isEmpty())
                 .andExpect(jsonPath("$.result.report.recordingInfo.recordingId")
                         .value(recording.getId()))
+                .andExpect(jsonPath("$.result.report.recordingInfo.durationMs").value(600000))
+                .andExpect(jsonPath("$.result.report.recordingInfo.durationSeconds").value(600))
                 .andExpect(jsonPath("$.result.report.recordingInfo.speakers[0].speakerRole")
                         .value("SELF"))
                 .andExpect(jsonPath("$.result.report.recordingInfo.speakers[0].speakerName")
                         .value("호준"))
                 .andExpect(jsonPath("$.result.report.quantitativeAnalysis.speakers[0]"
+                                + ".referenceSyllablesPerSecond")
+                        .value(5.79))
+                .andExpect(jsonPath("$.result.report.quantitativeAnalysis.speakers[0]"
                                 + ".speakingSpeedDifferencePercent")
-                        .value(0.0))
+                        .value(-13.64))
+                .andExpect(jsonPath("$.result.report.quantitativeAnalysis.speakers[0]"
+                                + ".speakingSpeedDirection")
+                        .value("SLOWER"))
                 .andExpect(jsonPath("$.result.report.quantitativeAnalysis.speakers[1]"
                                 + ".speakingSpeedDifferencePercent")
                         .value(5.35))
+                .andExpect(jsonPath("$.result.report.quantitativeAnalysis.speakers[1]"
+                                + ".speakingSpeedDirection")
+                        .value("FASTER"))
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.overview.title")
                         .value("연락 방식 조율"))
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.overview.evidenceSegmentIds")
@@ -255,7 +266,7 @@ class AnalysisControllerIntegrationTest {
                                 BigDecimal.valueOf(55),
                                 BigDecimal.valueOf(15_000),
                                 BigDecimal.valueOf(100),
-                                BigDecimal.valueOf(5.79)
+                                BigDecimal.valueOf(5.00)
                         ),
                         new SpeakerMetrics(
                                 SpeakerRole.FRIEND,

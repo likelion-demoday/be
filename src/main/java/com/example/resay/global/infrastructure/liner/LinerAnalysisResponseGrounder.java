@@ -78,7 +78,7 @@ public class LinerAnalysisResponseGrounder {
                 response.interestInsights(),
                 groundedSpicinessInsights,
                 response.reactionStyleInsights(),
-                response.scenarioInsights(),
+                groundScenarioInsights(source, response.scenarioInsights()),
                 groundedRepresentativeEvidences,
                 response.relationshipSummary(),
                 groundReportMetrics(
@@ -88,6 +88,134 @@ public class LinerAnalysisResponseGrounder {
                 ),
                 response.speakerTendencies(),
                 response.coachingSuggestions()
+        );
+    }
+
+    private List<QualitativeAnalysis.ScenarioInsight> groundScenarioInsights(
+            AnalysisSource source,
+            List<QualitativeAnalysis.ScenarioInsight> insights
+    ) {
+        if (insights == null) {
+            return null;
+        }
+        Map<Long, AnalysisSegment> segmentsById = source.segments().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        AnalysisSegment::segmentId,
+                        segment -> segment
+                ));
+        List<QualitativeAnalysis.ScenarioInsight> grounded = insights.stream()
+                .map(insight -> groundScenarioInsight(insight, segmentsById))
+                .toList();
+        if (source.scenario() != AnalysisScenario.COUPLE_CONFLICT
+                && source.scenario() != AnalysisScenario.PARENT_CHILD_CONFLICT) {
+            return grounded;
+        }
+        return normalizeConflictPositions(source, grounded, segmentsById);
+    }
+
+    private List<QualitativeAnalysis.ScenarioInsight> normalizeConflictPositions(
+            AnalysisSource source,
+            List<QualitativeAnalysis.ScenarioInsight> insights,
+            Map<Long, AnalysisSegment> segmentsById
+    ) {
+        List<QualitativeAnalysis.ScenarioInsight> positions = insights.stream()
+                .filter(Objects::nonNull)
+                .filter(insight -> insight.category()
+                        == QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_POSITION)
+                .toList();
+        List<QualitativeAnalysis.ScenarioInsight> normalizedPositions =
+                source.speakers().stream()
+                        .map(speaker -> speaker.speakerRole())
+                        .map(role -> conflictPositionForRole(positions, role, segmentsById))
+                        .filter(Objects::nonNull)
+                        .toList();
+
+        List<QualitativeAnalysis.ScenarioInsight> result = new ArrayList<>();
+        boolean positionsAdded = false;
+        for (QualitativeAnalysis.ScenarioInsight insight : insights) {
+            if (insight != null && insight.category()
+                    == QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_POSITION) {
+                if (!positionsAdded) {
+                    result.addAll(normalizedPositions);
+                    positionsAdded = true;
+                }
+                continue;
+            }
+            result.add(insight);
+        }
+        if (!positionsAdded) {
+            result.addAll(normalizedPositions);
+        }
+        return List.copyOf(result);
+    }
+
+    private QualitativeAnalysis.ScenarioInsight conflictPositionForRole(
+            List<QualitativeAnalysis.ScenarioInsight> positions,
+            SpeakerRole role,
+            Map<Long, AnalysisSegment> segmentsById
+    ) {
+        QualitativeAnalysis.ScenarioInsight position = positions.stream()
+                .filter(insight -> insight.speakerRoles() != null
+                        && insight.speakerRoles().size() == 1
+                        && insight.speakerRoles().get(0) == role)
+                .findFirst()
+                .orElseGet(() -> positions.stream()
+                        .filter(insight -> insight.speakerRoles() != null
+                                && insight.speakerRoles().contains(role))
+                        .findFirst()
+                        .orElse(null));
+        if (position == null || position.evidenceSegmentIds() == null) {
+            return null;
+        }
+        List<Long> roleEvidenceIds = position.evidenceSegmentIds().stream()
+                .filter(segmentId -> {
+                    AnalysisSegment segment = segmentsById.get(segmentId);
+                    return segment != null && segment.speakerRole() == role;
+                })
+                .distinct()
+                .toList();
+        if (roleEvidenceIds.isEmpty()) {
+            return null;
+        }
+        return new QualitativeAnalysis.ScenarioInsight(
+                position.category(),
+                List.of(role),
+                position.title(),
+                position.description(),
+                roleEvidenceIds
+        );
+    }
+
+    private QualitativeAnalysis.ScenarioInsight groundScenarioInsight(
+            QualitativeAnalysis.ScenarioInsight insight,
+            Map<Long, AnalysisSegment> segmentsById
+    ) {
+        if (insight == null || insight.category() == null
+                || insight.speakerRoles() == null || insight.evidenceSegmentIds() == null) {
+            return insight;
+        }
+        if (insight.category() == QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_TOPIC
+                || insight.category()
+                == QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_POSITION) {
+            return insight;
+        }
+        Set<SpeakerRole> evidenceRoles = insight.evidenceSegmentIds().stream()
+                .map(segmentsById::get)
+                .filter(Objects::nonNull)
+                .map(AnalysisSegment::speakerRole)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        List<SpeakerRole> groundedRoles = insight.speakerRoles().stream()
+                .filter(evidenceRoles::contains)
+                .toList();
+        if (groundedRoles.isEmpty() || groundedRoles.equals(insight.speakerRoles())) {
+            return insight;
+        }
+        return new QualitativeAnalysis.ScenarioInsight(
+                insight.category(),
+                groundedRoles,
+                insight.title(),
+                insight.description(),
+                insight.evidenceSegmentIds()
         );
     }
 
@@ -115,10 +243,13 @@ public class LinerAnalysisResponseGrounder {
                     if (metric == null) {
                         return metric;
                     }
+                    List<Long> groundedEvidenceIds = groundMetricEvidenceIds(
+                            metric,
+                            segmentsById
+                    );
                     int value = metric.value();
-                    if (metric.unit() == QualitativeAnalysis.ReportMetricUnit.COUNT
-                            && metric.evidenceSegmentIds() != null) {
-                        value = (int) metric.evidenceSegmentIds().stream().distinct().count();
+                    if (metric.unit() == QualitativeAnalysis.ReportMetricUnit.COUNT) {
+                        value = groundedEvidenceIds.size();
                     }
                     return new QualitativeAnalysis.ReportMetric(
                             metric.type(),
@@ -127,11 +258,12 @@ public class LinerAnalysisResponseGrounder {
                             metric.unit(),
                             metric.title(),
                             metric.description(),
-                            metric.evidenceSegmentIds(),
+                            groundedEvidenceIds,
                             groundMetricDisplayEvidences(
                                     source,
                                     metric,
                                     value,
+                                    groundedEvidenceIds,
                                     segmentsById,
                                     displayContentsBySegmentId
                             )
@@ -153,10 +285,28 @@ public class LinerAnalysisResponseGrounder {
         return grounded;
     }
 
+    private List<Long> groundMetricEvidenceIds(
+            QualitativeAnalysis.ReportMetric metric,
+            Map<Long, AnalysisSegment> segmentsById
+    ) {
+        if (metric.value() == 0 || metric.evidenceSegmentIds() == null) {
+            return List.of();
+        }
+        return metric.evidenceSegmentIds().stream()
+                .filter(segmentId -> {
+                    AnalysisSegment segment = segmentsById.get(segmentId);
+                    return segment != null && (metric.speakerRole() == null
+                            || segment.speakerRole() == metric.speakerRole());
+                })
+                .distinct()
+                .toList();
+    }
+
     private List<QualitativeAnalysis.MetricDisplayEvidence> groundMetricDisplayEvidences(
             AnalysisSource source,
             QualitativeAnalysis.ReportMetric metric,
             int groundedValue,
+            List<Long> groundedEvidenceIds,
             Map<Long, AnalysisSegment> segmentsById,
             Map<Long, String> displayContentsBySegmentId
     ) {
@@ -167,7 +317,7 @@ public class LinerAnalysisResponseGrounder {
                         metric.type()
                 )
                 || metric.displayEvidences() == null
-                || metric.evidenceSegmentIds() == null) {
+                || groundedEvidenceIds.isEmpty()) {
             return List.of();
         }
 
@@ -175,7 +325,7 @@ public class LinerAnalysisResponseGrounder {
         List<QualitativeAnalysis.MetricDisplayEvidence> grounded = new ArrayList<>();
         for (QualitativeAnalysis.MetricDisplayEvidence evidence : metric.displayEvidences()) {
             if (grounded.size() >= 3 || evidence == null || evidence.segmentId() == null
-                    || !metric.evidenceSegmentIds().contains(evidence.segmentId())
+                    || !groundedEvidenceIds.contains(evidence.segmentId())
                     || !selected.add(evidence.segmentId())) {
                 continue;
             }
@@ -637,6 +787,7 @@ public class LinerAnalysisResponseGrounder {
                         pattern,
                         displayContentsBySegmentId
                 ))
+                .filter(Objects::nonNull)
                 .toList();
         int groundedEvidenceCount = grounded.stream()
                 .filter(Objects::nonNull)
@@ -668,11 +819,24 @@ public class LinerAnalysisResponseGrounder {
                         AnalysisSegment::segmentId,
                         segment -> segment
                 ));
+        List<Long> groundedEvidenceSegmentIds = pattern.evidenceSegmentIds().stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .filter(segmentId -> {
+                    AnalysisSegment segment = segmentsById.get(segmentId);
+                    return segment != null && segment.speakerRole() == speakerRole;
+                })
+                .toList();
+        // 패턴은 실제로 관찰된 행동만 표현한다. "질문이 없어요"처럼 근거 없는
+        // 부재 관찰은 보고서 항목으로 유지하지 않는다.
+        if (groundedEvidenceSegmentIds.isEmpty()) {
+            return null;
+        }
         Set<Long> selected = new LinkedHashSet<>();
         List<QualitativeAnalysis.PatternDisplayEvidence> grounded = new ArrayList<>();
         for (QualitativeAnalysis.PatternDisplayEvidence evidence : pattern.displayEvidences()) {
             if (grounded.size() >= 3 || evidence == null || evidence.segmentId() == null
-                    || !pattern.evidenceSegmentIds().contains(evidence.segmentId())
+                    || !groundedEvidenceSegmentIds.contains(evidence.segmentId())
                     || !selected.add(evidence.segmentId())) {
                 continue;
             }
@@ -693,11 +857,25 @@ public class LinerAnalysisResponseGrounder {
                     displayContent
             ));
         }
+        // LINER가 대표 문장을 잘못 연결했더라도 패턴 자체의 유효한 근거가 있으면
+        // 화면에 표시할 문장 칩이 비지 않도록 원문 한 건을 복구한다.
+        if (grounded.isEmpty()) {
+            Long fallbackSegmentId = groundedEvidenceSegmentIds.get(0);
+            AnalysisSegment fallbackSegment = segmentsById.get(fallbackSegmentId);
+            String displayContent = displayContentsBySegmentId.computeIfAbsent(
+                    fallbackSegmentId,
+                    ignored -> fallbackSegment.content()
+            );
+            grounded.add(new QualitativeAnalysis.PatternDisplayEvidence(
+                    fallbackSegmentId,
+                    displayContent
+            ));
+        }
         return new QualitativeAnalysis.SpeakerPattern(
                 pattern.category(),
                 pattern.title(),
                 pattern.description(),
-                pattern.evidenceSegmentIds(),
+                groundedEvidenceSegmentIds,
                 grounded
         );
     }
@@ -775,10 +953,13 @@ public class LinerAnalysisResponseGrounder {
                 insight.observations() == null
                         ? null
                         : insight.observations().stream()
-                        .filter(observation -> observation == null
-                                || observation.category()
-                                != QualitativeAnalysis.SpicinessCategory.SWEAR_WORD
-                                || !groundedSwearWords.isEmpty())
+                        .map(observation -> groundSpicinessObservation(
+                                source,
+                                insight.speakerRole(),
+                                observation,
+                                groundedSwearWords
+                        ))
+                        .filter(Objects::nonNull)
                         .toList();
 
         return new QualitativeAnalysis.SpicinessInsight(
@@ -787,6 +968,43 @@ public class LinerAnalysisResponseGrounder {
                 insight.description(),
                 groundedSwearWords,
                 groundedObservations
+        );
+    }
+
+    private QualitativeAnalysis.SpicinessObservation groundSpicinessObservation(
+            AnalysisSource source,
+            SpeakerRole speakerRole,
+            QualitativeAnalysis.SpicinessObservation observation,
+            List<QualitativeAnalysis.SwearWordUsage> groundedSwearWords
+    ) {
+        if (observation == null || observation.category() == null
+                || observation.evidenceSegmentIds() == null) {
+            return null;
+        }
+        List<Long> groundedEvidenceIds;
+        if (observation.category() == QualitativeAnalysis.SpicinessCategory.SWEAR_WORD) {
+            groundedEvidenceIds = groundedSwearWords.stream()
+                    .flatMap(swearWord -> swearWord.evidenceSegmentIds().stream())
+                    .distinct()
+                    .toList();
+        } else {
+            Set<Long> roleSegmentIds = source.segments().stream()
+                    .filter(segment -> segment.speakerRole() == speakerRole)
+                    .map(AnalysisSegment::segmentId)
+                    .collect(java.util.stream.Collectors.toSet());
+            groundedEvidenceIds = observation.evidenceSegmentIds().stream()
+                    .filter(roleSegmentIds::contains)
+                    .distinct()
+                    .toList();
+        }
+        if (groundedEvidenceIds.isEmpty()) {
+            return null;
+        }
+        return new QualitativeAnalysis.SpicinessObservation(
+                observation.category(),
+                observation.title(),
+                observation.description(),
+                groundedEvidenceIds
         );
     }
 

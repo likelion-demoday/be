@@ -19,6 +19,16 @@ class SpeakingSpeedReferenceTest {
     }
 
     @Test
+    void keepsDirectionForBackwardCompatibility() {
+        assertThat(SpeakingSpeedReference.direction(new BigDecimal("5.00")))
+                .isEqualTo(SpeakingSpeedDirection.SLOWER);
+        assertThat(SpeakingSpeedReference.direction(new BigDecimal("5.79")))
+                .isEqualTo(SpeakingSpeedDirection.SIMILAR);
+        assertThat(SpeakingSpeedReference.direction(new BigDecimal("6.10")))
+                .isEqualTo(SpeakingSpeedDirection.FASTER);
+    }
+
+    @Test
     void rejectsInvalidSpeakingSpeed() {
         assertThatThrownBy(() -> SpeakingSpeedReference.differencePercent(null))
                 .isInstanceOf(IllegalArgumentException.class);

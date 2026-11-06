@@ -55,6 +55,9 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("짧고 자연스러운 문장으로 작성하세요")
                 .contains("정량 지표는 계산하지 마세요")
                 .contains("T/F 비율은 성격 유형 검사가 아니라")
+                .contains("5점이나 10점 단위로 반올림하지 말고")
+                .contains("근거 발화 수, 서로 다른 표현 종류")
+                .contains("근거 없이 50:50 또는 5점 단위 비율로 맞추지 마세요")
                 .contains("관심도 90점 이상은")
                 .contains("대화의 평균 분위기가 아니라")
                 .contains("반복되는 직설·명령·압박·강한 반박")
@@ -96,7 +99,7 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("관찰되지 않은 항목도 value 0으로 작성하세요")
                 .contains("화자별 1개 이상 3개 이하");
 
-        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v16");
+        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v18");
         assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v9");
 
         Map<?, ?> input = objectMapper.readValue(request.messages().get(1).content(), Map.class);
@@ -278,6 +281,32 @@ class LinerAnalysisRequestFactoryTest {
                 (Map<?, ?>) reportMetricProperties.get("displayEvidences");
         assertThat(displayEvidences.get("minItems")).isEqualTo(0);
         assertThat(displayEvidences.get("maxItems")).isEqualTo(3);
+    }
+
+    @Test
+    void usesParentChildRestartConversationInstruction() {
+        AnalysisSource source = new AnalysisSource(
+                1L,
+                AnalysisScenario.PARENT_CHILD_CONFLICT,
+                10_000L,
+                speakersFor(AnalysisScenario.PARENT_CHILD_CONFLICT),
+                List.of(
+                        new AnalysisSegment(1L, SpeakerRole.PARENT, 100L, 500L,
+                                "늦으면 꼭 연락해야지."),
+                        new AnalysisSegment(2L, SpeakerRole.CHILD, 600L, 900L,
+                                "친구들이랑 있다 보면 늦을 수도 있잖아.")
+                )
+        );
+
+        LinerChatRequest request = requestFactory.create(source);
+
+        assertThat(request.messages().get(0).content())
+                .contains("핵심 갈등 주제를 직접 반영한 다시 대화하기 단계 세 개")
+                .contains("1단계는 평가나 반박 없이")
+                .contains("2단계는 부모의 걱정과 자녀의 필요")
+                .contains("3단계는 다음 행동·시간·확인 방법")
+                .contains("실제로 바로 말할 수 있는 한 문장")
+                .contains("어느 한쪽의 성격·태도·양육 능력을 탓하지 말고");
     }
 
     private AnalysisSource friendSource() {

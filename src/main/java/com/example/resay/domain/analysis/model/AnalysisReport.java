@@ -65,7 +65,8 @@ public record AnalysisReport(
             QualitativeAnalysis.RelationshipSummary relationshipSummary,
             List<ReportMetric> reportMetrics,
             List<QualitativeAnalysis.SpeakerTendency> speakerTendencies,
-            List<QualitativeAnalysis.CoachingSuggestion> coachingSuggestions
+            List<QualitativeAnalysis.CoachingSuggestion> coachingSuggestions,
+            List<CoachingSuggestionEvidence> coachingSuggestionEvidences
     ) {
 
         public QualitativeReport {
@@ -90,6 +91,9 @@ public record AnalysisReport(
             coachingSuggestions = coachingSuggestions == null
                     ? List.of()
                     : List.copyOf(coachingSuggestions);
+            coachingSuggestionEvidences = coachingSuggestionEvidences == null
+                    ? List.of()
+                    : List.copyOf(coachingSuggestionEvidences);
         }
 
         public QualitativeReport(
@@ -116,6 +120,7 @@ public record AnalysisReport(
                     scenarioInsights,
                     List.of(),
                     null,
+                    List.of(),
                     List.of(),
                     List.of(),
                     List.of()
@@ -149,8 +154,19 @@ public record AnalysisReport(
                     null,
                     List.of(),
                     List.of(),
+                    List.of(),
                     List.of()
             );
+        }
+    }
+
+    public record CoachingSuggestionEvidence(
+            int order,
+            List<EvidenceQuote> evidenceQuotes
+    ) {
+
+        public CoachingSuggestionEvidence {
+            evidenceQuotes = evidenceQuotes == null ? List.of() : List.copyOf(evidenceQuotes);
         }
     }
 

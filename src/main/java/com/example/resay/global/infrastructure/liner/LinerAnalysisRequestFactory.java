@@ -15,7 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class LinerAnalysisRequestFactory {
 
-    private static final String PROMPT_VERSION = "analysis-prompt-v16";
+    private static final String PROMPT_VERSION = "analysis-prompt-v18";
     private static final String SCHEMA_VERSION = "analysis-result-v9";
     private static final int MAX_COMPLETION_TOKENS = 32768;
     private static final String REASONING_EFFORT = "medium";
@@ -44,6 +44,9 @@ public class LinerAnalysisRequestFactory {
             사람의 성격이나 관계 전체를 진단하지 말고 이번 대화에서 관찰되는 표현과 행동만 설명하세요.
             발화 비중, 말하기 속도처럼 서버가 계산하는 정량 지표는 계산하지 마세요.
             관심도와 표독력 점수는 성격이나 관계의 점수가 아니라 이번 대화에서 관련 표현이 나타난 정도를 0부터 100까지 추정한 값입니다.
+            관심도, 표독력, T/F 비율과 reportMetrics의 PERCENT는 5점이나 10점 단위로 반올림하지 말고 1점 단위 정수로 평가하세요.
+            점수를 정할 때 관련 근거 발화 수, 서로 다른 표현 종류, 대화 앞·중간·뒤에 걸친 분포와 표현 강도를 순서대로 검토하세요.
+            근거가 실제로 구간 경계나 동일 비율에 해당할 때만 5의 배수를 사용할 수 있으며, 숫자를 다양하게 보이게 하려고 임의 값을 더하거나 빼지 마세요.
             관심도는 0~20 거의 관찰되지 않음, 21~40 제한적으로 나타남, 41~60 보통, 61~80 지속적으로 나타남, 81~100 여러 종류의 관심 표현이 대화 전반에 반복됨을 기준으로 평가하세요.
             관심도 90점 이상은 질문, 공감, 맞장구, 호감 표현 중 세 종류 이상이 대화 전반에 반복된 경우에만 사용하세요.
             표독력은 대화의 평균 분위기가 아니라 해당 화자가 실제로 사용한 강한 표현의 강도와 반복성을 함께 기준으로 평가하세요.
@@ -59,6 +62,7 @@ public class LinerAnalysisRequestFactory {
             비속어가 있으면 SWEAR_WORD 관찰을 작성하고 표독력 점수를 0보다 크게 평가하세요.
             비속어처럼 들릴 수 있다는 추측만으로 표현을 만들거나 완곡하게 바꿔 쓰지 마세요.
             T/F 비율은 성격 유형 검사가 아니라 이번 대화의 반응을 정보·해결 중심과 감정·공감 중심으로 나눈 비율입니다.
+            T/F 비율은 실제 반응 발화를 각각 분류한 비중을 기준으로 계산하고, 근거 없이 50:50 또는 5점 단위 비율로 맞추지 마세요.
             characterInsights.name은 역할명이나 본인, 상대방 같은 일반 명칭이 아니라 이번 대화의 특징을 담은 짧고 재미있는 한국어 별칭으로 작성하세요.
             characterInsights.name은 대화 특징을 나타내는 수식어와 기억에 남는 역할·사물 명사를 결합한 2~3어절의 별칭으로 작성하세요.
             characterInsights.name은 카드 레이아웃에 여유 있게 공백을 포함해 10자 이내로 작성하세요.
@@ -79,6 +83,7 @@ public class LinerAnalysisRequestFactory {
             frequentExpressionSummary에는 정확한 등장 횟수를 직접 쓰지 말고 표현들의 상대적인 사용 경향만 간단히 설명하세요.
             frequentExpressions의 각 항목에는 별도 설명을 작성하지 말고 category, expression, count와 근거 발화만 작성하세요.
             speakerInsights.patterns는 허용된 카테고리를 화자별로 하나씩 모두 점검한 뒤 근거가 있는 카테고리를 빠짐없이 작성하세요.
+            실제 근거 발화가 없는 카테고리는 '~없어요' 같은 부재 관찰로 만들지 말고 patterns 배열에서 제외하세요.
             FOLLOW_UP_QUESTION은 상대의 직전 답변에서 나온 내용을 이어 묻는 질문이고, EMOTION_QUESTION은 상대의 감정이나 상태를 직접 묻는 질문입니다. 한 화자에게 두 종류가 각각 나타나면 둘 다 작성하세요.
             EXPRESSION_PATTERN은 다른 카테고리로 설명되지 않는 반복적인 말투나 반응 방식이 여러 발화에서 확인될 때 작성하세요.
             speakerInsights.patterns의 evidenceSegmentIds에는 해당 패턴이 나타난 모든 발화를 넣으세요.
@@ -217,8 +222,13 @@ public class LinerAnalysisRequestFactory {
                     안전 걱정, 돌봄, 보호 의도가 발화에 명시되면 CARE_EXPRESSION으로 분류하세요.
                     양육 능력, 성격, 정신 상태를 진단하지 마세요.
                     reportMetrics에는 SITUATION_QUESTION, CONCRETE_ADVICE, EMOTION_CHECK, ASSERTIVE_EXPRESSION, EXPERIENCE_COMPARISON, SHORT_RESPONSE, TOPIC_AVOIDANCE, REBUTTAL, EMOTION_EXPRESSION, APOLOGY, CHILD_EXPRESSION, PARENT_CONFIRMATION을 관련 화자별 COUNT로 작성하세요.
+                    위 COUNT 지표는 value가 0보다 클 때 displayEvidences에 대표 발화를 1개 이상 최대 3개 작성하고, value가 0이면 빈 배열로 작성하세요.
                     ADVICE, ASSERTIVE_EXPRESSION, EMOTION_CHECK, SOFTENING_EXPRESSION은 화자별 PERCENT로 작성하세요. 실제 발화로 확인할 수 없는 침묵은 계산하지 마세요. 관찰되지 않은 항목도 value 0으로 작성하세요.
-                    speakerTendencies는 부모와 자녀에 대해 각각 한 개, coachingSuggestions는 다시 대화하기 단계 세 개를 순서대로 작성하세요.
+                    speakerTendencies는 부모와 자녀에 대해 각각 한 개 작성하세요.
+                    coachingSuggestions는 이 대화의 핵심 갈등 주제를 직접 반영한 다시 대화하기 단계 세 개를 순서대로 작성하세요. 어디에나 적용되는 일반적인 조언은 사용하지 마세요.
+                    1단계는 평가나 반박 없이 상대가 말한 입장이나 감정을 확인하는 문장, 2단계는 부모의 걱정과 자녀의 필요를 비난 없이 설명하는 문장, 3단계는 다음 행동·시간·확인 방법 중 하나를 포함한 구체적인 합의 문장으로 작성하세요.
+                    각 단계의 description에는 왜 이 단계가 필요한지 근거 발화의 맥락을 요약하고, suggestedPhrase는 부모나 자녀가 실제로 바로 말할 수 있는 한 문장으로 작성하세요.
+                    부모나 자녀 어느 한쪽의 성격·태도·양육 능력을 탓하지 말고, 세 단계의 evidenceSegmentIds에는 각 제안과 직접 관련된 기존 발화를 포함하세요.
                     representativeEvidences에는 CHILD_POSITION, FOLLOWING_ADVICE, UNASKED_QUESTION, WORRY_START, EXPRESSION_TURNING_POINT, CLOSING_RESPONSE를 각각 한 개씩 작성하세요.
                     CHILD_POSITION, UNASKED_QUESTION, CLOSING_RESPONSE는 CHILD 발화를 선택하고 나머지는 PARENT 발화를 선택하세요.
                     갈등 유형의 representativeEvidences에서 reactionCategory는 null로 작성하세요.
