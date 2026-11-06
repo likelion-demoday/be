@@ -96,13 +96,20 @@ public record AnalysisReportDto(
             BigDecimal averageUtteranceDurationMs,
             BigDecimal charactersPerMinute,
             BigDecimal syllablesPerSecond,
+            @Schema(description = "한국어 평균 발화 속도 기준(초당 음절 수)", example = "5.79")
+            BigDecimal referenceSyllablesPerSecond,
             @Schema(
-                    description = "한국어 기준 발화 속도(초당 5.79음절) 대비 차이의 절댓값. "
-                            + "방향은 speakingSpeedDirection 사용",
-                    example = "12.26"
+                    description = "한국어 평균 발화 속도(초당 5.79음절) 대비 차이 비율. "
+                            + "양수는 평균보다 빠름, 음수는 평균보다 느림이며 화면에서는 "
+                            + "부호를 방향 문구로 변환해 표시",
+                    example = "-13.64"
             )
             BigDecimal speakingSpeedDifferencePercent,
-            @Schema(description = "한국어 기준 대비 발화 속도 방향", example = "FASTER")
+            @Schema(
+                    description = "한국어 평균 대비 발화 속도 방향(하위 호환용)",
+                    example = "SLOWER",
+                    deprecated = true
+            )
             SpeakingSpeedDirection speakingSpeedDirection
     ) {
 
@@ -120,6 +127,7 @@ public record AnalysisReportDto(
                     source.averageUtteranceDurationMs(),
                     source.charactersPerMinute(),
                     source.syllablesPerSecond(),
+                    SpeakingSpeedReference.SYLLABLES_PER_SECOND,
                     SpeakingSpeedReference.differencePercent(source.syllablesPerSecond()),
                     SpeakingSpeedReference.direction(source.syllablesPerSecond())
             );
@@ -188,7 +196,12 @@ public record AnalysisReportDto(
                     RelationshipSummary.from(source.relationshipSummary()),
                     source.reportMetrics().stream().map(ReportMetric::from).toList(),
                     source.speakerTendencies().stream().map(SpeakerTendency::from).toList(),
-                    source.coachingSuggestions().stream().map(CoachingSuggestion::from).toList()
+                    source.coachingSuggestions().stream()
+                            .map(suggestion -> CoachingSuggestion.from(
+                                    suggestion,
+                                    source.coachingSuggestionEvidences()
+                            ))
+                            .toList()
             );
         }
     }
@@ -251,17 +264,28 @@ public record AnalysisReportDto(
             int order,
             String title,
             String description,
-            String suggestedPhrase
+            String suggestedPhrase,
+            @Schema(description = "이 제안이 필요한 대화 맥락의 근거 발화")
+            List<EvidenceQuote> evidenceQuotes
     ) {
 
         private static CoachingSuggestion from(
-                QualitativeAnalysis.CoachingSuggestion source
+                QualitativeAnalysis.CoachingSuggestion source,
+                List<AnalysisReport.CoachingSuggestionEvidence> evidences
         ) {
+            List<EvidenceQuote> evidenceQuotes = evidences.stream()
+                    .filter(item -> item.order() == source.order())
+                    .findFirst()
+                    .map(item -> item.evidenceQuotes().stream()
+                            .map(EvidenceQuote::from)
+                            .toList())
+                    .orElse(List.of());
             return new CoachingSuggestion(
                     source.order(),
                     source.title(),
                     source.description(),
-                    source.suggestedPhrase()
+                    source.suggestedPhrase(),
+                    evidenceQuotes
             );
         }
     }

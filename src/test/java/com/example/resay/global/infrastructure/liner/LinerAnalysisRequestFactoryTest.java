@@ -99,7 +99,7 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("관찰되지 않은 항목도 value 0으로 작성하세요")
                 .contains("화자별 1개 이상 3개 이하");
 
-        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v17");
+        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v18");
         assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v9");
 
         Map<?, ?> input = objectMapper.readValue(request.messages().get(1).content(), Map.class);

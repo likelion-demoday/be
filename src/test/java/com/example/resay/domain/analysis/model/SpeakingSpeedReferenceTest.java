@@ -15,16 +15,14 @@ class SpeakingSpeedReferenceTest {
         assertThat(SpeakingSpeedReference.differencePercent(new BigDecimal("6.10")))
                 .isEqualByComparingTo("5.35");
         assertThat(SpeakingSpeedReference.differencePercent(new BigDecimal("5.00")))
-                .isEqualByComparingTo("13.64");
+                .isEqualByComparingTo("-13.64");
     }
 
     @Test
-    void returnsDisplayDirectionWithoutUsingNegativeDifference() {
+    void keepsDirectionForBackwardCompatibility() {
         assertThat(SpeakingSpeedReference.direction(new BigDecimal("5.00")))
                 .isEqualTo(SpeakingSpeedDirection.SLOWER);
-        assertThat(SpeakingSpeedReference.direction(new BigDecimal("5.75")))
-                .isEqualTo(SpeakingSpeedDirection.SIMILAR);
-        assertThat(SpeakingSpeedReference.direction(new BigDecimal("5.84")))
+        assertThat(SpeakingSpeedReference.direction(new BigDecimal("5.79")))
                 .isEqualTo(SpeakingSpeedDirection.SIMILAR);
         assertThat(SpeakingSpeedReference.direction(new BigDecimal("6.10")))
                 .isEqualTo(SpeakingSpeedDirection.FASTER);

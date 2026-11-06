@@ -15,7 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class LinerAnalysisRequestFactory {
 
-    private static final String PROMPT_VERSION = "analysis-prompt-v17";
+    private static final String PROMPT_VERSION = "analysis-prompt-v18";
     private static final String SCHEMA_VERSION = "analysis-result-v9";
     private static final int MAX_COMPLETION_TOKENS = 32768;
     private static final String REASONING_EFFORT = "medium";
@@ -83,6 +83,7 @@ public class LinerAnalysisRequestFactory {
             frequentExpressionSummary에는 정확한 등장 횟수를 직접 쓰지 말고 표현들의 상대적인 사용 경향만 간단히 설명하세요.
             frequentExpressions의 각 항목에는 별도 설명을 작성하지 말고 category, expression, count와 근거 발화만 작성하세요.
             speakerInsights.patterns는 허용된 카테고리를 화자별로 하나씩 모두 점검한 뒤 근거가 있는 카테고리를 빠짐없이 작성하세요.
+            실제 근거 발화가 없는 카테고리는 '~없어요' 같은 부재 관찰로 만들지 말고 patterns 배열에서 제외하세요.
             FOLLOW_UP_QUESTION은 상대의 직전 답변에서 나온 내용을 이어 묻는 질문이고, EMOTION_QUESTION은 상대의 감정이나 상태를 직접 묻는 질문입니다. 한 화자에게 두 종류가 각각 나타나면 둘 다 작성하세요.
             EXPRESSION_PATTERN은 다른 카테고리로 설명되지 않는 반복적인 말투나 반응 방식이 여러 발화에서 확인될 때 작성하세요.
             speakerInsights.patterns의 evidenceSegmentIds에는 해당 패턴이 나타난 모든 발화를 넣으세요.
@@ -221,6 +222,7 @@ public class LinerAnalysisRequestFactory {
                     안전 걱정, 돌봄, 보호 의도가 발화에 명시되면 CARE_EXPRESSION으로 분류하세요.
                     양육 능력, 성격, 정신 상태를 진단하지 마세요.
                     reportMetrics에는 SITUATION_QUESTION, CONCRETE_ADVICE, EMOTION_CHECK, ASSERTIVE_EXPRESSION, EXPERIENCE_COMPARISON, SHORT_RESPONSE, TOPIC_AVOIDANCE, REBUTTAL, EMOTION_EXPRESSION, APOLOGY, CHILD_EXPRESSION, PARENT_CONFIRMATION을 관련 화자별 COUNT로 작성하세요.
+                    위 COUNT 지표는 value가 0보다 클 때 displayEvidences에 대표 발화를 1개 이상 최대 3개 작성하고, value가 0이면 빈 배열로 작성하세요.
                     ADVICE, ASSERTIVE_EXPRESSION, EMOTION_CHECK, SOFTENING_EXPRESSION은 화자별 PERCENT로 작성하세요. 실제 발화로 확인할 수 없는 침묵은 계산하지 마세요. 관찰되지 않은 항목도 value 0으로 작성하세요.
                     speakerTendencies는 부모와 자녀에 대해 각각 한 개 작성하세요.
                     coachingSuggestions는 이 대화의 핵심 갈등 주제를 직접 반영한 다시 대화하기 단계 세 개를 순서대로 작성하세요. 어디에나 적용되는 일반적인 조언은 사용하지 마세요.

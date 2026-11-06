@@ -108,11 +108,14 @@ class AnalysisControllerIntegrationTest {
                 .andExpect(jsonPath("$.result.report.recordingInfo.speakers[0].speakerName")
                         .value("호준"))
                 .andExpect(jsonPath("$.result.report.quantitativeAnalysis.speakers[0]"
+                                + ".referenceSyllablesPerSecond")
+                        .value(5.79))
+                .andExpect(jsonPath("$.result.report.quantitativeAnalysis.speakers[0]"
                                 + ".speakingSpeedDifferencePercent")
-                        .value(0.0))
+                        .value(-13.64))
                 .andExpect(jsonPath("$.result.report.quantitativeAnalysis.speakers[0]"
                                 + ".speakingSpeedDirection")
-                        .value("SIMILAR"))
+                        .value("SLOWER"))
                 .andExpect(jsonPath("$.result.report.quantitativeAnalysis.speakers[1]"
                                 + ".speakingSpeedDifferencePercent")
                         .value(5.35))
@@ -263,7 +266,7 @@ class AnalysisControllerIntegrationTest {
                                 BigDecimal.valueOf(55),
                                 BigDecimal.valueOf(15_000),
                                 BigDecimal.valueOf(100),
-                                BigDecimal.valueOf(5.79)
+                                BigDecimal.valueOf(5.00)
                         ),
                         new SpeakerMetrics(
                                 SpeakerRole.FRIEND,

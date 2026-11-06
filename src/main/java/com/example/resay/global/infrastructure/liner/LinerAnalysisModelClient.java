@@ -1,11 +1,15 @@
 package com.example.resay.global.infrastructure.liner;
 
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
+import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
+import com.example.resay.domain.analysis.model.SpeakerRole;
 import com.example.resay.domain.analysis.port.AnalysisModelClient;
 import com.example.resay.domain.analysis.service.AnalysisFailureCategory;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -50,9 +54,16 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
 
         QualitativeAnalysis response = parseResponse(result.content());
         QualitativeAnalysis groundedResponse = responseGrounder.ground(source, response);
+        QualitativeAnalysis responseWithRequiredCoaching =
+                ensureParentChildCoachingSuggestions(source, groundedResponse);
+        QualitativeAnalysis responseWithRequiredFields =
+                ensureParentChildRepresentativeEvidences(
+                        source,
+                        responseWithRequiredCoaching
+                );
         QualitativeAnalysis validatedResponse = validateWithBestEffortFallback(
                 source,
-                groundedResponse
+                responseWithRequiredFields
         );
 
         return new AnalysisModelResult(
@@ -76,67 +87,23 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
                 throw validationException;
             }
 
-            QualitativeAnalysis fallbackResponse = response;
-            if (response.representativeEvidences() != null
-                    && !response.representativeEvidences().isEmpty()) {
-                fallbackResponse = withoutRepresentativeEvidences(response);
-                try {
-                    responseValidator.validate(source, fallbackResponse);
-                    log.warn(
-                            "대표 근거 검증 실패로 부가 항목 제외: "
-                                    + "recordingId={}, scenario={}, 제외 {}건",
-                            source.recordingId(),
-                            source.scenario(),
-                            response.representativeEvidences().size()
-                    );
-                    return fallbackResponse;
-                } catch (LinerAnalysisException representativeFallbackException) {
-                    if (representativeFallbackException.getCategory()
-                            != AnalysisFailureCategory.RESPONSE_VALIDATION_ERROR) {
-                        throw representativeFallbackException;
-                    }
-                    if (validationException != representativeFallbackException) {
-                        validationException.addSuppressed(representativeFallbackException);
-                    }
-                }
-            }
-
-            QualitativeAnalysis coreResponse = withoutOptionalReportFields(fallbackResponse);
-            if (!coreResponse.equals(fallbackResponse)) {
-                try {
-                    responseValidator.validate(source, coreResponse);
-                    logBestEffortFallback(
-                            source,
-                            response,
-                            coreResponse,
-                            validationException,
-                            false
-                    );
-                    return coreResponse;
-                } catch (LinerAnalysisException coreValidationException) {
-                    if (coreValidationException.getCategory()
-                            != AnalysisFailureCategory.RESPONSE_VALIDATION_ERROR) {
-                        throw coreValidationException;
-                    }
-                    if (validationException != coreValidationException) {
-                        validationException.addSuppressed(coreValidationException);
-                    }
-                }
-            }
-
             // JSON Schema 파싱과 Grounder 보정까지 끝난 응답은 가능한 범위에서 저장한다.
-            // 화면 조립에 꼭 필요한 타임라인·주제 근거가 깨졌다면 기존 검증 실패를 유지한다.
-            if (!isRenderableCore(source, fallbackResponse)) {
+            // 한 부가 항목의 오류 때문에 정상 보고서 항목을 함께 삭제하지 않는다.
+            // 화면 조립에 꼭 필요한 타임라인·주제 근거가 깨졌을 때만 검증 실패를 유지한다.
+            if (!isRenderableCore(source, response)) {
                 throw validationException;
             }
-            logBestEffortFallback(
-                    source,
-                    response,
-                    fallbackResponse,
-                    validationException,
-                    true
+            log.warn(
+                    "분석 응답 의미 검증 실패, 전체 보고서 항목을 보존해 저장: "
+                            + "recordingId={}, scenario={}, promptVersion={}, "
+                            + "schemaVersion={}, reason={}",
+                    source.recordingId(),
+                    source.scenario(),
+                    requestFactory.promptVersion(),
+                    requestFactory.schemaVersion(),
+                    validationException.getMessage()
             );
-            return fallbackResponse;
+            return response;
         }
     }
 
@@ -169,84 +136,369 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
         return timelineRenderable && topicsRenderable;
     }
 
-    private void logBestEffortFallback(
+    private QualitativeAnalysis ensureParentChildCoachingSuggestions(
             AnalysisSource source,
-            QualitativeAnalysis originalResponse,
-            QualitativeAnalysis fallbackResponse,
-            LinerAnalysisException validationException,
-            boolean coreValidationFailed
+            QualitativeAnalysis response
     ) {
+        if (source.scenario() != AnalysisScenario.PARENT_CHILD_CONFLICT
+                || hasValidCoachingSuggestions(source, response.coachingSuggestions())) {
+            return response;
+        }
+
+        List<QualitativeAnalysis.CoachingSuggestion> fallbackSuggestions =
+                parentChildCoachingFallback(source, response);
         log.warn(
-                "분석 응답 의미 검증 실패, best-effort 보고서 저장: "
-                        + "recordingId={}, scenario={}, promptVersion={}, schemaVersion={}, "
-                        + "제외 대표근거={}건, 관계요약={}, 지표={}건, 화자경향={}건, 코칭={}건, "
-                        + "coreValidationFailed={}, reason={}",
+                "부모·자녀 다시 대화하기 항목을 안전 대안으로 보완: recordingId={}, scenario={}",
                 source.recordingId(),
-                source.scenario(),
-                requestFactory.promptVersion(),
-                requestFactory.schemaVersion(),
-                excludedCount(
-                        originalResponse.representativeEvidences(),
-                        fallbackResponse.representativeEvidences()
-                ),
-                originalResponse.relationshipSummary() != null
-                        && fallbackResponse.relationshipSummary() == null,
-                excludedCount(originalResponse.reportMetrics(), fallbackResponse.reportMetrics()),
-                excludedCount(
-                        originalResponse.speakerTendencies(),
-                        fallbackResponse.speakerTendencies()
-                ),
-                excludedCount(
-                        originalResponse.coachingSuggestions(),
-                        fallbackResponse.coachingSuggestions()
-                ),
-                coreValidationFailed,
-                validationException.getMessage()
+                source.scenario()
+        );
+        return new QualitativeAnalysis(
+                response.overview(),
+                response.timeline(),
+                response.topics(),
+                response.characterInsights(),
+                response.speakerInsights(),
+                response.interestInsights(),
+                response.spicinessInsights(),
+                response.reactionStyleInsights(),
+                response.scenarioInsights(),
+                response.representativeEvidences(),
+                response.relationshipSummary(),
+                response.reportMetrics(),
+                response.speakerTendencies(),
+                fallbackSuggestions
         );
     }
 
-    private int excludedCount(List<?> original, List<?> fallback) {
-        int originalSize = original == null ? 0 : original.size();
-        int fallbackSize = fallback == null ? 0 : fallback.size();
-        return Math.max(0, originalSize - fallbackSize);
+    private QualitativeAnalysis ensureParentChildRepresentativeEvidences(
+            AnalysisSource source,
+            QualitativeAnalysis response
+    ) {
+        if (source.scenario() != AnalysisScenario.PARENT_CHILD_CONFLICT
+                || hasValidParentChildRepresentativeEvidences(source, response)) {
+            return response;
+        }
+
+        List<QualitativeAnalysis.RepresentativeEvidence> recovered = List.of(
+                parentChildRepresentativeEvidence(
+                        source,
+                        response,
+                        QualitativeAnalysis.ReportEvidenceType.CHILD_POSITION,
+                        SpeakerRole.CHILD
+                ),
+                parentChildRepresentativeEvidence(
+                        source,
+                        response,
+                        QualitativeAnalysis.ReportEvidenceType.FOLLOWING_ADVICE,
+                        SpeakerRole.PARENT
+                ),
+                parentChildRepresentativeEvidence(
+                        source,
+                        response,
+                        QualitativeAnalysis.ReportEvidenceType.UNASKED_QUESTION,
+                        SpeakerRole.CHILD
+                ),
+                parentChildRepresentativeEvidence(
+                        source,
+                        response,
+                        QualitativeAnalysis.ReportEvidenceType.WORRY_START,
+                        SpeakerRole.PARENT
+                ),
+                parentChildRepresentativeEvidence(
+                        source,
+                        response,
+                        QualitativeAnalysis.ReportEvidenceType.EXPRESSION_TURNING_POINT,
+                        SpeakerRole.PARENT
+                ),
+                parentChildRepresentativeEvidence(
+                        source,
+                        response,
+                        QualitativeAnalysis.ReportEvidenceType.CLOSING_RESPONSE,
+                        SpeakerRole.CHILD
+                )
+        );
+        log.warn(
+                "부모·자녀 대표 근거를 유형별 안전 대안으로 보완: recordingId={}, scenario={}",
+                source.recordingId(),
+                source.scenario()
+        );
+        return new QualitativeAnalysis(
+                response.overview(),
+                response.timeline(),
+                response.topics(),
+                response.characterInsights(),
+                response.speakerInsights(),
+                response.interestInsights(),
+                response.spicinessInsights(),
+                response.reactionStyleInsights(),
+                response.scenarioInsights(),
+                recovered,
+                response.relationshipSummary(),
+                response.reportMetrics(),
+                response.speakerTendencies(),
+                response.coachingSuggestions()
+        );
     }
 
-    private QualitativeAnalysis withoutOptionalReportFields(QualitativeAnalysis source) {
-        return new QualitativeAnalysis(
-                source.overview(),
-                source.timeline(),
-                source.topics(),
-                source.characterInsights(),
-                source.speakerInsights(),
-                source.interestInsights(),
-                source.spicinessInsights(),
-                source.reactionStyleInsights(),
-                source.scenarioInsights(),
-                List.of(),
+    private boolean hasValidParentChildRepresentativeEvidences(
+            AnalysisSource source,
+            QualitativeAnalysis response
+    ) {
+        if (response.representativeEvidences() == null
+                || response.representativeEvidences().size() != 6) {
+            return false;
+        }
+        try {
+            responseValidator.validateRepresentativeEvidencesOnly(source, response);
+            return true;
+        } catch (LinerAnalysisException exception) {
+            if (exception.getCategory() != AnalysisFailureCategory.RESPONSE_VALIDATION_ERROR) {
+                throw exception;
+            }
+            return false;
+        }
+    }
+
+    private QualitativeAnalysis.RepresentativeEvidence parentChildRepresentativeEvidence(
+            AnalysisSource source,
+            QualitativeAnalysis response,
+            QualitativeAnalysis.ReportEvidenceType type,
+            SpeakerRole role
+    ) {
+        Set<Long> validRoleSegmentIds = source.segments().stream()
+                .filter(segment -> segment.speakerRole() == role)
+                .map(AnalysisSegment::segmentId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<QualitativeAnalysis.RepresentativeEvidence> existingEvidences =
+                response.representativeEvidences() == null
+                        ? List.of()
+                        : response.representativeEvidences();
+        QualitativeAnalysis.RepresentativeEvidence existing =
+                existingEvidences.stream()
+                        .filter(item -> item != null && item.type() == type)
+                        .filter(item -> item.speakerRole() == role)
+                        .filter(item -> validRoleSegmentIds.contains(item.segmentId()))
+                        .filter(item -> StringUtils.hasText(item.displayContent()))
+                        .findFirst()
+                        .orElse(null);
+        if (existing != null) {
+            return new QualitativeAnalysis.RepresentativeEvidence(
+                    type,
+                    role,
+                    null,
+                    existing.segmentId(),
+                    existing.displayContent()
+            );
+        }
+
+        Long segmentId = representativeCandidateIds(response, type).stream()
+                .filter(validRoleSegmentIds::contains)
+                .reduce((first, second) -> type
+                        == QualitativeAnalysis.ReportEvidenceType.CLOSING_RESPONSE
+                        ? second
+                        : first)
+                .orElseGet(() -> topicEvidenceIds(response).stream()
+                        .filter(validRoleSegmentIds::contains)
+                        .reduce((first, second) -> type
+                                == QualitativeAnalysis.ReportEvidenceType.CLOSING_RESPONSE
+                                ? second
+                                : first)
+                        .orElseGet(() -> type
+                                == QualitativeAnalysis.ReportEvidenceType.CLOSING_RESPONSE
+                                ? source.segments().stream()
+                                        .filter(segment -> segment.speakerRole() == role)
+                                        .reduce((first, second) -> second)
+                                        .orElseThrow()
+                                        .segmentId()
+                                : validRoleSegmentIds.iterator().next()));
+        AnalysisSegment segment = source.segments().stream()
+                .filter(item -> item.segmentId().equals(segmentId))
+                .findFirst()
+                .orElseThrow();
+        return new QualitativeAnalysis.RepresentativeEvidence(
+                type,
+                role,
                 null,
-                List.of(),
-                List.of(),
-                List.of()
+                segmentId,
+                segment.content()
         );
     }
 
-    private QualitativeAnalysis withoutRepresentativeEvidences(QualitativeAnalysis source) {
-        return new QualitativeAnalysis(
-                source.overview(),
-                source.timeline(),
-                source.topics(),
-                source.characterInsights(),
-                source.speakerInsights(),
-                source.interestInsights(),
-                source.spicinessInsights(),
-                source.reactionStyleInsights(),
-                source.scenarioInsights(),
-                List.of(),
-                source.relationshipSummary(),
-                source.reportMetrics(),
-                source.speakerTendencies(),
-                source.coachingSuggestions()
+    private List<Long> representativeCandidateIds(
+            QualitativeAnalysis response,
+            QualitativeAnalysis.ReportEvidenceType type
+    ) {
+        if (type == QualitativeAnalysis.ReportEvidenceType.FOLLOWING_ADVICE) {
+            return response.reportMetrics().stream()
+                    .filter(metric -> metric != null
+                            && metric.type()
+                            == QualitativeAnalysis.ReportMetricType.CONCRETE_ADVICE)
+                    .flatMap(metric -> metric.evidenceSegmentIds().stream())
+                    .distinct()
+                    .toList();
+        }
+        QualitativeAnalysis.ScenarioInsightCategory category = switch (type) {
+            case CHILD_POSITION -> QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_POSITION;
+            case UNASKED_QUESTION ->
+                    QualitativeAnalysis.ScenarioInsightCategory.QUESTION_RESPONSE_STYLE;
+            case WORRY_START -> QualitativeAnalysis.ScenarioInsightCategory.CARE_EXPRESSION;
+            case EXPRESSION_TURNING_POINT ->
+                    QualitativeAnalysis.ScenarioInsightCategory.TURNING_POINT;
+            case CLOSING_RESPONSE -> QualitativeAnalysis.ScenarioInsightCategory.SOLUTION;
+            default -> null;
+        };
+        if (category == null) {
+            return List.of();
+        }
+        return response.scenarioInsights().stream()
+                .filter(insight -> insight != null && insight.category() == category)
+                .flatMap(insight -> insight.evidenceSegmentIds().stream())
+                .distinct()
+                .toList();
+    }
+
+    private List<Long> topicEvidenceIds(QualitativeAnalysis response) {
+        return response.topics().stream()
+                .flatMap(topic -> topic.segmentIds().stream())
+                .distinct()
+                .toList();
+    }
+
+    private boolean hasValidCoachingSuggestions(
+            AnalysisSource source,
+            List<QualitativeAnalysis.CoachingSuggestion> suggestions
+    ) {
+        if (suggestions == null || suggestions.size() != 3) {
+            return false;
+        }
+        Set<Long> segmentIds = source.segments().stream()
+                .map(AnalysisSegment::segmentId)
+                .collect(Collectors.toSet());
+        Set<Integer> orders = new LinkedHashSet<>();
+        for (QualitativeAnalysis.CoachingSuggestion suggestion : suggestions) {
+            if (suggestion == null
+                    || suggestion.order() < 1 || suggestion.order() > 3
+                    || !orders.add(suggestion.order())
+                    || !StringUtils.hasText(suggestion.title())
+                    || !StringUtils.hasText(suggestion.description())
+                    || !StringUtils.hasText(suggestion.suggestedPhrase())
+                    || suggestion.evidenceSegmentIds() == null
+                    || suggestion.evidenceSegmentIds().isEmpty()
+                    || !segmentIds.containsAll(suggestion.evidenceSegmentIds())) {
+                return false;
+            }
+        }
+        return orders.size() == 3;
+    }
+
+    private List<QualitativeAnalysis.CoachingSuggestion> parentChildCoachingFallback(
+            AnalysisSource source,
+            QualitativeAnalysis response
+    ) {
+        String topicTitle = conflictTopicTitle(response);
+        List<Long> childEvidence = evidenceFor(
+                source,
+                response,
+                QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_POSITION,
+                SpeakerRole.CHILD
         );
+        List<Long> parentEvidence = evidenceFor(
+                source,
+                response,
+                QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_POSITION,
+                SpeakerRole.PARENT
+        );
+        List<Long> sharedEvidence = mergeEvidence(parentEvidence, childEvidence);
+        List<Long> solutionEvidence = evidenceFor(
+                source,
+                response,
+                QualitativeAnalysis.ScenarioInsightCategory.SOLUTION,
+                null
+        );
+
+        return List.of(
+                new QualitativeAnalysis.CoachingSuggestion(
+                        1,
+                        "입장 확인: " + topicTitle,
+                        "‘" + topicTitle + "’을 두고 상대가 중요하게 생각하는 점을 먼저 확인해요.",
+                        "‘" + topicTitle + "’에 대해 네가 가장 중요하게 생각하는 게 무엇인지 먼저 듣고 싶어.",
+                        childEvidence
+                ),
+                new QualitativeAnalysis.CoachingSuggestion(
+                        2,
+                        "걱정과 필요 나누기",
+                        "‘" + topicTitle + "’에서 생긴 부모의 걱정과 자녀에게 필요한 방식을 차례로 설명해요.",
+                        "내가 걱정한 부분을 먼저 말해도 될까? 너에게 필요한 방식도 같이 알려 줘.",
+                        sharedEvidence
+                ),
+                new QualitativeAnalysis.CoachingSuggestion(
+                        3,
+                        "다음 약속 정하기",
+                        "비슷한 상황이 생겼을 때 서로 지킬 수 있는 구체적인 행동을 정해요.",
+                        "다음에는 언제 어떻게 알려 줄지 우리 둘이 지킬 수 있는 방법으로 정해 볼까?",
+                        solutionEvidence
+                )
+        );
+    }
+
+    private String conflictTopicTitle(QualitativeAnalysis response) {
+        return response.scenarioInsights().stream()
+                .filter(insight -> insight != null
+                        && insight.category()
+                        == QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_TOPIC)
+                .map(QualitativeAnalysis.ScenarioInsight::title)
+                .filter(StringUtils::hasText)
+                .findFirst()
+                .or(() -> response.topics().stream()
+                        .filter(topic -> topic != null && StringUtils.hasText(topic.title()))
+                        .map(QualitativeAnalysis.Topic::title)
+                        .findFirst())
+                .orElse("이번 갈등");
+    }
+
+    private List<Long> evidenceFor(
+            AnalysisSource source,
+            QualitativeAnalysis response,
+            QualitativeAnalysis.ScenarioInsightCategory category,
+            SpeakerRole role
+    ) {
+        Set<Long> validSegmentIds = source.segments().stream()
+                .map(AnalysisSegment::segmentId)
+                .collect(Collectors.toSet());
+        List<Long> evidenceIds = response.scenarioInsights().stream()
+                .filter(insight -> insight != null && insight.category() == category)
+                .filter(insight -> role == null
+                        || insight.speakerRoles().contains(role))
+                .flatMap(insight -> insight.evidenceSegmentIds().stream())
+                .filter(validSegmentIds::contains)
+                .distinct()
+                .toList();
+        if (!evidenceIds.isEmpty()) {
+            return evidenceIds;
+        }
+        if (category == QualitativeAnalysis.ScenarioInsightCategory.SOLUTION) {
+            int fromIndex = Math.max(0, source.segments().size() - 2);
+            return source.segments().subList(fromIndex, source.segments().size()).stream()
+                    .map(AnalysisSegment::segmentId)
+                    .toList();
+        }
+
+        List<Long> roleEvidence = source.segments().stream()
+                .filter(segment -> role == null || segment.speakerRole() == role)
+                .map(AnalysisSegment::segmentId)
+                .limit(2)
+                .toList();
+        if (!roleEvidence.isEmpty()) {
+            return roleEvidence;
+        }
+        return List.of(source.segments().get(0).segmentId());
+    }
+
+    private List<Long> mergeEvidence(List<Long> first, List<Long> second) {
+        Set<Long> merged = new LinkedHashSet<>();
+        merged.addAll(first);
+        merged.addAll(second);
+        return new ArrayList<>(merged);
     }
 
     private void validateCompletion(LinerChatResult result) {

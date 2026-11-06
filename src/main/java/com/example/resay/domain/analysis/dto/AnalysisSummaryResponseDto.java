@@ -40,9 +40,13 @@ public record AnalysisSummaryResponseDto(
             BigDecimal syllablesPerSecond,
             @Schema(description = "한국어 2인 대화 연구 기준 초당 음절 수", example = "5.79")
             BigDecimal referenceSyllablesPerSecond,
-            @Schema(description = "연구 기준 대비 차이의 절댓값", example = "11.92")
+            @Schema(
+                    description = "한국어 평균 발화 속도 대비 차이 비율. "
+                            + "양수는 평균보다 빠름, 음수는 평균보다 느림",
+                    example = "-13.64"
+            )
             BigDecimal differencePercent,
-            @Schema(description = "연구 기준 대비 발화 속도 방향", example = "FASTER")
+            @Schema(description = "한국어 평균 대비 발화 속도 방향(하위 호환용)", deprecated = true)
             SpeakingSpeedDirection speakingSpeedDirection,
             SpeakingSpeedLevel level,
             String description

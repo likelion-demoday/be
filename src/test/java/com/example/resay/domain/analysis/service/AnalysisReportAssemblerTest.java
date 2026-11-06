@@ -226,8 +226,20 @@ class AnalysisReportAssemblerTest {
         assertThat(json.qualitativeAnalysis().coachingSuggestions())
                 .extracting("order")
                 .containsExactly(1, 2, 3);
+        assertThat(json.qualitativeAnalysis().coachingSuggestionEvidences())
+                .extracting("order")
+                .containsExactly(1, 2, 3);
+        assertThat(AnalysisReportDto.from(json).qualitativeAnalysis()
+                .coachingSuggestions().get(0).evidenceQuotes())
+                .singleElement()
+                .satisfies(evidence -> {
+                    assertThat(evidence.segmentId()).isEqualTo(1L);
+                    assertThat(evidence.originalContent()).isEqualTo("주말에 만날가?");
+                    assertThat(evidence.displayContent()).isEqualTo("주말에 만날가?");
+                    assertThat(evidence.correctionApplied()).isFalse();
+                });
         assertThat(report.modelName()).isEqualTo("liner-mark-1.1");
-        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v11");
+        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v12");
     }
 
     @Test

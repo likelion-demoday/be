@@ -7,7 +7,6 @@ import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerMetrics;
 import com.example.resay.domain.analysis.model.SpeakerRole;
-import com.example.resay.domain.analysis.model.SpeakingSpeedDirection;
 import com.example.resay.domain.analysis.model.SpeakingSpeedReference;
 import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
 import com.example.resay.domain.analysis.repository.AnalysisSummarySourceProjection;
@@ -175,9 +174,6 @@ public class AnalysisSummaryQueryService {
         BigDecimal differencePercent = SpeakingSpeedReference.differencePercent(
                 syllablesPerSecond
         );
-        SpeakingSpeedDirection direction = SpeakingSpeedReference.direction(
-                syllablesPerSecond
-        );
         AnalysisSummaryResponseDto.SpeakingSpeedLevel level = speakingSpeedLevel(
                 syllablesPerSecond
         );
@@ -185,9 +181,9 @@ public class AnalysisSummaryQueryService {
                 syllablesPerSecond,
                 SpeakingSpeedReference.SYLLABLES_PER_SECOND,
                 differencePercent,
-                direction,
+                SpeakingSpeedReference.direction(syllablesPerSecond),
                 level,
-                speakingSpeedDescription(direction, differencePercent)
+                speakingSpeedDescription(differencePercent)
         );
     }
 
@@ -204,17 +200,14 @@ public class AnalysisSummaryQueryService {
     }
 
     private String speakingSpeedDescription(
-            SpeakingSpeedDirection direction,
             BigDecimal differencePercent
     ) {
-        return switch (direction) {
-            case SLOWER -> "한국인 평균보다 약 "
-                    + differencePercent.abs().setScale(0, RoundingMode.HALF_UP)
-                    + "% 여유롭게 말해요.";
-            case SIMILAR -> "한국인 평균과 비슷한 속도로 말해요.";
-            case FASTER -> "한국인 평균보다 약 "
-                    + differencePercent.abs().setScale(0, RoundingMode.HALF_UP)
-                    + "% 빠르게 말해요.";
-        };
+        if (differencePercent.abs().compareTo(BigDecimal.ONE) <= 0) {
+            return "한국인 평균과 비슷한 속도로 말해요.";
+        }
+        String direction = differencePercent.signum() < 0 ? "여유롭게" : "빠르게";
+        return "한국인 평균보다 약 "
+                + differencePercent.abs().setScale(0, RoundingMode.HALF_UP)
+                + "% " + direction + " 말해요.";
     }
 }

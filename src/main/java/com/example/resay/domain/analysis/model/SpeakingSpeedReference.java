@@ -23,24 +23,18 @@ public final class SpeakingSpeedReference {
         validate(syllablesPerSecond);
         return syllablesPerSecond
                 .subtract(SYLLABLES_PER_SECOND)
-                .abs()
                 .multiply(ONE_HUNDRED)
                 .divide(SYLLABLES_PER_SECOND, SCALE, RoundingMode.HALF_UP);
     }
 
     public static SpeakingSpeedDirection direction(BigDecimal syllablesPerSecond) {
-        validate(syllablesPerSecond);
-        BigDecimal signedDifferencePercent = syllablesPerSecond
-                .subtract(SYLLABLES_PER_SECOND)
-                .multiply(ONE_HUNDRED)
-                .divide(SYLLABLES_PER_SECOND, SCALE, RoundingMode.HALF_UP);
-        if (signedDifferencePercent.abs().compareTo(SIMILAR_TOLERANCE_PERCENT) <= 0) {
+        BigDecimal differencePercent = differencePercent(syllablesPerSecond);
+        if (differencePercent.abs().compareTo(SIMILAR_TOLERANCE_PERCENT) <= 0) {
             return SpeakingSpeedDirection.SIMILAR;
         }
-        if (signedDifferencePercent.signum() < 0) {
-            return SpeakingSpeedDirection.SLOWER;
-        }
-        return SpeakingSpeedDirection.FASTER;
+        return differencePercent.signum() < 0
+                ? SpeakingSpeedDirection.SLOWER
+                : SpeakingSpeedDirection.FASTER;
     }
 
     private static void validate(BigDecimal syllablesPerSecond) {

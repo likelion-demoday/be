@@ -8,7 +8,6 @@ import com.example.resay.domain.analysis.model.AnalysisSpeaker;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerMetrics;
 import com.example.resay.domain.analysis.model.SpeakerRole;
-import com.example.resay.domain.analysis.model.SpeakingSpeedDirection;
 import com.example.resay.domain.analysis.repository.AnalysisResultRepository;
 import com.example.resay.domain.analysis.repository.AnalysisSummarySourceProjection;
 import com.example.resay.domain.recording.entity.ParentChildRole;
@@ -72,8 +71,6 @@ class AnalysisSummaryQueryServiceTest {
         assertThat(result.speakingSpeed().referenceSyllablesPerSecond())
                 .isEqualByComparingTo("5.79");
         assertThat(result.speakingSpeed().differencePercent()).isEqualByComparingTo("9.33");
-        assertThat(result.speakingSpeed().speakingSpeedDirection())
-                .isEqualTo(SpeakingSpeedDirection.FASTER);
         assertThat(result.speakingSpeed().level())
                 .isEqualTo(AnalysisSummaryResponseDto.SpeakingSpeedLevel.TYPICAL);
         assertThat(result.speakingSpeed().description())
@@ -121,8 +118,6 @@ class AnalysisSummaryQueryServiceTest {
         assertThat(result.swearWordUsage().ratePercent()).isEqualByComparingTo("2.50");
         assertThat(result.speakingSpeed().syllablesPerSecond()).isEqualByComparingTo("6.50");
         assertThat(result.speakingSpeed().differencePercent()).isEqualByComparingTo("12.26");
-        assertThat(result.speakingSpeed().speakingSpeedDirection())
-                .isEqualTo(SpeakingSpeedDirection.FASTER);
         assertThat(result.speakingSpeed().level())
                 .isEqualTo(AnalysisSummaryResponseDto.SpeakingSpeedLevel.TYPICAL);
         assertThat(result.speakingRatioHistory().get(0).speakingRatioPercent())
@@ -173,9 +168,9 @@ class AnalysisSummaryQueryServiceTest {
         );
         assertThat(result.swearWordUsage().count()).isEqualTo(1);
         assertThat(result.speakingSpeed().syllablesPerSecond()).isEqualByComparingTo("5.00");
-        assertThat(result.speakingSpeed().differencePercent()).isEqualByComparingTo("13.64");
-        assertThat(result.speakingSpeed().speakingSpeedDirection())
-                .isEqualTo(SpeakingSpeedDirection.SLOWER);
+        assertThat(result.speakingSpeed().differencePercent()).isEqualByComparingTo("-13.64");
+        assertThat(result.speakingSpeed().description())
+                .isEqualTo("한국인 평균보다 약 14% 여유롭게 말해요.");
     }
 
     @Test
@@ -196,8 +191,6 @@ class AnalysisSummaryQueryServiceTest {
         assertThat(result.speakingSpeed().syllablesPerSecond()).isEqualByComparingTo("7.00");
         assertThat(result.speakingSpeed().level())
                 .isEqualTo(AnalysisSummaryResponseDto.SpeakingSpeedLevel.FAST);
-        assertThat(result.speakingSpeed().speakingSpeedDirection())
-                .isEqualTo(SpeakingSpeedDirection.FASTER);
         assertThat(result.speakingSpeed().description())
                 .isEqualTo("한국인 평균보다 약 21% 빠르게 말해요.");
     }

@@ -18,7 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class AnalysisReportAssembler {
 
-    private static final String REPORT_SCHEMA_VERSION = "analysis-report-v11";
+    private static final String REPORT_SCHEMA_VERSION = "analysis-report-v12";
 
     private final ObjectMapper objectMapper;
 
@@ -106,7 +106,11 @@ public class AnalysisReportAssembler {
                 result.relationshipSummary(),
                 enrichReportMetrics(result.reportMetrics(), source.segments()),
                 result.speakerTendencies(),
-                orderedCoachingSuggestions(result.coachingSuggestions())
+                orderedCoachingSuggestions(result.coachingSuggestions()),
+                enrichCoachingSuggestionEvidences(
+                        result.coachingSuggestions(),
+                        source.segments()
+                )
         );
     }
 
@@ -118,6 +122,31 @@ public class AnalysisReportAssembler {
         }
         return suggestions.stream()
                 .sorted(Comparator.comparingInt(QualitativeAnalysis.CoachingSuggestion::order))
+                .toList();
+    }
+
+    private List<AnalysisReport.CoachingSuggestionEvidence>
+            enrichCoachingSuggestionEvidences(
+                    List<QualitativeAnalysis.CoachingSuggestion> suggestions,
+                    List<AnalysisSegment> segments
+            ) {
+        if (suggestions == null) {
+            return List.of();
+        }
+        Map<Long, AnalysisSegment> segmentsById = new java.util.LinkedHashMap<>();
+        segments.forEach(segment -> segmentsById.put(segment.segmentId(), segment));
+        return suggestions.stream()
+                .sorted(Comparator.comparingInt(QualitativeAnalysis.CoachingSuggestion::order))
+                .map(suggestion -> new AnalysisReport.CoachingSuggestionEvidence(
+                        suggestion.order(),
+                        suggestion.evidenceSegmentIds().stream()
+                                .distinct()
+                                .map(segmentId -> evidenceQuote(
+                                        requireSegment(segmentsById, segmentId),
+                                        segmentsById.get(segmentId).content()
+                                ))
+                                .toList()
+                ))
                 .toList();
     }
 

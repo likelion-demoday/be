@@ -16,6 +16,22 @@ final class LinerAnalysisPolicy {
                     QualitativeAnalysis.ReportMetricType.YIELDING
             );
 
+    private static final Set<QualitativeAnalysis.ReportMetricType>
+            PARENT_CHILD_METRIC_EVIDENCE_QUOTE_TYPES = Set.of(
+                    QualitativeAnalysis.ReportMetricType.SITUATION_QUESTION,
+                    QualitativeAnalysis.ReportMetricType.CONCRETE_ADVICE,
+                    QualitativeAnalysis.ReportMetricType.EMOTION_CHECK,
+                    QualitativeAnalysis.ReportMetricType.ASSERTIVE_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.EXPERIENCE_COMPARISON,
+                    QualitativeAnalysis.ReportMetricType.SHORT_RESPONSE,
+                    QualitativeAnalysis.ReportMetricType.TOPIC_AVOIDANCE,
+                    QualitativeAnalysis.ReportMetricType.REBUTTAL,
+                    QualitativeAnalysis.ReportMetricType.EMOTION_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.APOLOGY,
+                    QualitativeAnalysis.ReportMetricType.CHILD_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.PARENT_CONFIRMATION
+            );
+
     private static final Set<QualitativeAnalysis.SpeakerPatternCategory> DAILY_PATTERNS = Set.of(
             QualitativeAnalysis.SpeakerPatternCategory.SHORT_RESPONSE,
             QualitativeAnalysis.SpeakerPatternCategory.REPEAT_OR_CONFIRM,
@@ -130,8 +146,12 @@ final class LinerAnalysisPolicy {
             AnalysisScenario scenario,
             QualitativeAnalysis.ReportMetricType type
     ) {
-        return scenario == AnalysisScenario.COUPLE_CONFLICT
-                && REPORT_METRIC_EVIDENCE_QUOTE_TYPES.contains(type);
+        return switch (scenario) {
+            case COUPLE_CONFLICT -> REPORT_METRIC_EVIDENCE_QUOTE_TYPES.contains(type);
+            case PARENT_CHILD_CONFLICT ->
+                    PARENT_CHILD_METRIC_EVIDENCE_QUOTE_TYPES.contains(type);
+            case FRIEND_DAILY, COUPLE_DAILY -> false;
+        };
     }
 
     private static Set<QualitativeAnalysis.SpeakerPatternCategory> conflictPatterns() {
