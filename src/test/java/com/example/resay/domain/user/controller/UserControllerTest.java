@@ -182,6 +182,83 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.code").value("USER404_1"));
     }
 
+    @Test
+    void showsMarketingAgreementInMyInfo() throws Exception {
+        mockMvc.perform(get(ME_URL).header("Authorization", "Bearer " + accessToken))
+                .andExpect(jsonPath("$.result.marketingAgreed").value(false))
+                .andExpect(jsonPath("$.result.marketingAgreedAt", nullValue()));
+    }
+
+    @Test
+    void agreesAndWithdrawsMarketing() throws Exception {
+        updateAgreements("""
+                {"marketing": true}
+                """)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("USER200_3"))
+                .andExpect(jsonPath("$.result.marketingAgreed").value(true))
+                .andExpect(jsonPath("$.result.marketingAgreedAt", notNullValue()));
+        assertThat(userRepository.findById(user.getId()).orElseThrow().getMarketingAgreedAt()).isNotNull();
+
+        updateAgreements("""
+                {"marketing": false}
+                """)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.marketingAgreed").value(false))
+                .andExpect(jsonPath("$.result.marketingAgreedAt", nullValue()));
+        assertThat(userRepository.findById(user.getId()).orElseThrow().getMarketingAgreedAt()).isNull();
+    }
+
+    // 동의한 상태로 다시 보내도 처음 동의한 시각이 바뀌지 않는다
+    @Test
+    void keepsFirstAgreedAtWhenAgreeingAgain() throws Exception {
+        LocalDateTime firstAgreedAt = LocalDateTime.of(2026, 11, 1, 10, 0);
+        jdbcTemplate.update("update users set marketing_agreed_at = ? where id = ?", firstAgreedAt, user.getId());
+        entityManager.clear();
+
+        updateAgreements("""
+                {"marketing": true}
+                """)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.marketingAgreedAt").value("2026-11-01T10:00:00"));
+    }
+
+    // 필수 동의는 이 API로 바꿀 수 없다
+    @Test
+    void ignoresRequiredAgreements() throws Exception {
+        LocalDateTime termsAgreedAt = LocalDateTime.of(2026, 11, 1, 10, 0);
+        jdbcTemplate.update("update users set terms_agreed_at = ? where id = ?", termsAgreedAt, user.getId());
+        entityManager.clear();
+
+        updateAgreements("""
+                {"marketing": true, "terms": false, "privacy": false, "voice": false}
+                """)
+                .andExpect(status().isOk());
+        assertThat(userRepository.findById(user.getId()).orElseThrow().getTermsAgreedAt()).isEqualTo(termsAgreedAt);
+    }
+
+    @Test
+    void rejectsMissingMarketing() throws Exception {
+        updateAgreements("{}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.marketing", notNullValue()));
+    }
+
+    @Test
+    void agreementsRequireAccessToken() throws Exception {
+        mockMvc.perform(patch(ME_URL + "/agreements")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"marketing\": true}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    private ResultActions updateAgreements(String body) throws Exception {
+        return mockMvc.perform(patch(ME_URL + "/agreements")
+                .header("Authorization", "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body));
+    }
+
     private void saveRecording(Long userId, int durationSeconds, RecordingStatus status, boolean deleted) {
         Recording recording = Recording.create(userId, "recordings/test.m4a", durationSeconds);
         ReflectionTestUtils.setField(recording, "status", status);
