@@ -1,6 +1,7 @@
 package com.example.resay.domain.user.service;
 
 import com.example.resay.domain.user.code.UserErrorCode;
+import com.example.resay.domain.user.dto.UpdateAgreementsRequestDto;
 import com.example.resay.domain.user.dto.UpdateUserRequestDto;
 import com.example.resay.domain.user.dto.UserResponseDto;
 import com.example.resay.domain.user.entity.User;
@@ -8,6 +9,7 @@ import com.example.resay.domain.user.repository.UserRepository;
 import com.example.resay.domain.user.repository.UserRepository.CompletedRecordings;
 import com.example.resay.global.exception.GeneralException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,6 +31,13 @@ public class UserService {
     public UserResponseDto updateMyInfo(Long userId, UpdateUserRequestDto request) {
         User user = findUser(userId);
         user.updateNickname(request.nickname());
+        return toResponse(user);
+    }
+
+    @Transactional
+    public UserResponseDto updateAgreements(Long userId, UpdateAgreementsRequestDto request) {
+        User user = findUser(userId);
+        user.updateMarketingAgreement(request.marketing(), LocalDateTime.now());
         return toResponse(user);
     }
 
