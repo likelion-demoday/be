@@ -437,16 +437,24 @@ public class LinerAnalysisResponseValidator {
         }
         if (suggestions == null || suggestions.isEmpty()) {
             if (source.scenario() == AnalysisScenario.PARENT_CHILD_CONFLICT) {
-                throw invalidResponse("부모·자녀 갈등에는 coachingSuggestions가 세 개 필요합니다.");
+                throw invalidResponse("부모·자녀 갈등에는 화자별 coachingSuggestions가 세 개씩 필요합니다.");
             }
             return;
         }
-        if (suggestions.size() != 3) {
-            throw invalidResponse("갈등 대화에는 coachingSuggestions가 세 개 필요합니다.");
+        if (suggestions.size() != source.scenario().requiredRoles().size() * 3) {
+            throw invalidResponse("갈등 대화에는 화자별 coachingSuggestions가 세 개씩 필요합니다.");
         }
-        Set<Integer> orders = new HashSet<>();
+        Map<SpeakerRole, Set<Integer>> ordersByRole = new HashMap<>();
         for (QualitativeAnalysis.CoachingSuggestion suggestion : suggestions) {
-            if (suggestion == null || suggestion.order() < 1 || suggestion.order() > 3
+            if (suggestion == null
+                    || !source.scenario().requiredRoles().contains(suggestion.speakerRole())) {
+                throw invalidResponse("coachingSuggestion.speakerRole이 올바르지 않습니다.");
+            }
+            Set<Integer> orders = ordersByRole.computeIfAbsent(
+                    suggestion.speakerRole(),
+                    ignored -> new HashSet<>()
+            );
+            if (suggestion.order() < 1 || suggestion.order() > 3
                     || !orders.add(suggestion.order())) {
                 throw invalidResponse("coachingSuggestion.order가 올바르지 않습니다.");
             }
@@ -458,6 +466,10 @@ public class LinerAnalysisResponseValidator {
                     segmentsById,
                     "coachingSuggestion"
             );
+        }
+        if (source.scenario().requiredRoles().stream()
+                .anyMatch(role -> ordersByRole.getOrDefault(role, Set.of()).size() != 3)) {
+            throw invalidResponse("각 화자의 coachingSuggestion.order는 1, 2, 3이어야 합니다.");
         }
     }
 

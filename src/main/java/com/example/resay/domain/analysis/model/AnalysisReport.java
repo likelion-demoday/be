@@ -161,9 +161,14 @@ public record AnalysisReport(
     }
 
     public record CoachingSuggestionEvidence(
+            SpeakerRole speakerRole,
             int order,
             List<EvidenceQuote> evidenceQuotes
     ) {
+
+        public CoachingSuggestionEvidence(int order, List<EvidenceQuote> evidenceQuotes) {
+            this(null, order, evidenceQuotes);
+        }
 
         public CoachingSuggestionEvidence {
             evidenceQuotes = evidenceQuotes == null ? List.of() : List.copyOf(evidenceQuotes);

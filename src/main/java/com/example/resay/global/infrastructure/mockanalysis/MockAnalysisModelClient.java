@@ -140,16 +140,19 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
                 .limit(2)
                 .map(AnalysisSegment::segmentId)
                 .toList();
-        return java.util.stream.IntStream.rangeClosed(1, 3)
-                .mapToObj(order -> {
-                    Map<String, Object> suggestion = new LinkedHashMap<>();
-                    suggestion.put("order", order);
-                    suggestion.put("title", order + "단계 대화 제안");
-                    suggestion.put("description", "상대의 말을 확인한 뒤 내 생각을 짧게 전해 보세요.");
-                    suggestion.put("suggestedPhrase", "네 말을 먼저 이해하고 싶어. 이 부분을 조금 더 말해줄래?");
-                    suggestion.put("evidenceSegmentIds", evidenceIds);
-                    return suggestion;
-                })
+        return source.scenario().requiredRoles().stream()
+                .sorted()
+                .flatMap(role -> java.util.stream.IntStream.rangeClosed(1, 3)
+                        .mapToObj(order -> {
+                            Map<String, Object> suggestion = new LinkedHashMap<>();
+                            suggestion.put("speakerRole", role);
+                            suggestion.put("order", order);
+                            suggestion.put("title", order + "단계 대화 제안");
+                            suggestion.put("description", "상대의 말을 확인한 뒤 내 생각을 짧게 전해 보세요.");
+                            suggestion.put("suggestedPhrase", "네 말을 먼저 이해하고 싶어. 이 부분을 조금 더 말해줄래?");
+                            suggestion.put("evidenceSegmentIds", evidenceIds);
+                            return suggestion;
+                        }))
                 .toList();
     }
 
