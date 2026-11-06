@@ -112,6 +112,15 @@ public class User extends BaseEntity {
         this.marketingAgreedAt = marketing ? agreedAt : null;
     }
 
+    // 가입 후 바꿀 수 있는 동의는 마케팅 수신뿐이다. 이미 동의한 상태로 다시 보내면 처음 동의한 시각을 유지한다
+    public void updateMarketingAgreement(boolean agreed, LocalDateTime now) {
+        if (!agreed) {
+            this.marketingAgreedAt = null;
+        } else if (this.marketingAgreedAt == null) {
+            this.marketingAgreedAt = now;
+        }
+    }
+
     public void updateNickname(String nickname) {
         requireText(nickname, "nickname");
         this.nickname = nickname;

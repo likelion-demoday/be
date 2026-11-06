@@ -16,7 +16,10 @@ public record UserResponseDto(
         // 분석이 끝난 대화 중 사용자가 지우지 않은 것
         long analysisCount,
         // analysisCount에 센 녹음들의 길이 합 (초)
-        long totalRecordingSeconds
+        long totalRecordingSeconds,
+        boolean marketingAgreed,
+        // 마케팅 수신에 동의한 시각. 동의하지 않았으면 null
+        LocalDateTime marketingAgreedAt
 ) {
 
     public static UserResponseDto from(User user, long joinedDays, long analysisCount, long totalRecordingSeconds) {
@@ -28,7 +31,9 @@ public record UserResponseDto(
                 user.getCreatedAt(),
                 joinedDays,
                 analysisCount,
-                totalRecordingSeconds
+                totalRecordingSeconds,
+                user.getMarketingAgreedAt() != null,
+                user.getMarketingAgreedAt()
         );
     }
 }
