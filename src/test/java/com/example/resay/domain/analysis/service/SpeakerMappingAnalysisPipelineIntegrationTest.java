@@ -110,7 +110,7 @@ class SpeakerMappingAnalysisPipelineIntegrationTest {
                 .contains("\"recordingInfo\"")
                 .contains("\"quantitativeAnalysis\"")
                 .contains("\"qualitativeAnalysis\"");
-        assertThat(result.getSchemaVersion()).isEqualTo("analysis-report-v11");
+        assertThat(result.getSchemaVersion()).isEqualTo("analysis-report-v12");
         assertThat(completedRecording.getStatus()).isEqualTo(RecordingStatus.COMPLETED);
         assertThat(completedRecording.getCompletedAt()).isNotNull();
         assertThat(receivedSource.get().speakers())

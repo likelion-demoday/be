@@ -80,7 +80,7 @@ class LinerAnalysisModelClientTest {
     }
 
     @Test
-    void excludesRepresentativeEvidencesWhenOnlyTheyFailValidation() {
+    void preservesRepresentativeEvidencesWhenValidationFails() {
         AnalysisSource source = source();
         LinerChatRequest request = request();
         given(requestFactory.create(source)).willReturn(request);
@@ -90,21 +90,25 @@ class LinerAnalysisModelClientTest {
                 contentWithRepresentativeEvidences(),
                 "stop"
         ));
-        willThrow(new LinerAnalysisException(
+        LinerAnalysisException representativeFailure = new LinerAnalysisException(
                 "invalid_analysis_response",
                 "대표 근거 검증 실패",
                 null
-        )).willDoNothing().given(responseValidator).validate(eq(source), any());
+        );
+        willThrow(representativeFailure)
+                .given(responseValidator).validate(eq(source), any());
 
         AnalysisModelResult result = modelClient.analyze(source);
 
-        assertThat(result.resultJson()).contains("\"representativeEvidences\":[]");
-        then(responseValidator).should(org.mockito.Mockito.times(2))
+        assertThat(result.resultJson())
+                .contains("\"representativeEvidences\":[{")
+                .contains("\"segmentId\":1");
+        then(responseValidator).should()
                 .validate(eq(source), any(QualitativeAnalysis.class));
     }
 
     @Test
-    void returnsBestEffortResponseWhenCoreSemanticValidationFails() {
+    void preservesRepresentativeEvidencesWhenDifferentSemanticValidationFails() {
         AnalysisSource source = source();
         LinerChatRequest request = request();
         given(requestFactory.create(source)).willReturn(request);
@@ -125,15 +129,16 @@ class LinerAnalysisModelClientTest {
 
         assertThat(result.resultJson())
                 .contains("\"overview\"")
-                .contains("\"representativeEvidences\":[]");
+                .contains("\"representativeEvidences\":[{")
+                .contains("\"segmentId\":1");
         assertThat(result.promptVersion()).isEqualTo("analysis-prompt-v15");
 
-        then(responseValidator).should(org.mockito.Mockito.times(2))
+        then(responseValidator).should()
                 .validate(eq(source), any(QualitativeAnalysis.class));
     }
 
     @Test
-    void excludesOptionalReportFieldsWhenTheirValidationFails() {
+    void preservesOptionalReportFieldsWhenTheirValidationFails() {
         AnalysisSource source = source();
         LinerChatRequest request = request();
         given(requestFactory.create(source)).willReturn(request);
@@ -152,11 +157,42 @@ class LinerAnalysisModelClientTest {
         AnalysisModelResult result = modelClient.analyze(source);
 
         assertThat(result.resultJson())
-                .contains("\"relationshipSummary\":null")
-                .contains("\"reportMetrics\":[]")
+                .contains("\"relationshipSummary\":{")
+                .contains("\"reportMetrics\":[{")
                 .contains("\"speakerTendencies\":[]")
                 .contains("\"coachingSuggestions\":[]");
-        then(responseValidator).should(org.mockito.Mockito.times(2))
+        then(responseValidator).should()
+                .validate(eq(source), any(QualitativeAnalysis.class));
+    }
+
+    @Test
+    void preservesRequiredParentChildCoachingWhenOtherOptionalFieldsFail() {
+        AnalysisSource source = parentChildSource();
+        LinerChatRequest request = request();
+        given(requestFactory.create(source)).willReturn(request);
+        given(requestFactory.promptVersion()).willReturn("analysis-prompt-v18");
+        given(requestFactory.schemaVersion()).willReturn("analysis-report-v12");
+        given(linerApiClient.chat(request)).willReturn(result(
+                parentChildContentWithRenderableCore(),
+                "stop"
+        ));
+        willThrow(new LinerAnalysisException(
+                "invalid_analysis_response",
+                "부가 보고서 검증 실패",
+                null
+        )).willDoNothing().given(responseValidator).validate(eq(source), any());
+
+        AnalysisModelResult result = modelClient.analyze(source);
+
+        assertThat(result.resultJson())
+                .contains("\"relationshipSummary\":{")
+                .contains("\"reportMetrics\":[{")
+                .contains("\"coachingSuggestions\":[{")
+                .contains("\"order\":1")
+                .contains("\"order\":2")
+                .contains("\"order\":3")
+                .contains("입장 확인: 학교생활");
+        then(responseValidator).should()
                 .validate(eq(source), any(QualitativeAnalysis.class));
     }
 
@@ -235,6 +271,21 @@ class LinerAnalysisModelClientTest {
                             .isEqualTo(QualitativeAnalysis.ReportMetricType.SITUATION_QUESTION);
                     assertThat(metric.value()).isEqualTo(1);
                 });
+        assertThat(report.qualitativeAnalysis().coachingSuggestions())
+                .extracting(QualitativeAnalysis.CoachingSuggestion::order)
+                .containsExactly(1, 2, 3);
+        assertThat(report.qualitativeAnalysis().coachingSuggestions().get(0).title())
+                .isEqualTo("입장 확인: 학교생활");
+        assertThat(report.qualitativeAnalysis().representativeEvidences())
+                .extracting(AnalysisReport.RepresentativeEvidence::type)
+                .containsExactly(
+                        QualitativeAnalysis.ReportEvidenceType.CHILD_POSITION,
+                        QualitativeAnalysis.ReportEvidenceType.FOLLOWING_ADVICE,
+                        QualitativeAnalysis.ReportEvidenceType.UNASKED_QUESTION,
+                        QualitativeAnalysis.ReportEvidenceType.WORRY_START,
+                        QualitativeAnalysis.ReportEvidenceType.EXPRESSION_TURNING_POINT,
+                        QualitativeAnalysis.ReportEvidenceType.CLOSING_RESPONSE
+                );
     }
 
     @Test

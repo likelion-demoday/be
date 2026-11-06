@@ -39,6 +39,20 @@ public class LinerAnalysisResponseValidator {
         validateRepresentativeEvidences(source, response, segmentsById);
     }
 
+    void validateRepresentativeEvidencesOnly(
+            AnalysisSource source,
+            QualitativeAnalysis response
+    ) {
+        if (source == null || response == null) {
+            throw invalidResponse("분석 입력 또는 응답이 비어 있습니다.");
+        }
+        validateRepresentativeEvidences(
+                source,
+                response,
+                segmentsById(source.segments())
+        );
+    }
+
     private void validateRepresentativeEvidences(
             AnalysisSource source,
             QualitativeAnalysis response,
@@ -413,12 +427,19 @@ public class LinerAnalysisResponseValidator {
             List<QualitativeAnalysis.CoachingSuggestion> suggestions,
             Map<Long, AnalysisSegment> segmentsById
     ) {
-        if (suggestions == null || suggestions.isEmpty()) {
+        boolean conflictScenario = source.scenario() == AnalysisScenario.COUPLE_CONFLICT
+                || source.scenario() == AnalysisScenario.PARENT_CHILD_CONFLICT;
+        if (!conflictScenario) {
+            if (suggestions != null && !suggestions.isEmpty()) {
+                throw invalidResponse("일상 대화에는 coachingSuggestions를 작성할 수 없습니다.");
+            }
             return;
         }
-        if (source.scenario() != AnalysisScenario.COUPLE_CONFLICT
-                && source.scenario() != AnalysisScenario.PARENT_CHILD_CONFLICT) {
-            throw invalidResponse("일상 대화에는 coachingSuggestions를 작성할 수 없습니다.");
+        if (suggestions == null || suggestions.isEmpty()) {
+            if (source.scenario() == AnalysisScenario.PARENT_CHILD_CONFLICT) {
+                throw invalidResponse("부모·자녀 갈등에는 coachingSuggestions가 세 개 필요합니다.");
+            }
+            return;
         }
         if (suggestions.size() != 3) {
             throw invalidResponse("갈등 대화에는 coachingSuggestions가 세 개 필요합니다.");

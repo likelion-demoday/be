@@ -336,6 +336,193 @@ class LinerAnalysisResponseGrounderTest {
     }
 
     @Test
+    void keepsParentChildCountMetricDisplayEvidence() {
+        AnalysisSource source = parentChildMetricSource();
+        QualitativeAnalysis response = responseWithMetric(new QualitativeAnalysis.ReportMetric(
+                QualitativeAnalysis.ReportMetricType.CONCRETE_ADVICE,
+                SpeakerRole.PARENT,
+                1,
+                QualitativeAnalysis.ReportMetricUnit.COUNT,
+                "구체적인 조언",
+                "다음 연락 방법을 제안했어요.",
+                List.of(1L),
+                List.of(new QualitativeAnalysis.MetricDisplayEvidence(
+                        1L,
+                        "늦어지면 예상 시간을 먼저 보내 줘."
+                ))
+        ));
+
+        QualitativeAnalysis grounded = grounder.ground(source, response);
+
+        assertThat(grounded.reportMetrics().get(0).displayEvidences())
+                .containsExactly(new QualitativeAnalysis.MetricDisplayEvidence(
+                        1L,
+                        "늦어지면 예상 시간을 먼저 보내 줘."
+                ));
+    }
+
+    @Test
+    void removesOtherSpeakerEvidenceAndRecalculatesCountMetricValue() {
+        AnalysisSource source = parentChildMetricSource();
+        QualitativeAnalysis response = responseWithMetric(new QualitativeAnalysis.ReportMetric(
+                QualitativeAnalysis.ReportMetricType.CONCRETE_ADVICE,
+                SpeakerRole.PARENT,
+                2,
+                QualitativeAnalysis.ReportMetricUnit.COUNT,
+                "구체적인 조언",
+                "다음 연락 방법을 제안했어요.",
+                List.of(1L, 2L),
+                List.of(
+                        new QualitativeAnalysis.MetricDisplayEvidence(
+                                1L,
+                                "늦어지면 예상 시간을 먼저 보내 줘."
+                        ),
+                        new QualitativeAnalysis.MetricDisplayEvidence(
+                                2L,
+                                "알겠어. 먼저 연락할게."
+                        )
+                )
+        ));
+
+        QualitativeAnalysis grounded = grounder.ground(source, response);
+        QualitativeAnalysis.ReportMetric metric = grounded.reportMetrics().get(0);
+
+        assertThat(metric.value()).isEqualTo(1);
+        assertThat(metric.evidenceSegmentIds()).containsExactly(1L);
+        assertThat(metric.displayEvidences())
+                .extracting(QualitativeAnalysis.MetricDisplayEvidence::segmentId)
+                .containsExactly(1L);
+    }
+
+    @Test
+    void narrowsScenarioInsightRolesToRolesBackedByEvidence() {
+        AnalysisSource source = parentChildMetricSource();
+        QualitativeAnalysis response = new QualitativeAnalysis(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(new QualitativeAnalysis.ScenarioInsight(
+                        QualitativeAnalysis.ScenarioInsightCategory.MISSED_SIGNAL,
+                        List.of(SpeakerRole.PARENT, SpeakerRole.CHILD),
+                        "설명을 놓친 순간",
+                        "자녀의 설명이 충분히 이어지지 못했어요.",
+                        List.of(2L)
+                ))
+        );
+
+        QualitativeAnalysis grounded = grounder.ground(source, response);
+
+        assertThat(grounded.scenarioInsights().get(0).speakerRoles())
+                .containsExactly(SpeakerRole.CHILD);
+    }
+
+    @Test
+    void removesCombinedConflictPositionWhenRoleSpecificPositionsExist() {
+        AnalysisSource source = parentChildMetricSource();
+        QualitativeAnalysis response = new QualitativeAnalysis(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(
+                        conflictPosition(List.of(SpeakerRole.PARENT), List.of(1L)),
+                        conflictPosition(List.of(SpeakerRole.CHILD), List.of(2L)),
+                        conflictPosition(
+                                List.of(SpeakerRole.PARENT, SpeakerRole.CHILD),
+                                List.of(1L, 2L)
+                        )
+                )
+        );
+
+        QualitativeAnalysis grounded = grounder.ground(source, response);
+
+        assertThat(grounded.scenarioInsights())
+                .extracting(QualitativeAnalysis.ScenarioInsight::speakerRoles)
+                .containsExactly(
+                        List.of(SpeakerRole.PARENT),
+                        List.of(SpeakerRole.CHILD)
+                );
+    }
+
+    @Test
+    void splitsCombinedConflictPositionByEvidenceSpeakerWhenSpecificPositionsAreMissing() {
+        AnalysisSource source = parentChildMetricSource();
+        QualitativeAnalysis response = new QualitativeAnalysis(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(conflictPosition(
+                        List.of(SpeakerRole.PARENT, SpeakerRole.CHILD),
+                        List.of(1L, 2L)
+                ))
+        );
+
+        QualitativeAnalysis grounded = grounder.ground(source, response);
+
+        assertThat(grounded.scenarioInsights())
+                .extracting(
+                        QualitativeAnalysis.ScenarioInsight::speakerRoles,
+                        QualitativeAnalysis.ScenarioInsight::evidenceSegmentIds
+                )
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(
+                                List.of(SpeakerRole.PARENT),
+                                List.of(1L)
+                        ),
+                        org.assertj.core.groups.Tuple.tuple(
+                                List.of(SpeakerRole.CHILD),
+                                List.of(2L)
+                        )
+                );
+    }
+
+    @Test
+    void removesOtherSpeakerEvidenceFromSpicinessObservation() {
+        AnalysisSource source = parentChildMetricSource();
+        QualitativeAnalysis response = new QualitativeAnalysis(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(new QualitativeAnalysis.SpicinessInsight(
+                        SpeakerRole.PARENT,
+                        18,
+                        "직접적인 표현이 일부 나타나요.",
+                        List.of(),
+                        List.of(new QualitativeAnalysis.SpicinessObservation(
+                                QualitativeAnalysis.SpicinessCategory.DIRECTNESS,
+                                "기준을 직접 말해요",
+                                "연락 기준을 직접 설명해요.",
+                                List.of(1L, 2L)
+                        ))
+                )),
+                null,
+                null
+        );
+
+        QualitativeAnalysis grounded = grounder.ground(source, response);
+
+        assertThat(grounded.spicinessInsights().get(0).observations().get(0)
+                .evidenceSegmentIds()).containsExactly(1L);
+    }
+
+    @Test
     void groundsSpeakerPatternEvidenceAndDropsOnlyInvalidQuotes() {
         AnalysisSource source = evidenceSource();
         QualitativeAnalysis response = responseWithPattern(
@@ -363,6 +550,49 @@ class LinerAnalysisResponseGrounderTest {
                 .containsExactly(new QualitativeAnalysis.PatternDisplayEvidence(
                         1L,
                         "아니, 그거 진짜 힘들었을 것 같아."
+                ));
+    }
+
+    @Test
+    void removesSpeakerPatternWhenNoValidEvidenceExists() {
+        AnalysisSource source = evidenceSource();
+        QualitativeAnalysis response = responseWithPattern(
+                new QualitativeAnalysis.SpeakerPattern(
+                        QualitativeAnalysis.SpeakerPatternCategory.EMOTION_QUESTION,
+                        "감정을 직접 묻는 질문은 없어요",
+                        "감정을 확인하는 질문은 나타나지 않아요.",
+                        List.of(),
+                        List.of()
+                )
+        );
+
+        QualitativeAnalysis grounded = grounder.ground(source, response);
+
+        assertThat(grounded.speakerInsights().get(0).patterns()).isEmpty();
+    }
+
+    @Test
+    void recoversPatternDisplayEvidenceFromValidPatternEvidence() {
+        AnalysisSource source = evidenceSource();
+        QualitativeAnalysis response = responseWithPattern(
+                new QualitativeAnalysis.SpeakerPattern(
+                        QualitativeAnalysis.SpeakerPatternCategory.SITUATION_ACKNOWLEDGEMENT,
+                        "상대 상황을 받아줘요",
+                        "상대가 말한 상황을 인정하며 대화를 이어가요.",
+                        List.of(1L),
+                        List.of(new QualitativeAnalysis.PatternDisplayEvidence(
+                                999L,
+                                "존재하지 않는 발화"
+                        ))
+                )
+        );
+
+        QualitativeAnalysis grounded = grounder.ground(source, response);
+
+        assertThat(grounded.speakerInsights().get(0).patterns().get(0).displayEvidences())
+                .containsExactly(new QualitativeAnalysis.PatternDisplayEvidence(
+                        1L,
+                        "아니 그거 진짜 힘들었을거 가타"
                 ));
     }
 
@@ -591,6 +821,44 @@ class LinerAnalysisResponseGrounderTest {
                                 "회의 중이었어"
                         )
                 )
+        );
+    }
+
+    private AnalysisSource parentChildMetricSource() {
+        return new AnalysisSource(
+                6L,
+                AnalysisScenario.PARENT_CHILD_CONFLICT,
+                10_000L,
+                speakersFor(AnalysisScenario.PARENT_CHILD_CONFLICT),
+                List.of(
+                        new AnalysisSegment(
+                                1L,
+                                SpeakerRole.PARENT,
+                                0L,
+                                1_000L,
+                                "늦어지면 예상 시간을 먼저 보내 줘."
+                        ),
+                        new AnalysisSegment(
+                                2L,
+                                SpeakerRole.CHILD,
+                                1_100L,
+                                2_000L,
+                                "알겠어. 먼저 연락할게."
+                        )
+                )
+        );
+    }
+
+    private QualitativeAnalysis.ScenarioInsight conflictPosition(
+            List<SpeakerRole> roles,
+            List<Long> evidenceSegmentIds
+    ) {
+        return new QualitativeAnalysis.ScenarioInsight(
+                QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_POSITION,
+                roles,
+                "갈등에서의 입장",
+                "각 화자가 갈등 상황에서 자신의 입장을 설명했어요.",
+                evidenceSegmentIds
         );
     }
 

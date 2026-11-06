@@ -33,9 +33,6 @@ public class AnalysisSummaryQueryService {
     private static final int FREQUENT_EXPRESSION_LIMIT = 5;
     private static final BigDecimal ONE_HUNDRED = BigDecimal.valueOf(100);
     private static final BigDecimal MILLIS_PER_SECOND = BigDecimal.valueOf(1_000);
-    private static final BigDecimal RELAXED_UPPER_BOUND = new BigDecimal("5.00");
-    private static final BigDecimal TYPICAL_UPPER_BOUND = new BigDecimal("6.50");
-
     private final AnalysisResultRepository analysisResultRepository;
     private final ObjectMapper objectMapper;
 
@@ -184,35 +181,33 @@ public class AnalysisSummaryQueryService {
                 syllablesPerSecond,
                 SpeakingSpeedReference.SYLLABLES_PER_SECOND,
                 differencePercent,
+                SpeakingSpeedReference.direction(syllablesPerSecond),
                 level,
-                speakingSpeedDescription(level, differencePercent)
+                speakingSpeedDescription(differencePercent)
         );
     }
 
     private AnalysisSummaryResponseDto.SpeakingSpeedLevel speakingSpeedLevel(
             BigDecimal syllablesPerSecond
     ) {
-        if (syllablesPerSecond.compareTo(RELAXED_UPPER_BOUND) < 0) {
+        if (syllablesPerSecond.compareTo(SpeakingSpeedReference.TYPICAL_LOWER_BOUND) < 0) {
             return AnalysisSummaryResponseDto.SpeakingSpeedLevel.RELAXED;
         }
-        if (syllablesPerSecond.compareTo(TYPICAL_UPPER_BOUND) <= 0) {
+        if (syllablesPerSecond.compareTo(SpeakingSpeedReference.TYPICAL_UPPER_BOUND) <= 0) {
             return AnalysisSummaryResponseDto.SpeakingSpeedLevel.TYPICAL;
         }
         return AnalysisSummaryResponseDto.SpeakingSpeedLevel.FAST;
     }
 
     private String speakingSpeedDescription(
-            AnalysisSummaryResponseDto.SpeakingSpeedLevel level,
             BigDecimal differencePercent
     ) {
-        return switch (level) {
-            case RELAXED -> "한국인 평균보다 약 "
-                    + differencePercent.abs().setScale(0, RoundingMode.HALF_UP)
-                    + "% 여유롭게 말해요.";
-            case TYPICAL -> "한국인 평균과 비슷한 속도로 말해요.";
-            case FAST -> "한국인 평균보다 약 "
-                    + differencePercent.abs().setScale(0, RoundingMode.HALF_UP)
-                    + "% 빠르게 말해요.";
-        };
+        if (differencePercent.abs().compareTo(BigDecimal.ONE) <= 0) {
+            return "한국인 평균과 비슷한 속도로 말해요.";
+        }
+        String direction = differencePercent.signum() < 0 ? "여유롭게" : "빠르게";
+        return "한국인 평균보다 약 "
+                + differencePercent.abs().setScale(0, RoundingMode.HALF_UP)
+                + "% " + direction + " 말해요.";
     }
 }
