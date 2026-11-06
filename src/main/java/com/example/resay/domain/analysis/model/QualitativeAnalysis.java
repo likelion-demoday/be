@@ -367,12 +367,23 @@ public record QualitativeAnalysis(
     }
 
     public record CoachingSuggestion(
+            SpeakerRole speakerRole,
             int order,
             String title,
             String description,
             String suggestedPhrase,
             List<Long> evidenceSegmentIds
     ) {
+        public CoachingSuggestion(
+                int order,
+                String title,
+                String description,
+                String suggestedPhrase,
+                List<Long> evidenceSegmentIds
+        ) {
+            this(null, order, title, description, suggestedPhrase, evidenceSegmentIds);
+        }
+
         public CoachingSuggestion {
             evidenceSegmentIds = copy(evidenceSegmentIds);
         }

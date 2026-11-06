@@ -8,9 +8,11 @@ import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import com.example.resay.domain.analysis.port.AnalysisModelClient;
 import com.example.resay.domain.analysis.service.AnalysisFailureCategory;
-import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -368,17 +370,18 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
             AnalysisSource source,
             List<QualitativeAnalysis.CoachingSuggestion> suggestions
     ) {
-        if (suggestions == null || suggestions.size() != 3) {
+        if (suggestions == null
+                || suggestions.size() != source.scenario().requiredRoles().size() * 3) {
             return false;
         }
         Set<Long> segmentIds = source.segments().stream()
                 .map(AnalysisSegment::segmentId)
                 .collect(Collectors.toSet());
-        Set<Integer> orders = new LinkedHashSet<>();
+        Map<SpeakerRole, Set<Integer>> ordersByRole = new HashMap<>();
         for (QualitativeAnalysis.CoachingSuggestion suggestion : suggestions) {
             if (suggestion == null
+                    || !source.scenario().requiredRoles().contains(suggestion.speakerRole())
                     || suggestion.order() < 1 || suggestion.order() > 3
-                    || !orders.add(suggestion.order())
                     || !StringUtils.hasText(suggestion.title())
                     || !StringUtils.hasText(suggestion.description())
                     || !StringUtils.hasText(suggestion.suggestedPhrase())
@@ -387,8 +390,15 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
                     || !segmentIds.containsAll(suggestion.evidenceSegmentIds())) {
                 return false;
             }
+            if (!ordersByRole.computeIfAbsent(
+                    suggestion.speakerRole(),
+                    ignored -> new HashSet<>()
+            ).add(suggestion.order())) {
+                return false;
+            }
         }
-        return orders.size() == 3;
+        return source.scenario().requiredRoles().stream()
+                .allMatch(role -> ordersByRole.getOrDefault(role, Set.of()).size() == 3);
     }
 
     private List<QualitativeAnalysis.CoachingSuggestion> parentChildCoachingFallback(
@@ -408,7 +418,6 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
                 QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_POSITION,
                 SpeakerRole.PARENT
         );
-        List<Long> sharedEvidence = mergeEvidence(parentEvidence, childEvidence);
         List<Long> solutionEvidence = evidenceFor(
                 source,
                 response,
@@ -418,24 +427,51 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
 
         return List.of(
                 new QualitativeAnalysis.CoachingSuggestion(
+                        SpeakerRole.PARENT,
                         1,
                         "입장 확인: " + topicTitle,
-                        "‘" + topicTitle + "’을 두고 상대가 중요하게 생각하는 점을 먼저 확인해요.",
+                        "‘" + topicTitle + "’을 두고 자녀가 중요하게 생각하는 점을 먼저 확인해요.",
                         "‘" + topicTitle + "’에 대해 네가 가장 중요하게 생각하는 게 무엇인지 먼저 듣고 싶어.",
                         childEvidence
                 ),
                 new QualitativeAnalysis.CoachingSuggestion(
+                        SpeakerRole.PARENT,
                         2,
-                        "걱정과 필요 나누기",
-                        "‘" + topicTitle + "’에서 생긴 부모의 걱정과 자녀에게 필요한 방식을 차례로 설명해요.",
-                        "내가 걱정한 부분을 먼저 말해도 될까? 너에게 필요한 방식도 같이 알려 줘.",
-                        sharedEvidence
+                        "걱정 설명하기",
+                        "‘" + topicTitle + "’에서 생긴 걱정을 자녀를 탓하지 않고 설명해요.",
+                        "너를 탓하려는 건 아니고, 나는 이 부분이 걱정됐어.",
+                        parentEvidence
                 ),
                 new QualitativeAnalysis.CoachingSuggestion(
+                        SpeakerRole.PARENT,
                         3,
                         "다음 약속 정하기",
                         "비슷한 상황이 생겼을 때 서로 지킬 수 있는 구체적인 행동을 정해요.",
                         "다음에는 언제 어떻게 알려 줄지 우리 둘이 지킬 수 있는 방법으로 정해 볼까?",
+                        solutionEvidence
+                ),
+                new QualitativeAnalysis.CoachingSuggestion(
+                        SpeakerRole.CHILD,
+                        1,
+                        "걱정 확인: " + topicTitle,
+                        "‘" + topicTitle + "’을 두고 부모가 걱정한 점을 먼저 확인해요.",
+                        "내가 이렇게 이해했는데, 어떤 점이 가장 걱정됐는지 먼저 듣고 싶어.",
+                        parentEvidence
+                ),
+                new QualitativeAnalysis.CoachingSuggestion(
+                        SpeakerRole.CHILD,
+                        2,
+                        "필요한 방식 설명하기",
+                        "‘" + topicTitle + "’에서 자신에게 필요했던 방식을 부모를 탓하지 않고 설명해요.",
+                        "나는 그때 내 상황을 먼저 들어 주는 방식이 필요했어.",
+                        childEvidence
+                ),
+                new QualitativeAnalysis.CoachingSuggestion(
+                        SpeakerRole.CHILD,
+                        3,
+                        "다음 약속 제안하기",
+                        "비슷한 상황이 생겼을 때 함께 지킬 수 있는 구체적인 행동을 제안해요.",
+                        "다음에는 내가 먼저 알려 줄게. 그때는 답을 조금 기다려 줄 수 있어?",
                         solutionEvidence
                 )
         );
@@ -492,13 +528,6 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
             return roleEvidence;
         }
         return List.of(source.segments().get(0).segmentId());
-    }
-
-    private List<Long> mergeEvidence(List<Long> first, List<Long> second) {
-        Set<Long> merged = new LinkedHashSet<>();
-        merged.addAll(first);
-        merged.addAll(second);
-        return new ArrayList<>(merged);
     }
 
     private void validateCompletion(LinerChatResult result) {

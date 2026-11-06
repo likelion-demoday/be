@@ -261,6 +261,8 @@ public record AnalysisReportDto(
     }
 
     public record CoachingSuggestion(
+            @Schema(description = "개선 힌트를 적용할 화자 역할", example = "SELF")
+            SpeakerRole speakerRole,
             int order,
             String title,
             String description,
@@ -274,13 +276,15 @@ public record AnalysisReportDto(
                 List<AnalysisReport.CoachingSuggestionEvidence> evidences
         ) {
             List<EvidenceQuote> evidenceQuotes = evidences.stream()
-                    .filter(item -> item.order() == source.order())
+                    .filter(item -> item.order() == source.order()
+                            && item.speakerRole() == source.speakerRole())
                     .findFirst()
                     .map(item -> item.evidenceQuotes().stream()
                             .map(EvidenceQuote::from)
                             .toList())
                     .orElse(List.of());
             return new CoachingSuggestion(
+                    source.speakerRole(),
                     source.order(),
                     source.title(),
                     source.description(),

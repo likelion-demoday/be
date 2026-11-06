@@ -18,7 +18,14 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class AnalysisReportAssembler {
 
-    private static final String REPORT_SCHEMA_VERSION = "analysis-report-v12";
+    private static final String REPORT_SCHEMA_VERSION = "analysis-report-v13";
+    private static final Comparator<QualitativeAnalysis.CoachingSuggestion>
+            COACHING_SUGGESTION_COMPARATOR = Comparator
+                    .comparing(
+                            QualitativeAnalysis.CoachingSuggestion::speakerRole,
+                            Comparator.nullsFirst(Comparator.naturalOrder())
+                    )
+                    .thenComparingInt(QualitativeAnalysis.CoachingSuggestion::order);
 
     private final ObjectMapper objectMapper;
 
@@ -121,7 +128,7 @@ public class AnalysisReportAssembler {
             return List.of();
         }
         return suggestions.stream()
-                .sorted(Comparator.comparingInt(QualitativeAnalysis.CoachingSuggestion::order))
+                .sorted(COACHING_SUGGESTION_COMPARATOR)
                 .toList();
     }
 
@@ -136,8 +143,9 @@ public class AnalysisReportAssembler {
         Map<Long, AnalysisSegment> segmentsById = new java.util.LinkedHashMap<>();
         segments.forEach(segment -> segmentsById.put(segment.segmentId(), segment));
         return suggestions.stream()
-                .sorted(Comparator.comparingInt(QualitativeAnalysis.CoachingSuggestion::order))
+                .sorted(COACHING_SUGGESTION_COMPARATOR)
                 .map(suggestion -> new AnalysisReport.CoachingSuggestionEvidence(
+                        suggestion.speakerRole(),
                         suggestion.order(),
                         suggestion.evidenceSegmentIds().stream()
                                 .distinct()

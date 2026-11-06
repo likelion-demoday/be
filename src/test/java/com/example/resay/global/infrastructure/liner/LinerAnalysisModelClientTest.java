@@ -170,8 +170,8 @@ class LinerAnalysisModelClientTest {
         AnalysisSource source = parentChildSource();
         LinerChatRequest request = request();
         given(requestFactory.create(source)).willReturn(request);
-        given(requestFactory.promptVersion()).willReturn("analysis-prompt-v18");
-        given(requestFactory.schemaVersion()).willReturn("analysis-report-v12");
+        given(requestFactory.promptVersion()).willReturn("analysis-prompt-v19");
+        given(requestFactory.schemaVersion()).willReturn("analysis-result-v10");
         given(linerApiClient.chat(request)).willReturn(result(
                 parentChildContentWithRenderableCore(),
                 "stop"
@@ -273,7 +273,17 @@ class LinerAnalysisModelClientTest {
                 });
         assertThat(report.qualitativeAnalysis().coachingSuggestions())
                 .extracting(QualitativeAnalysis.CoachingSuggestion::order)
-                .containsExactly(1, 2, 3);
+                .containsExactly(1, 2, 3, 1, 2, 3);
+        assertThat(report.qualitativeAnalysis().coachingSuggestions())
+                .extracting(QualitativeAnalysis.CoachingSuggestion::speakerRole)
+                .containsExactly(
+                        SpeakerRole.PARENT,
+                        SpeakerRole.PARENT,
+                        SpeakerRole.PARENT,
+                        SpeakerRole.CHILD,
+                        SpeakerRole.CHILD,
+                        SpeakerRole.CHILD
+                );
         assertThat(report.qualitativeAnalysis().coachingSuggestions().get(0).title())
                 .isEqualTo("입장 확인: 학교생활");
         assertThat(report.qualitativeAnalysis().representativeEvidences())
