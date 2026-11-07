@@ -321,6 +321,47 @@ class LinerAnalysisResponseValidatorTest {
     }
 
     @Test
+    void acceptsThreeCoachingSuggestionsForEachConflictSpeaker() {
+        QualitativeAnalysis response = withCoachingSuggestions(
+                conflictResponse(validConflictInsights()),
+                validConflictCoachingSuggestions()
+        );
+
+        assertThatCode(() -> validator.validate(conflictSource(), response))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsConflictCoachingSuggestionsWithoutThreeOrdersPerSpeaker() {
+        List<QualitativeAnalysis.CoachingSuggestion> suggestions =
+                new java.util.ArrayList<>(validConflictCoachingSuggestions());
+        suggestions.set(5, coachingSuggestion(SpeakerRole.SELF, 3, 2L));
+        QualitativeAnalysis response = withCoachingSuggestions(
+                conflictResponse(validConflictInsights()),
+                suggestions
+        );
+
+        assertThatThrownBy(() -> validator.validate(conflictSource(), response))
+                .isInstanceOf(LinerAnalysisException.class)
+                .hasMessageContaining("order");
+    }
+
+    @Test
+    void rejectsConflictCoachingSuggestionForSpeakerOutsideScenario() {
+        List<QualitativeAnalysis.CoachingSuggestion> suggestions =
+                new java.util.ArrayList<>(validConflictCoachingSuggestions());
+        suggestions.set(5, coachingSuggestion(SpeakerRole.FRIEND, 3, 2L));
+        QualitativeAnalysis response = withCoachingSuggestions(
+                conflictResponse(validConflictInsights()),
+                suggestions
+        );
+
+        assertThatThrownBy(() -> validator.validate(conflictSource(), response))
+                .isInstanceOf(LinerAnalysisException.class)
+                .hasMessageContaining("speakerRole");
+    }
+
+    @Test
     void rejectsConflictPositionsCombinedIntoOneInsight() {
         List<QualitativeAnalysis.ScenarioInsight> insights = List.of(
                 scenarioInsight(
@@ -469,6 +510,54 @@ class LinerAnalysisResponseValidatorTest {
                 metrics,
                 List.of(),
                 List.of()
+        );
+    }
+
+    private QualitativeAnalysis withCoachingSuggestions(
+            QualitativeAnalysis source,
+            List<QualitativeAnalysis.CoachingSuggestion> suggestions
+    ) {
+        return new QualitativeAnalysis(
+                source.overview(),
+                source.timeline(),
+                source.topics(),
+                source.characterInsights(),
+                source.speakerInsights(),
+                source.interestInsights(),
+                source.spicinessInsights(),
+                source.reactionStyleInsights(),
+                source.scenarioInsights(),
+                source.representativeEvidences(),
+                source.relationshipSummary(),
+                source.reportMetrics(),
+                source.speakerTendencies(),
+                suggestions
+        );
+    }
+
+    private List<QualitativeAnalysis.CoachingSuggestion> validConflictCoachingSuggestions() {
+        return List.of(
+                coachingSuggestion(SpeakerRole.SELF, 1, 1L),
+                coachingSuggestion(SpeakerRole.SELF, 2, 1L),
+                coachingSuggestion(SpeakerRole.SELF, 3, 1L),
+                coachingSuggestion(SpeakerRole.PARTNER, 1, 2L),
+                coachingSuggestion(SpeakerRole.PARTNER, 2, 2L),
+                coachingSuggestion(SpeakerRole.PARTNER, 3, 2L)
+        );
+    }
+
+    private QualitativeAnalysis.CoachingSuggestion coachingSuggestion(
+            SpeakerRole role,
+            int order,
+            Long evidenceId
+    ) {
+        return new QualitativeAnalysis.CoachingSuggestion(
+                role,
+                order,
+                order + "단계",
+                "대화를 다시 이어가기 위한 제안이에요.",
+                "이 부분을 다시 차분하게 이야기해 볼까?",
+                List.of(evidenceId)
         );
     }
 
