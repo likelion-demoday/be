@@ -44,6 +44,8 @@ public class SecurityConfig {
             "/api/v1/payments/nicepay/return",
             // 나이스페이 서버가 결제 · 취소를 알리는 주소. 로그인 대신 서명으로 확인하고, 상태는 나이스페이에 조회해서 반영한다
             "/api/v1/payments/nicepay/webhook",
+            // 보고서 공유 링크. 로그인 대신 각 API가 Authorization: Share {토큰}을 검증한다 (헤더 · 요청 횟수 제한은 SharedLinkInterceptor)
+            "/api/v1/shared/**",
             // 허용된 API에서 발생한 오류가 /error로 넘어갈 때 401로 바뀌지 않게 한다
             "/error"
     };
