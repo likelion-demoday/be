@@ -5,6 +5,7 @@ import com.example.resay.domain.analysis.model.SpeakerRole;
 import com.example.resay.domain.character.model.CharacterCardStyle;
 import com.example.resay.domain.character.model.CharacterImageGenerationCommand;
 import com.example.resay.domain.character.model.GeneratedCharacterImage;
+import com.example.resay.domain.character.port.CharacterDesignGenerator;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
@@ -14,6 +15,7 @@ import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static com.example.resay.domain.character.support.CharacterDesignFixtures.validDesign;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -32,16 +34,19 @@ class OpenAiCharacterImageGeneratorTest {
             Duration.ofSeconds(3),
             Duration.ofSeconds(180)
     );
+    private final CharacterDesignGenerator designGenerator = mock(CharacterDesignGenerator.class);
     private final OpenAiImageApiClient apiClient = mock(OpenAiImageApiClient.class);
     private final OpenAiCharacterImageGenerator generator = new OpenAiCharacterImageGenerator(
             properties,
-            new OpenAiCharacterPromptFactory(),
+            designGenerator,
+            new OpenAiCharacterPromptFactory(new tools.jackson.databind.ObjectMapper()),
             apiClient
     );
 
     @Test
     void decodesGeneratedImage() {
         byte[] imageBytes = "image-content".getBytes(StandardCharsets.UTF_8);
+        when(designGenerator.generate(any())).thenReturn(validDesign());
         when(apiClient.generate(any())).thenReturn(new OpenAiImageResult(
                 "request-1",
                 new OpenAiImageResponse(
@@ -60,18 +65,23 @@ class OpenAiCharacterImageGeneratorTest {
         assertThat(result.content()).isEqualTo(imageBytes);
         assertThat(result.mediaType()).isEqualTo("image/png");
         assertThat(result.model()).isEqualTo("gpt-image-2.5-flare");
-        assertThat(result.promptVersion()).isEqualTo("character-image-prompt-v4");
+        assertThat(result.promptVersion()).isEqualTo("character-image-prompt-v6");
 
         ArgumentCaptor<OpenAiImageRequest> requestCaptor =
                 ArgumentCaptor.forClass(OpenAiImageRequest.class);
         verify(apiClient).generate(requestCaptor.capture());
+        verify(designGenerator).generate(command());
         assertThat(requestCaptor.getValue().size()).isEqualTo("1024x1024");
         assertThat(requestCaptor.getValue().outputFormat()).isEqualTo("png");
         assertThat(requestCaptor.getValue().background()).isEqualTo("transparent");
+        assertThat(requestCaptor.getValue().prompt())
+                .contains("cropped field jacket")
+                .contains("#287B78");
     }
 
     @Test
     void rejectsMalformedBase64() {
+        when(designGenerator.generate(any())).thenReturn(validDesign());
         when(apiClient.generate(any())).thenReturn(new OpenAiImageResult(
                 "request-1",
                 new OpenAiImageResponse(

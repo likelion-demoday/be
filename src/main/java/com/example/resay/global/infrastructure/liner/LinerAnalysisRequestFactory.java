@@ -15,7 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class LinerAnalysisRequestFactory {
 
-    private static final String PROMPT_VERSION = "analysis-prompt-v18";
+    private static final String PROMPT_VERSION = "analysis-prompt-v19";
     private static final String SCHEMA_VERSION = "analysis-result-v9";
     private static final int MAX_COMPLETION_TOKENS = 32768;
     private static final String REASONING_EFFORT = "medium";
@@ -64,7 +64,9 @@ public class LinerAnalysisRequestFactory {
             T/F 비율은 성격 유형 검사가 아니라 이번 대화의 반응을 정보·해결 중심과 감정·공감 중심으로 나눈 비율입니다.
             T/F 비율은 실제 반응 발화를 각각 분류한 비중을 기준으로 계산하고, 근거 없이 50:50 또는 5점 단위 비율로 맞추지 마세요.
             characterInsights.name은 역할명이나 본인, 상대방 같은 일반 명칭이 아니라 이번 대화의 특징을 담은 짧고 재미있는 한국어 별칭으로 작성하세요.
-            characterInsights.name은 대화 특징을 나타내는 수식어와 기억에 남는 역할·사물 명사를 결합한 2~3어절의 별칭으로 작성하세요.
+            characterInsights.name은 대화 특징을 나타내는 수식어 하나와 기억에 남는 역할·사물 명사 하나를 결합한 자연스러운 2어절 별칭을 우선하세요.
+            3어절은 실제 한국어 별칭으로 소리 내어 읽었을 때 자연스럽고 각 단어가 꼭 필요한 경우에만 사용하세요.
+            수식어, 추상명사, 역할명사를 연달아 붙여 의미를 중복하지 마세요. '조용한 경계선 지킴이'처럼 번역투이거나 억지로 조합한 표현보다 '단단한 방패'처럼 핵심 비유 하나가 바로 이해되는 이름을 사용하세요.
             characterInsights.name은 카드 레이아웃에 여유 있게 공백을 포함해 10자 이내로 작성하세요.
             characterInsights.description은 카드에 두 줄 이내로 표시할 수 있도록 공백을 포함해 20자 이내의 한 문장으로 작성하세요.
             별칭은 '꼬리질문 장인', '디테일 광부', '리액션 맛집', '맞장구 자판기', '집요한 광부', '포근한 바텐더'처럼 관찰된 대화 행동이 재치 있는 비유로 연상되는 톤이어야 합니다.

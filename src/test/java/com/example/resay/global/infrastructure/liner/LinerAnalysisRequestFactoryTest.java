@@ -69,7 +69,9 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("서로 다른 표기는 각각 별도 항목으로 작성하세요")
                 .contains("비속어가 없으면 swearWords는 빈 배열")
                 .contains("짧고 재미있는 한국어 별칭")
-                .contains("수식어와 기억에 남는 역할·사물 명사를 결합한 2~3어절")
+                .contains("수식어 하나와 기억에 남는 역할·사물 명사 하나를 결합한")
+                .contains("자연스러운 2어절 별칭을 우선하세요")
+                .contains("수식어, 추상명사, 역할명사를 연달아 붙여")
                 .contains("공백을 포함해 10자 이내")
                 .contains("공백을 포함해 20자 이내")
                 .contains("꼬리질문 장인")
@@ -99,7 +101,7 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("관찰되지 않은 항목도 value 0으로 작성하세요")
                 .contains("화자별 1개 이상 3개 이하");
 
-        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v18");
+        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v19");
         assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v9");
 
         Map<?, ?> input = objectMapper.readValue(request.messages().get(1).content(), Map.class);

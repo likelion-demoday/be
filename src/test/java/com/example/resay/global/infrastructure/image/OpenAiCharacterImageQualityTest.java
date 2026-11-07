@@ -3,23 +3,27 @@ package com.example.resay.global.infrastructure.image;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import com.example.resay.domain.character.service.CharacterCardStyleResolver;
+import com.example.resay.domain.character.model.CharacterDesignSpec;
 import com.example.resay.domain.character.model.CharacterImageGenerationCommand;
 import com.example.resay.domain.character.model.GeneratedCharacterImage;
-import com.example.resay.domain.character.port.CharacterImageGenerator;
+import com.example.resay.domain.character.port.CharacterDesignGenerator;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@EnabledIfEnvironmentVariable(named = "LINER_API_KEY", matches = ".+")
 @EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
 @EnabledIfEnvironmentVariable(
         named = "OPENAI_CHARACTER_CASE",
@@ -28,7 +32,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 class OpenAiCharacterImageQualityTest {
 
     @Autowired
-    private CharacterImageGenerator imageGenerator;
+    private OpenAiCharacterImageGenerator imageGenerator;
+
+    @Autowired
+    private CharacterDesignGenerator designGenerator;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Autowired
     private CharacterCardStyleResolver characterCardStyleResolver;
@@ -39,9 +49,9 @@ class OpenAiCharacterImageQualityTest {
                 System.getenv("OPENAI_CHARACTER_CASE").toUpperCase(Locale.ROOT)
         );
 
-        GeneratedCharacterImage image = imageGenerator.generate(
-                selected.command(characterCardStyleResolver)
-        );
+        CharacterImageGenerationCommand command = selected.command(characterCardStyleResolver);
+        CharacterDesignSpec design = designGenerator.generate(command);
+        GeneratedCharacterImage image = imageGenerator.generate(command, design);
 
         Path outputDirectory = Path.of("build", "reports", "openai-character-quality");
         Files.createDirectories(outputDirectory);
@@ -49,8 +59,17 @@ class OpenAiCharacterImageQualityTest {
                 selected.name().toLowerCase(Locale.ROOT) + "." + extension(image.mediaType())
         );
         Files.write(outputPath, image.content());
+        Path designPath = outputDirectory.resolve(
+                selected.name().toLowerCase(Locale.ROOT) + "-design.json"
+        );
+        Files.writeString(
+                designPath,
+                objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(design),
+                StandardCharsets.UTF_8
+        );
 
         System.out.println(outputPath.toAbsolutePath());
+        System.out.println(designPath.toAbsolutePath());
         System.out.println("model=" + image.model());
         System.out.println("promptVersion=" + image.promptVersion());
 
@@ -154,7 +173,7 @@ class OpenAiCharacterImageQualityTest {
         CHILD(
                 AnalysisScenario.PARENT_CHILD_CONFLICT,
                 SpeakerRole.CHILD,
-                "조용한 경계선 지킴이",
+                "단단한 방패",
                 "자신의 선택을 지키고 싶을 때 짧고 단단한 말로 거리를 두는 편입니다.",
                 "원하지 않는 요구에는 짧고 분명하게 선을 그어요.",
                 "감정이 커질 때 설명보다 짧은 대답을 사용해요.",

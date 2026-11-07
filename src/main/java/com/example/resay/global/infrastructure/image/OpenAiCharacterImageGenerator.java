@@ -1,7 +1,9 @@
 package com.example.resay.global.infrastructure.image;
 
+import com.example.resay.domain.character.model.CharacterDesignSpec;
 import com.example.resay.domain.character.model.CharacterImageGenerationCommand;
 import com.example.resay.domain.character.model.GeneratedCharacterImage;
+import com.example.resay.domain.character.port.CharacterDesignGenerator;
 import com.example.resay.domain.character.port.CharacterImageGenerator;
 import java.util.Base64;
 import org.springframework.stereotype.Component;
@@ -10,22 +12,33 @@ import org.springframework.stereotype.Component;
 public class OpenAiCharacterImageGenerator implements CharacterImageGenerator {
 
     private final OpenAiImageProperties properties;
+    private final CharacterDesignGenerator designGenerator;
     private final OpenAiCharacterPromptFactory promptFactory;
     private final OpenAiImageApiClient apiClient;
 
     public OpenAiCharacterImageGenerator(
             OpenAiImageProperties properties,
+            CharacterDesignGenerator designGenerator,
             OpenAiCharacterPromptFactory promptFactory,
             OpenAiImageApiClient apiClient
     ) {
         this.properties = properties;
+        this.designGenerator = designGenerator;
         this.promptFactory = promptFactory;
         this.apiClient = apiClient;
     }
 
     @Override
     public GeneratedCharacterImage generate(CharacterImageGenerationCommand command) {
-        OpenAiCharacterPromptFactory.PromptSpec promptSpec = promptFactory.create(command);
+        CharacterDesignSpec design = designGenerator.generate(command);
+        return generate(command, design);
+    }
+
+    GeneratedCharacterImage generate(
+            CharacterImageGenerationCommand command,
+            CharacterDesignSpec design
+    ) {
+        OpenAiCharacterPromptFactory.PromptSpec promptSpec = promptFactory.create(command, design);
         OpenAiImageRequest request = new OpenAiImageRequest(
                 properties.model(),
                 promptSpec.prompt(),
