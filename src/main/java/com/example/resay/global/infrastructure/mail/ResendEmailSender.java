@@ -4,6 +4,10 @@ import com.example.resay.domain.notification.port.EmailMessage;
 import com.example.resay.domain.notification.port.EmailSendException;
 import com.example.resay.domain.notification.port.EmailSendResult;
 import com.example.resay.domain.notification.port.EmailSender;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -59,7 +63,7 @@ public class ResendEmailSender implements EmailSender {
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.apiKey())
                     .headers(headers -> {
                         if (message.idempotencyKey() != null) {
-                            headers.set(IDEMPOTENCY_KEY_HEADER, message.idempotencyKey());
+                            headers.set(IDEMPOTENCY_KEY_HEADER, scopedIdempotencyKey(message.idempotencyKey()));
                         }
                     })
                     .contentType(MediaType.APPLICATION_JSON)
@@ -77,6 +81,18 @@ public class ResendEmailSender implements EmailSender {
             throw new EmailSendException("invalid_response", null);
         }
         return EmailSendResult.sent(response.id());
+    }
+
+    // 로컬과 운영이 같은 Resend 계정을 쓰면 녹음 ID 같은 값이 겹쳐, 로컬에서 먼저 쓴 키 때문에 운영 메일이 나가지 않을 수 있다.
+    // 키마다 다른 접두어(API 키 해시 앞부분)를 붙여 환경끼리 겹치지 않게 한다
+    private String scopedIdempotencyKey(String key) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(properties.apiKey().getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest, 0, 4) + "-" + key;
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256을 사용할 수 없습니다.", exception);
+        }
     }
 
     private String errorName(RestClientResponseException exception) {

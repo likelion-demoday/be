@@ -28,6 +28,12 @@ public class NotificationLogService {
         return Optional.of(log.getId());
     }
 
+    // 대상 ID 없이 주기마다 보내는 알림(리마인드)용. 중복은 발송 주기 계산으로 막는다
+    @Transactional
+    public Long start(Long userId, NotificationType type) {
+        return notificationLogRepository.save(NotificationLog.pending(userId, type, null)).getId();
+    }
+
     @Transactional
     public void markResult(Long logId, EmailSendResult result) {
         NotificationLog log = notificationLogRepository.findById(logId).orElseThrow();

@@ -50,6 +50,7 @@ resend:
 
 app:
   frontend-base-url: ${FRONTEND_BASE_URL:https://resay.site}
+  api-base-url: ${API_BASE_URL:https://api.resay.site}
 
 # Swagger는 운영에서 기본적으로 끈다. 런칭 전 테스트 서버에서만 SWAGGER_ENABLED=true로 켠다
 springdoc:

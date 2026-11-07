@@ -51,7 +51,7 @@ class ResendEmailSenderTest {
         server.expect(requestTo(BASE_URL + "/emails"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("Authorization", "Bearer re_test_key"))
-                .andExpect(header("Idempotency-Key", "analysis-completed-1"))
+                .andExpect(header("Idempotency-Key", org.hamcrest.Matchers.matchesPattern("[0-9a-f]{8}-analysis-completed-1")))
                 .andExpect(jsonPath("$.from").value(FROM))
                 .andExpect(jsonPath("$.to[0]").value("user@example.com"))
                 .andExpect(jsonPath("$.subject").value("제목"))
@@ -64,6 +64,21 @@ class ResendEmailSenderTest {
 
         assertThat(result).isEqualTo(EmailSendResult.sent("msg-123"));
         server.verify();
+    }
+
+    @Test
+    void API_키가_다르면_중복_방지_키도_달라_로컬과_운영이_겹치지_않는다() {
+        java.util.List<String> keys = new java.util.ArrayList<>();
+        for (String apiKey : new String[]{"re_local_key", "re_prod_key"}) {
+            ResendEmailSender sender = sender(apiKey);
+            server.expect(requestTo(BASE_URL + "/emails"))
+                    .andExpect(request -> keys.add(request.getHeaders().getFirst("Idempotency-Key")))
+                    .andRespond(withSuccess("{\"id\": \"msg-123\"}", MediaType.APPLICATION_JSON));
+            sender.send(message());
+        }
+
+        assertThat(keys).hasSize(2).doesNotHaveDuplicates();
+        assertThat(keys).allMatch(key -> key.endsWith("-analysis-completed-1"));
     }
 
     @Test
