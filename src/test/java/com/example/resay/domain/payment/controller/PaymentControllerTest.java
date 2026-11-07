@@ -81,17 +81,18 @@ class PaymentControllerTest {
         mockMvc.perform(get(PRODUCTS_URL).header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("PAYMENT200_1"))
-                .andExpect(jsonPath("$.result.products", hasSize(4)))
+                .andExpect(jsonPath("$.result.products", hasSize(5)))
                 .andExpect(jsonPath("$.result.products[0].code").value("CREDIT_1000"))
                 .andExpect(jsonPath("$.result.products[0].amount").value(1000))
                 .andExpect(jsonPath("$.result.products[0].credits").value(1000))
-                .andExpect(jsonPath("$.result.products[3].code").value("CREDIT_10000"))
-                .andExpect(jsonPath("$.result.products[3].amount").value(10000));
+                .andExpect(jsonPath("$.result.products[4].code").value("CREDIT_10000"))
+                .andExpect(jsonPath("$.result.products[4].amount").value(10000));
     }
 
     @ParameterizedTest
     @CsvSource({
             "CREDIT_1000, 1000, 'Resay 크레딧 1,000'",
+            "CREDIT_2000, 2000, 'Resay 크레딧 2,000'",
             "CREDIT_3000, 3000, 'Resay 크레딧 3,000'",
             "CREDIT_5000, 5000, 'Resay 크레딧 5,000'",
             "CREDIT_10000, 10000, 'Resay 크레딧 10,000'"
