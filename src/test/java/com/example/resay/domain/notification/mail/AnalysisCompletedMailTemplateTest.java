@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AnalysisCompletedMailTemplateTest {
 
     private final AnalysisCompletedMailTemplate template =
-            new AnalysisCompletedMailTemplate(new NotificationMailProperties("https://resay.site/"));
+            new AnalysisCompletedMailTemplate(new NotificationMailProperties("https://resay.site/", "https://api.resay.site"));
 
     @Test
     void 닉네임과_보고서_링크를_넣는다() {
