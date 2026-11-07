@@ -1,6 +1,7 @@
 package com.example.resay.global.config;
 
 import com.example.resay.global.security.CurrentUserIdArgumentResolver;
+import com.example.resay.global.security.SharedLinkInterceptor;
 import com.example.resay.global.security.UserActivityInterceptor;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -14,10 +15,12 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebConfig implements WebMvcConfigurer {
 
     private final UserActivityInterceptor userActivityInterceptor;
+    private final SharedLinkInterceptor sharedLinkInterceptor;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(userActivityInterceptor);
+        registry.addInterceptor(sharedLinkInterceptor).addPathPatterns(SharedLinkInterceptor.PATH_PATTERN);
     }
 
     @Override

@@ -48,6 +48,9 @@ rate-limit:
   email-check:
     max-attempts-per-ip: 60
     window: 10m
+  shared:
+    max-requests-per-ip: 120
+    window: 1m
 
 credit:
   price:
