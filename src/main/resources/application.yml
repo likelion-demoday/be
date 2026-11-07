@@ -101,6 +101,9 @@ payment:
     - code: CREDIT_1000
       amount: 1000
       credits: 1000
+    - code: CREDIT_2000
+      amount: 2000
+      credits: 2000
     - code: CREDIT_3000
       amount: 3000
       credits: 3000
