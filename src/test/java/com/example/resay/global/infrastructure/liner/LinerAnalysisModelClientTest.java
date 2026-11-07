@@ -73,6 +73,16 @@ class LinerAnalysisModelClientTest {
                 .contains("\"overview\"")
                 .contains("\"interestInsights\"")
                 .contains("\"evidenceSegmentIds\":[1,2]");
+        QualitativeAnalysis analysis = new ObjectMapper().readValue(
+                result.resultJson(),
+                QualitativeAnalysis.class
+        );
+        assertThat(analysis.spicinessInsights())
+                .extracting(QualitativeAnalysis.SpicinessInsight::speakerRole)
+                .containsExactly(SpeakerRole.SELF, SpeakerRole.FRIEND);
+        assertThat(analysis.spicinessInsights())
+                .extracting(QualitativeAnalysis.SpicinessInsight::score)
+                .containsOnly(0);
         then(responseValidator).should().validate(
                 eq(source),
                 any(QualitativeAnalysis.class)

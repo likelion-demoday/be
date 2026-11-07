@@ -125,6 +125,8 @@ class LinerApiClientTest {
                 .isInstanceOfSatisfying(LinerApiException.class, exception -> {
                     assertThat(exception.getStatusCode()).isEqualTo(statusCode);
                     assertThat(exception.getErrorCode()).isEqualTo("provider_error");
+                    assertThat(exception.getMessage())
+                            .contains("providerMessage=요청 처리 실패");
                     assertThat(exception.isRetryable())
                             .isEqualTo(statusCode == 429 || statusCode >= 500);
                 });
@@ -159,7 +161,7 @@ class LinerApiClientTest {
                             .contains("statusCode=429")
                             .contains("errorCode=RATE_LIMITED")
                             .contains("requestId=liner-request-429")
-                            .doesNotContain("요청 한도 초과");
+                            .contains("providerMessage=요청 한도 초과");
                     assertThat(exception.getCause()).isNull();
                 });
     }

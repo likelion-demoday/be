@@ -56,8 +56,10 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
 
         QualitativeAnalysis response = parseResponse(result.content());
         QualitativeAnalysis groundedResponse = responseGrounder.ground(source, response);
+        QualitativeAnalysis responseWithRequiredSpiciness =
+                ensureSpicinessInsights(source, groundedResponse);
         QualitativeAnalysis responseWithRequiredCoaching =
-                ensureParentChildCoachingSuggestions(source, groundedResponse);
+                ensureParentChildCoachingSuggestions(source, responseWithRequiredSpiciness);
         QualitativeAnalysis responseWithRequiredFields =
                 ensureParentChildRepresentativeEvidences(
                         source,
@@ -73,6 +75,62 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
                 result.response().model(),
                 requestFactory.promptVersion(),
                 requestFactory.schemaVersion()
+        );
+    }
+
+    private QualitativeAnalysis ensureSpicinessInsights(
+            AnalysisSource source,
+            QualitativeAnalysis response
+    ) {
+        List<QualitativeAnalysis.SpicinessInsight> originalInsights =
+                response.spicinessInsights() == null
+                        ? List.of()
+                        : response.spicinessInsights();
+        Map<SpeakerRole, QualitativeAnalysis.SpicinessInsight> insightsByRole = new HashMap<>();
+        originalInsights.stream()
+                .filter(insight -> insight != null
+                        && source.scenario().requiredRoles().contains(insight.speakerRole()))
+                .forEach(insight -> insightsByRole.putIfAbsent(insight.speakerRole(), insight));
+
+        boolean complete = originalInsights.size()
+                == source.scenario().requiredRoles().size()
+                && insightsByRole.keySet().equals(source.scenario().requiredRoles());
+        if (complete) {
+            return response;
+        }
+
+        List<QualitativeAnalysis.SpicinessInsight> completedInsights = source.speakers().stream()
+                .map(speaker -> insightsByRole.getOrDefault(
+                        speaker.speakerRole(),
+                        new QualitativeAnalysis.SpicinessInsight(
+                                speaker.speakerRole(),
+                                0,
+                                "강한 표현으로 분류된 발화가 없어 0점으로 표시해요.",
+                                List.of(),
+                                List.of()
+                        )
+                ))
+                .toList();
+        log.warn(
+                "화자별 표독력 항목을 안전 기본값으로 보완: recordingId={}, scenario={}",
+                source.recordingId(),
+                source.scenario()
+        );
+        return new QualitativeAnalysis(
+                response.overview(),
+                response.timeline(),
+                response.topics(),
+                response.characterInsights(),
+                response.speakerInsights(),
+                response.interestInsights(),
+                completedInsights,
+                response.reactionStyleInsights(),
+                response.scenarioInsights(),
+                response.representativeEvidences(),
+                response.relationshipSummary(),
+                response.reportMetrics(),
+                response.speakerTendencies(),
+                response.coachingSuggestions()
         );
     }
 

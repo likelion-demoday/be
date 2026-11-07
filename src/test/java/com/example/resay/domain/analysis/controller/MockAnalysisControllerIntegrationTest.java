@@ -63,6 +63,8 @@ class MockAnalysisControllerIntegrationTest {
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.timeline[0].startMs").isNumber())
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.topics[0].timeRanges[0].startMs")
                         .isNumber())
+                .andExpect(jsonPath("$.result.report.qualitativeAnalysis.spicinessInsights.length()")
+                        .value(2))
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.spicinessInsights[0].swearWordCount")
                         .value(0))
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.representativeEvidences.length()")
@@ -78,6 +80,12 @@ class MockAnalysisControllerIntegrationTest {
         JsonNode response = objectMapper.readTree(responseBody);
         long recordingId = response.get("result").get("recordingId").asLong();
         assertThat(recordingId).isPositive();
+        response.get("result")
+                .get("report")
+                .get("quantitativeAnalysis")
+                .get("speakers")
+                .forEach(speaker -> assertThat(speaker.get("syllablesPerSecond").asDouble())
+                        .isBetween(5.0, 6.5));
         assertThat(containsField(response, "evidenceSegmentIds")).isFalse();
         assertThat(containsField(response, "segmentIds")).isFalse();
 
