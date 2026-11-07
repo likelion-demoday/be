@@ -26,9 +26,9 @@ class PaymentPropertiesTest {
         PaymentProperties properties = bind("src/main/resources/application.yml");
 
         assertThat(properties.products()).extracting(PaymentProperties.Product::code)
-                .containsExactly("CREDIT_1000", "CREDIT_3000", "CREDIT_5000", "CREDIT_10000");
+                .containsExactly("CREDIT_1000", "CREDIT_2000", "CREDIT_3000", "CREDIT_5000", "CREDIT_10000");
         assertThat(properties.products()).extracting(PaymentProperties.Product::amount)
-                .containsExactly(1000, 3000, 5000, 10000);
+                .containsExactly(1000, 2000, 3000, 5000, 10000);
         // 1원 = 1크레딧 (보너스 · 할인 없음)
         assertThat(properties.products()).allSatisfy(product ->
                 assertThat(product.credits()).isEqualTo(product.amount()));
