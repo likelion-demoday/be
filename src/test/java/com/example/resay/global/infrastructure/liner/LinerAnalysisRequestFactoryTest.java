@@ -59,8 +59,12 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("근거 발화 수, 서로 다른 표현 종류")
                 .contains("근거 없이 50:50 또는 5점 단위 비율로 맞추지 마세요")
                 .contains("관심도 90점 이상은")
-                .contains("대화의 평균 분위기가 아니라")
-                .contains("반복되는 직설·명령·압박·강한 반박")
+                .contains("먼저 낮음·보통·높음 중 하나를 판단한 뒤")
+                .contains("낮음은 0~30점")
+                .contains("보통은 31~50점")
+                .contains("높음은 51~100점")
+                .contains("표현의 강도, 반복성, 상대를 직접 겨냥했는지")
+                .contains("직설·명령·압박·강한 반박이 반복")
                 .contains("비속어가 없다는 이유만으로 표독력 점수를 50 이하로 제한하지 말고")
                 .contains("상대도 장난으로 받아 주는 반응이 발화에서 확인될 때만")
                 .contains("전체 점수를 과도하게 낮추지 마세요")
@@ -99,14 +103,18 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("관찰되지 않은 항목도 value 0으로 작성하세요")
                 .contains("화자별 1개 이상 3개 이하");
 
-        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v19");
+        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v20");
         assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v10");
 
         Map<?, ?> input = objectMapper.readValue(request.messages().get(1).content(), Map.class);
-        assertThat(input.get("recordingId")).isEqualTo(1);
+        assertThat(input.keySet().stream().map(Object::toString).toList())
+                .containsExactlyInAnyOrder("scenario", "segments");
         assertThat(input.get("scenario")).isEqualTo("FRIEND_DAILY");
-        assertThat(input.get("durationMs")).isEqualTo(10_000);
-        assertThat((List<?>) input.get("segments")).hasSize(2);
+        List<?> segments = (List<?>) input.get("segments");
+        assertThat(segments).hasSize(2);
+        assertThat(((Map<?, ?>) segments.get(0)).keySet().stream()
+                .map(Object::toString).toList())
+                .containsExactlyInAnyOrder("segmentId", "speakerRole", "content");
 
         assertThat(request.responseFormat()).containsEntry("type", "json_schema");
         Map<?, ?> jsonSchema = (Map<?, ?>) request.responseFormat().get("json_schema");
@@ -186,6 +194,8 @@ class LinerAnalysisRequestFactoryTest {
                 .containsExactlyInAnyOrder("type", "items");
 
         Map<?, ?> spicinessInsights = (Map<?, ?>) rootProperties.get("spicinessInsights");
+        assertThat(spicinessInsights.keySet().stream().map(Object::toString).toList())
+                .containsExactlyInAnyOrder("type", "items");
         Map<?, ?> spicinessItems = (Map<?, ?>) spicinessInsights.get("items");
         Map<?, ?> spicinessProperties = (Map<?, ?>) spicinessItems.get("properties");
         Map<?, ?> swearWords = (Map<?, ?>) spicinessProperties.get("swearWords");

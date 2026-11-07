@@ -13,7 +13,8 @@ public record RateLimitProperties(
         boolean enabled,
         @NotNull @Valid Login login,
         @NotNull @Valid Signup signup,
-        @NotNull @Valid EmailCheck emailCheck
+        @NotNull @Valid EmailCheck emailCheck,
+        @NotNull @Valid Shared shared
 ) {
 
     public record Login(
@@ -31,6 +32,12 @@ public record RateLimitProperties(
 
     public record EmailCheck(
             @Min(1) int maxAttemptsPerIp,
+            @NotNull Duration window
+    ) {
+    }
+
+    public record Shared(
+            @Min(1) int maxRequestsPerIp,
             @NotNull Duration window
     ) {
     }
