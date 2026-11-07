@@ -15,7 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class LinerAnalysisRequestFactory {
 
-    private static final String PROMPT_VERSION = "analysis-prompt-v19";
+    private static final String PROMPT_VERSION = "analysis-prompt-v20";
     private static final String SCHEMA_VERSION = "analysis-result-v10";
     private static final int MAX_COMPLETION_TOKENS = 32768;
     private static final String REASONING_EFFORT = "medium";
@@ -44,13 +44,16 @@ public class LinerAnalysisRequestFactory {
             사람의 성격이나 관계 전체를 진단하지 말고 이번 대화에서 관찰되는 표현과 행동만 설명하세요.
             발화 비중, 말하기 속도처럼 서버가 계산하는 정량 지표는 계산하지 마세요.
             관심도와 표독력 점수는 성격이나 관계의 점수가 아니라 이번 대화에서 관련 표현이 나타난 정도를 0부터 100까지 추정한 값입니다.
-            관심도, 표독력, T/F 비율과 reportMetrics의 PERCENT는 5점이나 10점 단위로 반올림하지 말고 1점 단위 정수로 평가하세요.
+            관심도, T/F 비율과 reportMetrics의 PERCENT는 5점이나 10점 단위로 반올림하지 말고 1점 단위 정수로 평가하세요.
             점수를 정할 때 관련 근거 발화 수, 서로 다른 표현 종류, 대화 앞·중간·뒤에 걸친 분포와 표현 강도를 순서대로 검토하세요.
             근거가 실제로 구간 경계나 동일 비율에 해당할 때만 5의 배수를 사용할 수 있으며, 숫자를 다양하게 보이게 하려고 임의 값을 더하거나 빼지 마세요.
             관심도는 0~20 거의 관찰되지 않음, 21~40 제한적으로 나타남, 41~60 보통, 61~80 지속적으로 나타남, 81~100 여러 종류의 관심 표현이 대화 전반에 반복됨을 기준으로 평가하세요.
             관심도 90점 이상은 질문, 공감, 맞장구, 호감 표현 중 세 종류 이상이 대화 전반에 반복된 경우에만 사용하세요.
-            표독력은 대화의 평균 분위기가 아니라 해당 화자가 실제로 사용한 강한 표현의 강도와 반복성을 함께 기준으로 평가하세요.
-            표독력은 0~10 강한 표현 없음, 11~30 상호 장난 맥락의 표현이나 단발성 직설, 31~50 반복되는 직설·명령·압박·강한 반박, 51~70 반복되는 공격·비하·위협·비속어 또는 단 한 번이어도 명확한 인신공격, 71~100 심한 공격·위협·비속어가 대화 전반에 지속됨을 기준으로 평가하세요.
+            표독력은 대화의 평균 분위기가 아니라 해당 화자가 실제로 사용한 강한 표현을 기준으로 먼저 낮음·보통·높음 중 하나를 판단한 뒤 그 구간 안에서 점수를 정하세요.
+            낮음은 0~30점입니다. 0~10점은 강한 표현이 없고, 11~30점은 상호 장난 맥락의 표현이나 단발성 직설이 있는 경우입니다.
+            보통은 31~50점이며 직설·명령·압박·강한 반박이 반복되지만 상대를 향한 명확한 비하·위협은 없는 경우입니다.
+            높음은 51~100점이며 상대를 향한 공격·비하·위협·비속어가 명확한 경우입니다. 그중 71점 이상은 심한 공격·위협·비속어가 대화 전반에 지속된 경우에만 사용하세요.
+            표독력 구간과 점수를 정할 때는 표현의 강도, 반복성, 상대를 직접 겨냥했는지를 순서대로 검토하세요.
             비속어가 없다는 이유만으로 표독력 점수를 50 이하로 제한하지 말고, 상대를 겨냥한 비하·압박·위협이나 강한 명령이 명확하면 강도에 맞게 51점 이상을 사용할 수 있습니다.
             장난 맥락은 상대도 장난으로 받아 주는 반응이 발화에서 확인될 때만 점수를 낮추는 근거로 사용하세요.
             완충·사과·회복 표현은 별도로 반영하되, 앞서 나타난 강한 표현의 강도와 반복 사실을 없던 것으로 간주해 전체 점수를 과도하게 낮추지 마세요.
@@ -160,9 +163,7 @@ public class LinerAnalysisRequestFactory {
 
     private String serializeInput(AnalysisSource source) {
         AnalysisInput input = new AnalysisInput(
-                source.recordingId(),
                 source.scenario(),
-                source.durationMs(),
                 source.segments().stream().map(SegmentInput::from).toList()
         );
 
@@ -706,9 +707,7 @@ public class LinerAnalysisRequestFactory {
     }
 
     private record AnalysisInput(
-            Long recordingId,
             AnalysisScenario scenario,
-            Long durationMs,
             List<SegmentInput> segments
     ) {
     }
@@ -716,8 +715,6 @@ public class LinerAnalysisRequestFactory {
     private record SegmentInput(
             Long segmentId,
             SpeakerRole speakerRole,
-            Long startMs,
-            Long endMs,
             String content
     ) {
 
@@ -725,8 +722,6 @@ public class LinerAnalysisRequestFactory {
             return new SegmentInput(
                     segment.segmentId(),
                     segment.speakerRole(),
-                    segment.startMs(),
-                    segment.endMs(),
                     segment.content()
             );
         }
