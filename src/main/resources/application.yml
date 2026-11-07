@@ -207,6 +207,18 @@ analysis:
     minimum-speaker-character-count: ${ANALYSIS_MIN_SPEAKER_CHARACTER_COUNT:30}
     minimum-speaker-ratio-percent: ${ANALYSIS_MIN_SPEAKER_RATIO_PERCENT:5}
 
+# 메일 발송 (Resend). 키가 없으면 메일을 실제로 보내지 않고 로그만 남긴다
+# 도메인 인증 전에는 보내는 주소를 onboarding@resend.dev로 두고, Resend 가입 계정 주소로만 받을 수 있다
+resend:
+  api-key: ${RESEND_API_KEY:}
+  from: ${MAIL_FROM:RE:SAY <onboarding@resend.dev>}
+  connect-timeout: 3s
+  read-timeout: 10s
+
+# 메일 안의 버튼이 여는 프론트 주소 (운영 값은 application-prod.yml)
+app:
+  frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+
 storage:
   local:
     base-path: ${STORAGE_BASE_PATH:./storage/recordings}
