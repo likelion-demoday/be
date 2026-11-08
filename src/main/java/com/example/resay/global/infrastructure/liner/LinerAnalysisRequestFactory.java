@@ -15,8 +15,8 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class LinerAnalysisRequestFactory {
 
-    private static final String PROMPT_VERSION = "analysis-prompt-v20";
-    private static final String SCHEMA_VERSION = "analysis-result-v10";
+    private static final String PROMPT_VERSION = "analysis-prompt-v21";
+    private static final String SCHEMA_VERSION = "analysis-result-v11";
     private static final int MAX_COMPLETION_TOKENS = 32768;
     private static final String REASONING_EFFORT = "medium";
 
@@ -186,6 +186,7 @@ public class LinerAnalysisRequestFactory {
                     interestInsights의 점수는 이번 대화에서 관찰된 관심 표현만 기준으로 작성하세요.
                     두 사람의 친밀도나 관계의 좋고 나쁨을 판단하지 마세요.
                     reportMetrics에는 COMPLIMENT, ENCOURAGEMENT, CARING_EXPRESSION, FRIENDLY_ADDRESS, DIRECT_AFFECTION, JOY_OR_GRATITUDE를 화자별 COUNT로 작성하세요. 관찰되지 않은 항목도 value 0으로 작성하세요.
+                    SWEAR_WORD, DIRECTNESS, EXPRESSION_INTENSITY, SOFTENING_EXPRESSION은 화자별 PERCENT로 작성하세요. 비속어 횟수 자체가 아니라 이번 대화에서 각 표현 특성이 관찰된 상대적 정도를 평가하고, 관찰되지 않은 항목도 value 0으로 작성하세요.
                     speakerTendencies와 coachingSuggestions는 빈 배열로 작성하세요.
                     representativeEvidences에는 두 화자의 T/F 유형 대표 반응을 화자별 1개 이상 3개 이하로 작성하세요.
                     type은 REACTION_STYLE_EXAMPLE, reactionCategory는 연결된 reactionStyleInsights.examples의 category와 동일하게 작성하세요.

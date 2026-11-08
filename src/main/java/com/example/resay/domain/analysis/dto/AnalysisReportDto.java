@@ -552,6 +552,8 @@ public record AnalysisReportDto(
             int score,
             @Schema(description = "전사문에서 확인된 비속어 총 등장 횟수", example = "3")
             int swearWordCount,
+            @Schema(description = "전사문에서 확인된 비속어별 원문 표기와 등장 횟수. 표현을 검열하거나 마스킹하지 않음")
+            List<SwearWordUsage> swearWords,
             String description,
             List<SpicinessObservation> observations
     ) {
@@ -563,9 +565,26 @@ public record AnalysisReportDto(
                     source.swearWords() == null ? 0 : source.swearWords().stream()
                             .mapToInt(QualitativeAnalysis.SwearWordUsage::count)
                             .sum(),
+                    source.swearWords() == null ? List.of() : source.swearWords().stream()
+                            .map(SwearWordUsage::from)
+                            .toList(),
                     source.description(),
                     source.observations().stream().map(SpicinessObservation::from).toList()
             );
+        }
+    }
+
+    public record SwearWordUsage(
+            @Schema(description = "분석 결과에 저장된 비속어 원문 표기", example = "미친")
+            String expression,
+            @Schema(description = "해당 표기의 등장 횟수", example = "3")
+            int count
+    ) {
+
+        private static SwearWordUsage from(
+                QualitativeAnalysis.SwearWordUsage source
+        ) {
+            return new SwearWordUsage(source.expression(), source.count());
         }
     }
 
