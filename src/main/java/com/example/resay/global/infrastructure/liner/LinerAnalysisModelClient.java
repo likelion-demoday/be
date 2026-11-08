@@ -223,6 +223,7 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
                 response.scenarioInsights(),
                 response.representativeEvidences(),
                 response.relationshipSummary(),
+                response.speakerAffectionSummaries(),
                 reportMetrics,
                 response.speakerTendencies(),
                 response.coachingSuggestions()
@@ -285,6 +286,7 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
                 response.scenarioInsights(),
                 response.representativeEvidences(),
                 response.relationshipSummary(),
+                response.speakerAffectionSummaries(),
                 response.reportMetrics(),
                 response.speakerTendencies(),
                 response.coachingSuggestions()
@@ -381,6 +383,7 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
                 response.scenarioInsights(),
                 response.representativeEvidences(),
                 response.relationshipSummary(),
+                response.speakerAffectionSummaries(),
                 response.reportMetrics(),
                 response.speakerTendencies(),
                 fallbackSuggestions
@@ -451,6 +454,7 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
                 response.scenarioInsights(),
                 recovered,
                 response.relationshipSummary(),
+                response.speakerAffectionSummaries(),
                 response.reportMetrics(),
                 response.speakerTendencies(),
                 response.coachingSuggestions()

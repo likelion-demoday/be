@@ -111,6 +111,7 @@ public class AnalysisReportAssembler {
                 result.scenarioInsights(),
                 enrichRepresentativeEvidences(result.representativeEvidences(), source.segments()),
                 result.relationshipSummary(),
+                result.speakerAffectionSummaries(),
                 enrichReportMetrics(result.reportMetrics(), source.segments()),
                 result.speakerTendencies(),
                 orderedCoachingSuggestions(result.coachingSuggestions()),

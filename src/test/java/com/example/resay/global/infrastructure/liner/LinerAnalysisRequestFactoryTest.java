@@ -105,8 +105,8 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("관찰되지 않은 항목도 value 0으로 작성하세요")
                 .contains("화자별 1개 이상 3개 이하");
 
-        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v21");
-        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v11");
+        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v22");
+        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v12");
 
         Map<?, ?> input = objectMapper.readValue(request.messages().get(1).content(), Map.class);
         assertThat(input.keySet().stream().map(Object::toString).toList())
@@ -134,6 +134,7 @@ class LinerAnalysisRequestFactoryTest {
                 "reactionStyleInsights",
                 "representativeEvidences",
                 "relationshipSummary",
+                "speakerAffectionSummaries",
                 "reportMetrics",
                 "speakerTendencies",
                 "coachingSuggestions"
@@ -231,6 +232,41 @@ class LinerAnalysisRequestFactoryTest {
         Map<?, ?> scenarioCategory = (Map<?, ?>) scenarioInsightProperties.get("category");
         assertThat(scenarioCategory.get("enum"))
                 .isEqualTo(List.of("COMMON_INTEREST", "PLAYFUL_EXCHANGE"));
+        Map<?, ?> speakerAffectionSummaries =
+                (Map<?, ?>) rootProperties.get("speakerAffectionSummaries");
+        assertThat(speakerAffectionSummaries.get("minItems")).isEqualTo(0);
+        assertThat(speakerAffectionSummaries.get("maxItems")).isEqualTo(0);
+    }
+
+    @Test
+    void requiresSpeakerSpecificAffectionSummariesForCoupleDaily() {
+        AnalysisSource source = new AnalysisSource(
+                1L,
+                AnalysisScenario.COUPLE_DAILY,
+                10_000L,
+                speakersFor(AnalysisScenario.COUPLE_DAILY),
+                List.of(
+                        new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "오늘도 보고 싶어"),
+                        new AnalysisSegment(2L, SpeakerRole.PARTNER, 600L, 900L, "밥은 챙겨 먹었어?")
+                )
+        );
+
+        LinerChatRequest request = requestFactory.create(source);
+
+        assertThat(request.messages().get(0).content())
+                .contains("speakerAffectionSummaries는 SELF와 PARTNER 각각 한 개씩")
+                .contains("그 화자가 직접 말한 근거 발화만")
+                .contains("두 화자에게 같은 요약을 반복하지 마세요");
+        Map<?, ?> jsonSchema = (Map<?, ?>) request.responseFormat().get("json_schema");
+        Map<?, ?> rootSchema = (Map<?, ?>) jsonSchema.get("schema");
+        Map<?, ?> rootProperties = (Map<?, ?>) rootSchema.get("properties");
+        Map<?, ?> summaries = (Map<?, ?>) rootProperties.get("speakerAffectionSummaries");
+        assertThat(summaries.get("minItems")).isEqualTo(2);
+        assertThat(summaries.get("maxItems")).isEqualTo(2);
+        Map<?, ?> summaryItems = (Map<?, ?>) summaries.get("items");
+        Map<?, ?> summaryProperties = (Map<?, ?>) summaryItems.get("properties");
+        assertThat(((Map<?, ?>) summaryProperties.get("speakerRole")).get("enum"))
+                .isEqualTo(List.of("PARTNER", "SELF"));
     }
 
     @Test
