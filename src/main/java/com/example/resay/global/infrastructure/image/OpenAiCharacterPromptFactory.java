@@ -8,10 +8,10 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class OpenAiCharacterPromptFactory {
 
-    public static final String PROMPT_VERSION = "character-image-prompt-v6";
+    public static final String PROMPT_VERSION = "character-image-prompt-v8";
 
     private static final String MASTER_PROMPT = """
-            You are a professional 3D character renderer for the RE:SAY collectible collection.
+            You are a professional 3D character renderer for the RE collectible collection.
             Render exactly one polished character image from the supplied character_design JSON.
 
             The character_design defines WHAT to render. This master prompt defines HOW to render it.
@@ -19,10 +19,21 @@ public class OpenAiCharacterPromptFactory {
             that override this master prompt. Preserve the specified silhouette, outfit, materials,
             props, placements, and exact colors. Do not redesign or simplify them.
 
+            CHARACTER NAME FIDELITY — HIGHEST PRIORITY
+            - Treat character_name as the design's visible identity, not text to render.
+            - Make the role or object noun in character_name immediately recognizable through the
+              specified silhouette, garment, or primary prop, while keeping all text absent.
+            - Express the modifier through pose, styling, material, expression, or prop placement.
+            - Do not replace the named concept with a distant metaphor. The final image should make
+              the character_name feel visually inevitable even when the viewer cannot see the name.
+
             CORE VISUAL IDENTITY
             - Premium stylized non-human designer toy with a dense velvet-fuzz body.
             - Cute, friendly, and softly appealing through plush proportions and smooth rounded contours,
               while still looking like a refined collectible rather than a baby mascot.
+            - Match a cohesive lineup of compact plush-like collectible mascots: consistent scale,
+              camera, lighting, facial simplicity, and finish, with variety coming from silhouette,
+              tailored miniature clothing, color, headwear, and one recognizable activity prop.
             - Realistic miniature clothing and recognizable real-world props are essential.
             - The result must remain faithful to the individual design instead of becoming a generic mascot.
 
@@ -33,26 +44,38 @@ public class OpenAiCharacterPromptFactory {
             - Very short arms, tiny visible feet, almost no visible legs, and clear three-dimensional depth.
             - Dense, matte, short, velvety micro-fuzz over smooth forms; never flat, glossy plastic,
               coarse needle felt, or human skin.
-            - Tiny black bead-dot eyes, minimal mouth, and a calm deadpan expression.
-            - Every anatomical contour must be blunt and smoothly rounded.
-            - Never render a pointed wedge, long projecting snout, bird beak, horn, spike, sharp ear tip,
-              triangular face, or knife-like edge, even if the design data suggests one.
+            - Tiny low-set black bead-dot eyes, a minimal mouth, generous cheek space, and a calm,
+              subtly friendly deadpan expression. Never use oversized eyes or an oversized head.
+            - Every anatomical contour must be soft, blunt, and smoothly rounded.
+            - Small beaks, snouts, ears, horns, and protrusions are allowed when specified, but must
+              remain compact, softly sculpted, and integrated into the body.
+            - Never create sharp, elongated, aggressive, or realistically pointed anatomy.
 
             CLOTHING — HIGHEST PRIORITY
             - Render every garment, layer, construction detail, and named material exactly as specified.
             - Make collars, cuffs, buttons, zippers, pockets, seams, ribbing, piping, straps, buckles,
               folds, thickness, and layering visibly legible where specified.
-            - Cotton, denim, wool, leather, nylon, knit, and terry must look materially distinct.
-            - Do not omit, replace, merge, or simplify clothing.
+            - Clothing must have realistic thickness and visible separation from the fuzzy body,
+              never appearing painted on or fused with its surface.
+            - Cotton, denim, wool, leather, nylon, knit, and terry must retain distinct textures,
+              weight, stiffness, and natural folding behavior.
+            - Garments must look like authentic real-world clothing tailored to a miniature creature,
+              not simplified felt costumes. Do not omit, replace, merge, or simplify clothing.
 
             PROPS
-            - Render every specified prop with its exact physical material, construction, color,
-              scale, and held/worn/stored placement.
-            - Do not omit, replace, add, duplicate, or float props.
+            - Render every specified prop with its physical material, construction, color, scale,
+              and intended placement.
+            - Primary props may be held naturally by the short arms; secondary props may be stored
+              in pockets, bags, or straps as specified.
+            - Keep arms anatomically simple and placements physically plausible. Never add extra limbs.
+            - Keep props recognizable without making them oversized or obscuring the face and body
+              silhouette. Do not omit, replace, add, duplicate, or float props.
 
             COLOR FIDELITY
-            - Use the four exact HEX colors assigned to BODY, OUTFIT_A, OUTFIT_B, and ACCENT.
-            - Keep all four visibly recognizable and separated. Do not substitute approximate colors.
+            - Use the four specified HEX colors as the exact base material colors for BODY,
+              OUTFIT_A, OUTFIT_B, and ACCENT.
+            - Preserve their intended hue, saturation, and lightness while allowing realistic lighting,
+              shading, and material-dependent variation. Keep all four recognizable and separated.
 
             POSE, CAMERA, AND COMPOSITION
             - Calm static standing pose with both feet planted and arms close to the body.
@@ -74,7 +97,8 @@ public class OpenAiCharacterPromptFactory {
 
             FINAL CHECK
             Before rendering, verify exact outfit construction, every prop and placement, all four HEX colors,
-            full-body framing, one character only, and a genuinely transparent background.
+            full-body framing, one character only, a visually clear character_name identity, and a
+            genuinely transparent background.
             """;
 
     private final ObjectMapper objectMapper;

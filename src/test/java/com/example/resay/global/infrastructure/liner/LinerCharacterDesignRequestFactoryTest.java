@@ -31,19 +31,27 @@ class LinerCharacterDesignRequestFactoryTest {
         assertThat(request.model()).isEqualTo("liner-mark-1.1");
         assertThat(request.maxCompletionTokens()).isEqualTo(8192);
         assertThat(request.reasoningEffort()).isEqualTo("medium");
-        assertThat(factory.promptVersion()).isEqualTo("character-design-prompt-v3");
+        assertThat(factory.promptVersion()).isEqualTo("character-design-prompt-v6");
         assertThat(factory.schemaVersion()).isEqualTo("character-design-result-v2");
         assertThat(request.messages()).hasSize(2);
         assertThat(request.messages().get(0).content())
-                .contains("FOUR-COLOR PALETTE — CRITICAL")
-                .contains("CLOTHING — CRITICAL")
-                .contains("exact fabric, collar, cuffs")
-                .contains("Do not include a real name, transcript excerpts, scores")
-                .contains("transparent background");
+                .contains("Design ONE unique premium 3D collectible")
+                .contains("Follow requiredCreatureType and requiredSilhouetteDirection")
+                .contains("ANIMAL uses requiredCreatureDirection")
+                .contains("COLOR — CRITICAL")
+                .contains("Only BODY must have low-to-medium saturation")
+                .contains("Clothing and accents have NO saturation restriction")
+                .contains("harmonious, fashion-forward color combinations")
+                .contains("CLOTHING — HIGHEST PRIORITY")
+                .contains("Suits need accurate tailoring")
+                .contains("nylon shirts need realistic")
+                .contains("Fully transparent alpha");
         assertThat(request.messages().get(0).content())
-                .contains("cute, friendly, premium collectible appeal")
-                .contains("Never create a pointed wedge")
-                .contains("Any muzzle must be very short and softly rounded");
+                .contains("Short dense matte velvet micro-fuzz")
+                .contains("1-2 tasteful wearable accessories")
+                .contains("up to two supporting props")
+                .contains("recent_character_designs")
+                .contains("generic bears");
 
         Map<?, ?> input = objectMapper.readValue(
                 request.messages().get(1).content(),
@@ -54,12 +62,23 @@ class LinerCharacterDesignRequestFactoryTest {
         assertThat(input.get("speakerRole")).isEqualTo("SELF");
         assertThat(input.get("cardBackgroundGradientColors"))
                 .isEqualTo(List.of("#FFF5EE", "#F3D2C1"));
+        assertThat(input.get("requiredCreatureType"))
+                .isIn("ABSTRACT", "ANIMAL");
+        if ("ANIMAL".equals(input.get("requiredCreatureType"))) {
+            assertThat(input.get("requiredCreatureDirection"))
+                    .asString()
+                    .contains(":");
+        } else {
+            assertThat(input.get("requiredCreatureDirection")).isNull();
+        }
         assertThat(input.get("requiredOutfitDirection"))
                 .asString()
                 .contains(":");
         assertThat(input.get("requiredSilhouetteDirection"))
                 .asString()
                 .contains(":");
+        assertThat(input.get("recent_character_designs")).isEqualTo(List.of());
+        assertThat(input.containsKey("recentCharacterDesigns")).isFalse();
 
         Map<?, ?> jsonSchema = (Map<?, ?>) request.responseFormat().get("json_schema");
         assertThat(jsonSchema.get("name")).isEqualTo("character_design");
@@ -68,7 +87,7 @@ class LinerCharacterDesignRequestFactoryTest {
         Map<?, ?> properties = (Map<?, ?>) root.get("properties");
         Map<?, ?> props = (Map<?, ?>) properties.get("props");
         assertThat(props.get("minItems")).isEqualTo(0);
-        assertThat(props.get("maxItems")).isEqualTo(4);
+        assertThat(props.get("maxItems")).isEqualTo(3);
         Map<?, ?> palette = (Map<?, ?>) properties.get("palette");
         Map<?, ?> paletteProperties = (Map<?, ?>) palette.get("properties");
         assertThat(paletteProperties.keySet().stream().map(Object::toString).toList())

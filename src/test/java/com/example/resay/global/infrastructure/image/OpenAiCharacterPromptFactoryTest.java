@@ -23,7 +23,7 @@ class OpenAiCharacterPromptFactoryTest {
                 validDesign()
         );
 
-        assertThat(result.version()).isEqualTo("character-image-prompt-v6");
+        assertThat(result.version()).isEqualTo("character-image-prompt-v8");
         assertThat(result.prompt())
                 .contains("rounded owl-inspired creature")
                 .contains("cropped field jacket")
@@ -35,7 +35,14 @@ class OpenAiCharacterPromptFactoryTest {
                 .contains("No background, scene, floor, pedestal")
                 .contains("contact shadow")
                 .contains("Readable text, letters, numbers")
-                .contains("Never render a pointed wedge")
+                .contains("Small beaks, snouts, ears, horns")
+                .contains("CHARACTER NAME FIDELITY — HIGHEST PRIORITY")
+                .contains("Make the role or object noun in character_name immediately recognizable")
+                .contains("Do not replace the named concept with a distant metaphor")
+                .contains("cohesive lineup of compact plush-like collectible mascots")
+                .contains("Tiny low-set black bead-dot eyes")
+                .contains("realistic thickness and visible separation")
+                .contains("exact base material colors")
                 .contains("do not render the card");
     }
 
