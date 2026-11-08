@@ -50,6 +50,7 @@ public class AnalysisSummaryQueryService {
         long transcribedWordCount = 0;
         long transcribedSyllableCount = 0;
         long speakingDurationMs = 0;
+        long utteranceCount = 0;
 
         for (AnalysisSummarySourceProjection source : sources) {
             AnalysisReport report = readReport(source.getResultJson());
@@ -61,6 +62,7 @@ public class AnalysisSummaryQueryService {
             transcribedWordCount += metrics.transcribedWordCount();
             transcribedSyllableCount += metrics.transcribedSyllableCount();
             speakingDurationMs += metrics.speakingDurationMs();
+            utteranceCount += metrics.utteranceCount();
             swearWordCount += collectSwearWordCount(report, selfRole);
             collectFrequentExpressions(report, selfRole, expressionCounts);
             history.add(new AnalysisSummaryResponseDto.SpeakingRatioHistory(
@@ -80,6 +82,7 @@ public class AnalysisSummaryQueryService {
                         swearWordCount,
                         ratePercent(swearWordCount, transcribedWordCount)
                 ),
+                averageUtteranceDurationMs(speakingDurationMs, utteranceCount),
                 speakingSpeed(transcribedSyllableCount, speakingDurationMs),
                 history
         );
@@ -159,6 +162,17 @@ public class AnalysisSummaryQueryService {
         return BigDecimal.valueOf(count)
                 .multiply(ONE_HUNDRED)
                 .divide(BigDecimal.valueOf(wordCount), 2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal averageUtteranceDurationMs(
+            long speakingDurationMs,
+            long utteranceCount
+    ) {
+        if (utteranceCount == 0) {
+            return null;
+        }
+        return BigDecimal.valueOf(speakingDurationMs)
+                .divide(BigDecimal.valueOf(utteranceCount), 2, RoundingMode.HALF_UP);
     }
 
     private AnalysisSummaryResponseDto.SpeakingSpeed speakingSpeed(

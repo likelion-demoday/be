@@ -12,6 +12,12 @@ public record AnalysisSummaryResponseDto(
         int analysisCount,
         List<FrequentExpression> frequentExpressions,
         SwearWordUsage swearWordUsage,
+        @Schema(
+                description = "최근 분석에서 본인이 한 번 말할 때의 평균 발화 길이(ms). "
+                        + "유효한 발화가 없으면 null",
+                example = "4036.67"
+        )
+        BigDecimal averageUtteranceDurationMs,
         SpeakingSpeed speakingSpeed,
         List<SpeakingRatioHistory> speakingRatioHistory
 ) {
