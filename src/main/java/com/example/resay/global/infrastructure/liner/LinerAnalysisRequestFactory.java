@@ -15,8 +15,8 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class LinerAnalysisRequestFactory {
 
-    private static final String PROMPT_VERSION = "analysis-prompt-v21";
-    private static final String SCHEMA_VERSION = "analysis-result-v11";
+    private static final String PROMPT_VERSION = "analysis-prompt-v22";
+    private static final String SCHEMA_VERSION = "analysis-result-v12";
     private static final int MAX_COMPLETION_TOKENS = 32768;
     private static final String REASONING_EFFORT = "medium";
 
@@ -110,6 +110,8 @@ public class LinerAnalysisRequestFactory {
             같은 segmentId를 여러 항목에서 사용하면 displayContent를 항상 동일하게 작성하세요.
             displayContent에는 바깥쪽 따옴표를 포함하지 마세요.
             relationshipSummary는 두 화자의 이번 대화 상호작용을 짧은 조합형 제목과 설명으로 요약하세요. 관계 전체나 속마음을 단정하지 마세요.
+            speakerAffectionSummaries는 COUPLE_DAILY에서만 화자별 애정 표현을 요약하고, 그 외 시나리오에서는 빈 배열로 작성하세요.
+            speakerAffectionSummaries의 title과 description은 해당 speakerRole이 직접 사용한 표현과 그 화자의 PERCENT reportMetrics만 바탕으로 작성하세요. 상대 화자의 행동을 섞거나 두 화자에게 같은 요약을 반복하지 마세요.
             reportMetrics는 화면에 필요한 세부 횟수와 비율입니다. COUNT는 해당 행동이 나타난 서로 다른 발화 수를 value로 작성하고 그 발화를 evidenceSegmentIds에 모두 넣으세요.
             reportMetrics의 PERCENT는 성격 점수가 아니라 이번 대화에서 해당 표현이 관찰된 상대적 정도를 0부터 100까지 추정한 값입니다.
             COUNT가 0이거나 PERCENT가 0이면 evidenceSegmentIds는 빈 배열로 작성하고, 0보다 크면 근거 발화를 하나 이상 작성하세요.
@@ -198,6 +200,7 @@ public class LinerAnalysisRequestFactory {
                     사랑의 크기나 관계 전체를 점수화하지 말고 속마음을 추측하지 마세요.
                     reportMetrics에는 COMPLIMENT, ENCOURAGEMENT, CARING_EXPRESSION, DIRECT_AFFECTION, JOY_OR_GRATITUDE를 화자별 COUNT로 작성하세요.
                     DIRECT_AFFECTION, CARING_EXPRESSION, COMPLIMENT_OR_ENCOURAGEMENT, AFFECTIONATE_ADDRESS는 화자별 PERCENT도 작성하세요. 관찰되지 않은 항목도 value 0으로 작성하세요.
+                    speakerAffectionSummaries는 SELF와 PARTNER 각각 한 개씩 작성하세요. 각 항목은 해당 화자의 애정 표현 특징을 짧은 제목과 설명으로 요약하고, evidenceSegmentIds에는 그 화자가 직접 말한 근거 발화만 넣으세요.
                     speakerTendencies와 coachingSuggestions는 빈 배열로 작성하세요.
                     representativeEvidences에는 두 화자의 T/F 유형 대표 반응을 화자별 1개 이상 3개 이하로 작성하세요.
                     type은 REACTION_STYLE_EXAMPLE, reactionCategory는 연결된 reactionStyleInsights.examples의 category와 동일하게 작성하세요.
@@ -257,6 +260,7 @@ public class LinerAnalysisRequestFactory {
         return objectSchema(
                 Map.ofEntries(
                         Map.entry("relationshipSummary", relationshipSummarySchema()),
+                        Map.entry("speakerAffectionSummaries", speakerAffectionSummariesSchema(scenario)),
                         Map.entry("reportMetrics", arraySchema(reportMetricSchema(scenario))),
                         Map.entry("speakerTendencies", speakerTendenciesSchema(scenario)),
                         Map.entry("coachingSuggestions", coachingSuggestionsSchema(scenario)),
@@ -273,6 +277,7 @@ public class LinerAnalysisRequestFactory {
                 ),
                 List.of(
                         "relationshipSummary",
+                        "speakerAffectionSummaries",
                         "reportMetrics",
                         "speakerTendencies",
                         "coachingSuggestions",
@@ -292,6 +297,23 @@ public class LinerAnalysisRequestFactory {
 
     private Map<String, Object> relationshipSummarySchema() {
         return evidenceObjectSchema();
+    }
+
+    private Map<String, Object> speakerAffectionSummariesSchema(AnalysisScenario scenario) {
+        int count = scenario == AnalysisScenario.COUPLE_DAILY ? 2 : 0;
+        return arraySchema(speakerAffectionSummarySchema(scenario), count, count);
+    }
+
+    private Map<String, Object> speakerAffectionSummarySchema(AnalysisScenario scenario) {
+        return objectSchema(
+                Map.of(
+                        "speakerRole", enumSchema(scenario.requiredRoles()),
+                        "title", stringSchema(),
+                        "description", stringSchema(),
+                        "evidenceSegmentIds", evidenceIdsSchema()
+                ),
+                List.of("speakerRole", "title", "description", "evidenceSegmentIds")
+        );
     }
 
     private Map<String, Object> reportMetricSchema(AnalysisScenario scenario) {
