@@ -100,11 +100,13 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("speakerInsights.patterns의 displayEvidences에는")
                 .contains("reportMetrics는 화면에 필요한 세부 횟수와 비율")
                 .contains("reportMetrics의 displayEvidences에는")
+                .contains("SWEAR_WORD, DIRECTNESS, EXPRESSION_INTENSITY, SOFTENING_EXPRESSION")
+                .contains("비속어 횟수 자체가 아니라")
                 .contains("관찰되지 않은 항목도 value 0으로 작성하세요")
                 .contains("화자별 1개 이상 3개 이하");
 
-        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v20");
-        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v10");
+        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v21");
+        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v11");
 
         Map<?, ?> input = objectMapper.readValue(request.messages().get(1).content(), Map.class);
         assertThat(input.keySet().stream().map(Object::toString).toList())
@@ -156,6 +158,18 @@ class LinerAnalysisRequestFactoryTest {
                 (Map<?, ?>) representativeEvidenceProperties.get("type");
         assertThat(representativeEvidenceType.get("enum"))
                 .isEqualTo(List.of("REACTION_STYLE_EXAMPLE"));
+        Map<?, ?> reportMetrics = (Map<?, ?>) rootProperties.get("reportMetrics");
+        Map<?, ?> reportMetricItems = (Map<?, ?>) reportMetrics.get("items");
+        Map<?, ?> reportMetricProperties = (Map<?, ?>) reportMetricItems.get("properties");
+        Map<?, ?> reportMetricType = (Map<?, ?>) reportMetricProperties.get("type");
+        assertThat(((List<?>) reportMetricType.get("enum")).stream()
+                .map(Object::toString)
+                .toList()).contains(
+                "SWEAR_WORD",
+                "DIRECTNESS",
+                "EXPRESSION_INTENSITY",
+                "SOFTENING_EXPRESSION"
+        );
         Map<?, ?> speakerInsights = (Map<?, ?>) rootProperties.get("speakerInsights");
         assertThat(speakerInsights.keySet().stream().map(Object::toString).toList())
                 .containsExactlyInAnyOrder("type", "items");

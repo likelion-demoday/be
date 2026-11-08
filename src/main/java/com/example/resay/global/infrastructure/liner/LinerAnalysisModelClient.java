@@ -8,6 +8,7 @@ import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import com.example.resay.domain.analysis.port.AnalysisModelClient;
 import com.example.resay.domain.analysis.service.AnalysisFailureCategory;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -56,8 +57,10 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
 
         QualitativeAnalysis response = parseResponse(result.content());
         QualitativeAnalysis groundedResponse = responseGrounder.ground(source, response);
+        QualitativeAnalysis responseWithRequiredMetrics =
+                ensureRequiredPercentReportMetrics(source, groundedResponse);
         QualitativeAnalysis responseWithRequiredSpiciness =
-                ensureSpicinessInsights(source, groundedResponse);
+                ensureSpicinessInsights(source, responseWithRequiredMetrics);
         QualitativeAnalysis responseWithRequiredCoaching =
                 ensureParentChildCoachingSuggestions(source, responseWithRequiredSpiciness);
         QualitativeAnalysis responseWithRequiredFields =
@@ -76,6 +79,160 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
                 requestFactory.promptVersion(),
                 requestFactory.schemaVersion()
         );
+    }
+
+    private QualitativeAnalysis ensureRequiredPercentReportMetrics(
+            AnalysisSource source,
+            QualitativeAnalysis response
+    ) {
+        List<QualitativeAnalysis.ReportMetricType> requiredTypes =
+                LinerAnalysisPolicy.requiredPercentReportMetricTypes(source.scenario());
+        Map<ReportMetricKey, QualitativeAnalysis.ReportMetric> metricsByKey = new HashMap<>();
+        List<QualitativeAnalysis.ReportMetric> completedMetrics = new ArrayList<>();
+
+        for (QualitativeAnalysis.ReportMetric metric : response.reportMetrics()) {
+            boolean requiredPercentMetric = metric != null
+                    && metric.unit() == QualitativeAnalysis.ReportMetricUnit.PERCENT
+                    && requiredTypes.contains(metric.type());
+            if (!requiredPercentMetric) {
+                completedMetrics.add(metric);
+                continue;
+            }
+            if (source.scenario().requiredRoles().contains(metric.speakerRole())) {
+                metricsByKey.putIfAbsent(
+                        new ReportMetricKey(metric.type(), metric.speakerRole()),
+                        metric
+                );
+            }
+        }
+
+        int missingCount = 0;
+        for (var speaker : source.speakers()) {
+            for (QualitativeAnalysis.ReportMetricType type : requiredTypes) {
+                QualitativeAnalysis.ReportMetric metric = metricsByKey.get(
+                        new ReportMetricKey(type, speaker.speakerRole())
+                );
+                if (metric == null) {
+                    missingCount++;
+                    completedMetrics.add(defaultPercentMetric(type, speaker.speakerRole()));
+                } else {
+                    completedMetrics.add(normalizePercentMetric(metric));
+                }
+            }
+        }
+
+        if (missingCount > 0) {
+            log.warn(
+                    "화자별 필수 보고서 비율 지표를 안전 기본값으로 보완: "
+                            + "recordingId={}, scenario={}, count={}",
+                    source.recordingId(),
+                    source.scenario(),
+                    missingCount
+            );
+        }
+        return copyWithReportMetrics(response, completedMetrics);
+    }
+
+    private QualitativeAnalysis.ReportMetric normalizePercentMetric(
+            QualitativeAnalysis.ReportMetric metric
+    ) {
+        int value = Math.max(0, Math.min(100, metric.value()));
+        return new QualitativeAnalysis.ReportMetric(
+                metric.type(),
+                metric.speakerRole(),
+                value,
+                metric.unit(),
+                reportMetricTitle(metric.type()),
+                StringUtils.hasText(metric.description())
+                        ? metric.description()
+                        : defaultReportMetricDescription(metric.type()),
+                value == 0 ? List.of() : metric.evidenceSegmentIds(),
+                value == 0 ? List.of() : metric.displayEvidences()
+        );
+    }
+
+    private QualitativeAnalysis.ReportMetric defaultPercentMetric(
+            QualitativeAnalysis.ReportMetricType type,
+            SpeakerRole speakerRole
+    ) {
+        return new QualitativeAnalysis.ReportMetric(
+                type,
+                speakerRole,
+                0,
+                QualitativeAnalysis.ReportMetricUnit.PERCENT,
+                reportMetricTitle(type),
+                defaultReportMetricDescription(type),
+                List.of(),
+                List.of()
+        );
+    }
+
+    private String reportMetricTitle(QualitativeAnalysis.ReportMetricType type) {
+        return switch (type) {
+            case SWEAR_WORD -> "비속어";
+            case DIRECTNESS -> "직설력";
+            case EXPRESSION_INTENSITY -> "표현 강도";
+            case SOFTENING_EXPRESSION -> "완충 표현";
+            case DIRECT_AFFECTION -> "직접 표현";
+            case CARING_EXPRESSION -> "챙기는 말";
+            case COMPLIMENT_OR_ENCOURAGEMENT -> "칭찬·응원";
+            case AFFECTIONATE_ADDRESS -> "다정한 호칭";
+            case DIRECT_EXPRESSION -> "직설 표현";
+            case ASSERTIVE_EXPRESSION -> "단정 표현";
+            case RECOVERY_EXPRESSION -> "회복 표현";
+            case ADVICE -> "조언 표현";
+            case EMOTION_CHECK -> "감정 확인";
+            default -> throw new IllegalArgumentException("필수 비율 지표가 아닙니다: " + type);
+        };
+    }
+
+    private String defaultReportMetricDescription(
+            QualitativeAnalysis.ReportMetricType type
+    ) {
+        return switch (type) {
+            case SWEAR_WORD -> "이번 대화에서 비속어가 관찰되지 않았어요.";
+            case DIRECTNESS -> "이번 대화에서 직설적인 표현이 관찰되지 않았어요.";
+            case EXPRESSION_INTENSITY -> "이번 대화에서 강한 표현이 관찰되지 않았어요.";
+            case SOFTENING_EXPRESSION -> "이번 대화에서 완충 표현이 관찰되지 않았어요.";
+            case DIRECT_AFFECTION -> "이번 대화에서 직접적인 애정 표현이 관찰되지 않았어요.";
+            case CARING_EXPRESSION -> "이번 대화에서 상대를 챙기는 말이 관찰되지 않았어요.";
+            case COMPLIMENT_OR_ENCOURAGEMENT -> "이번 대화에서 칭찬이나 응원이 관찰되지 않았어요.";
+            case AFFECTIONATE_ADDRESS -> "이번 대화에서 다정한 호칭이 관찰되지 않았어요.";
+            case DIRECT_EXPRESSION -> "이번 대화에서 직설적인 표현이 관찰되지 않았어요.";
+            case ASSERTIVE_EXPRESSION -> "이번 대화에서 단정적인 표현이 관찰되지 않았어요.";
+            case RECOVERY_EXPRESSION -> "이번 대화에서 관계 회복 표현이 관찰되지 않았어요.";
+            case ADVICE -> "이번 대화에서 조언 표현이 관찰되지 않았어요.";
+            case EMOTION_CHECK -> "이번 대화에서 감정을 확인하는 표현이 관찰되지 않았어요.";
+            default -> throw new IllegalArgumentException("필수 비율 지표가 아닙니다: " + type);
+        };
+    }
+
+    private QualitativeAnalysis copyWithReportMetrics(
+            QualitativeAnalysis response,
+            List<QualitativeAnalysis.ReportMetric> reportMetrics
+    ) {
+        return new QualitativeAnalysis(
+                response.overview(),
+                response.timeline(),
+                response.topics(),
+                response.characterInsights(),
+                response.speakerInsights(),
+                response.interestInsights(),
+                response.spicinessInsights(),
+                response.reactionStyleInsights(),
+                response.scenarioInsights(),
+                response.representativeEvidences(),
+                response.relationshipSummary(),
+                reportMetrics,
+                response.speakerTendencies(),
+                response.coachingSuggestions()
+        );
+    }
+
+    private record ReportMetricKey(
+            QualitativeAnalysis.ReportMetricType type,
+            SpeakerRole speakerRole
+    ) {
     }
 
     private QualitativeAnalysis ensureSpicinessInsights(

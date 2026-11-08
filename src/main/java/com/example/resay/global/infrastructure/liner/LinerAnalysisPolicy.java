@@ -3,6 +3,7 @@ package com.example.resay.global.infrastructure.liner;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 final class LinerAnalysisPolicy {
@@ -93,6 +94,10 @@ final class LinerAnalysisPolicy {
     ) {
         return switch (scenario) {
             case FRIEND_DAILY -> Set.of(
+                    QualitativeAnalysis.ReportMetricType.SWEAR_WORD,
+                    QualitativeAnalysis.ReportMetricType.DIRECTNESS,
+                    QualitativeAnalysis.ReportMetricType.EXPRESSION_INTENSITY,
+                    QualitativeAnalysis.ReportMetricType.SOFTENING_EXPRESSION,
                     QualitativeAnalysis.ReportMetricType.COMPLIMENT,
                     QualitativeAnalysis.ReportMetricType.ENCOURAGEMENT,
                     QualitativeAnalysis.ReportMetricType.CARING_EXPRESSION,
@@ -138,6 +143,37 @@ final class LinerAnalysisPolicy {
                     QualitativeAnalysis.ReportMetricType.SOFTENING_EXPRESSION,
                     QualitativeAnalysis.ReportMetricType.CHILD_EXPRESSION,
                     QualitativeAnalysis.ReportMetricType.PARENT_CONFIRMATION
+            );
+        };
+    }
+
+    static List<QualitativeAnalysis.ReportMetricType> requiredPercentReportMetricTypes(
+            AnalysisScenario scenario
+    ) {
+        return switch (scenario) {
+            case FRIEND_DAILY -> List.of(
+                    QualitativeAnalysis.ReportMetricType.SWEAR_WORD,
+                    QualitativeAnalysis.ReportMetricType.DIRECTNESS,
+                    QualitativeAnalysis.ReportMetricType.EXPRESSION_INTENSITY,
+                    QualitativeAnalysis.ReportMetricType.SOFTENING_EXPRESSION
+            );
+            case COUPLE_DAILY -> List.of(
+                    QualitativeAnalysis.ReportMetricType.DIRECT_AFFECTION,
+                    QualitativeAnalysis.ReportMetricType.CARING_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.COMPLIMENT_OR_ENCOURAGEMENT,
+                    QualitativeAnalysis.ReportMetricType.AFFECTIONATE_ADDRESS
+            );
+            case COUPLE_CONFLICT -> List.of(
+                    QualitativeAnalysis.ReportMetricType.DIRECT_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.ASSERTIVE_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.SOFTENING_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.RECOVERY_EXPRESSION
+            );
+            case PARENT_CHILD_CONFLICT -> List.of(
+                    QualitativeAnalysis.ReportMetricType.ADVICE,
+                    QualitativeAnalysis.ReportMetricType.ASSERTIVE_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.EMOTION_CHECK,
+                    QualitativeAnalysis.ReportMetricType.SOFTENING_EXPRESSION
             );
         };
     }

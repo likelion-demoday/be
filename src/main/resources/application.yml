@@ -223,9 +223,27 @@ resend:
   connect-timeout: 3s
   read-timeout: 10s
 
-# 메일 안의 버튼이 여는 프론트 주소 (운영 값은 application-prod.yml)
+# 메일 안의 링크 주소 (운영 값은 application-prod.yml)
+# frontend-base-url: 버튼이 여는 프론트, api-base-url: 로그인 없이 누르는 수신 거부 링크
 app:
   frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+  api-base-url: ${API_BASE_URL:http://localhost:8080}
+
+notification:
+  # 미사용자 마케팅 리마인드 (광고). 마케팅 수신 동의 + 알림 이메일이 있는 사용자에게만 보낸다
+  reminder:
+    # 급히 멈춰야 할 때 false
+    enabled: ${MARKETING_REMINDER_ENABLED:true}
+    # 마지막 녹음(없으면 가입) · 마지막 리마인드 이후 이 일수가 지나면 보낸다. 운영 기간(~11/21)은 7, 이후 늘린다
+    interval-days: ${MARKETING_REMINDER_INTERVAL_DAYS:7}
+    # 매일 저녁 7시(KST). 밤 9시 ~ 아침 8시에는 이 값과 관계없이 보내지 않는다
+    cron: ${MARKETING_REMINDER_CRON:0 0 19 * * *}
+    # Resend 무료 하루 100통 중 분석 완료 메일 몫을 남긴다. 넘은 대상은 다음 날 보낸다
+    daily-limit: ${MARKETING_REMINDER_DAILY_LIMIT:80}
+    # Resend 기본 요청 한도(초당 2건)를 넘지 않게 메일 사이에 쉰다
+    send-interval: 600ms
+    # 광고 메일에 반드시 표시하는 전송자 연락처
+    contact-email: ${MARKETING_CONTACT_EMAIL:hoslee404@gmail.com}
 
 storage:
   local:

@@ -93,6 +93,19 @@ LINER가 반환한 주제별 발화 ID를 사용해 서버가 계산합니다. �
 항목의 검증 실패로 `coachingSuggestions`를 제거하지 않으며, 모델 응답이 누락되거나 형식이
 잘못된 경우에도 갈등 주제와 유효한 근거 발화를 사용한 세 단계 안전 대안을 제공합니다.
 
+화면에 표시하는 화자별 `PERCENT` 지표는 대화 유형마다 다음 네 개를 고정된 순서로
+제공합니다. 모델이 일부 항목을 누락하면 서버가 해당 항목을 `0%`로 보완하므로 보고서의
+세부 지표 영역은 항상 네 항목을 표시할 수 있습니다.
+
+- 친구 일상: `SWEAR_WORD`, `DIRECTNESS`, `EXPRESSION_INTENSITY`, `SOFTENING_EXPRESSION`
+- 연인 일상: `DIRECT_AFFECTION`, `CARING_EXPRESSION`, `COMPLIMENT_OR_ENCOURAGEMENT`, `AFFECTIONATE_ADDRESS`
+- 연인 갈등: `DIRECT_EXPRESSION`, `ASSERTIVE_EXPRESSION`, `SOFTENING_EXPRESSION`, `RECOVERY_EXPRESSION`
+- 부모·자녀 갈등: `ADVICE`, `ASSERTIVE_EXPRESSION`, `EMOTION_CHECK`, `SOFTENING_EXPRESSION`
+
+친구 일상의 비속어 칩은 `spicinessInsights.swearWords`로 제공합니다. 각 항목은 분석 결과에
+저장된 원문 `expression`과 등장 `count`를 포함하며, 서버에서 검열하거나 마스킹하지 않습니다.
+비속어가 없으면 빈 배열을 반환하고 발화 세그먼트 ID는 공개 응답에 포함하지 않습니다.
+
 관심도·표독력·T/F 비율과 PERCENT 지표는 5점 단위로 반올림하지 않고 근거 발화 수, 표현
 종류, 대화 구간 분포와 강도를 바탕으로 1점 단위 정수를 요청합니다. 점수를 다양하게 보이게
 하기 위한 임의 보정은 하지 않습니다.
