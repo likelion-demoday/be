@@ -34,6 +34,7 @@ public class MarketingReminderService {
 
     private final NotificationSettingRepository notificationSettingRepository;
     private final NotificationLogService notificationLogService;
+    private final NotificationQuotaService notificationQuotaService;
     private final MarketingReminderMailTemplate template;
     private final EmailSender emailSender;
     private final MarketingReminderProperties properties;
@@ -43,13 +44,15 @@ public class MarketingReminderService {
         if (!properties.enabled() || !isSendableTime(now)) {
             return 0;
         }
+        // 같은 날 관리자가 서비스 알림을 보냈으면 그만큼 줄여, 메일 서비스의 하루 한도를 넘지 않게 한다
+        int limit = Math.min(properties.dailyLimit(), notificationQuotaService.remainingForDeferrable(now));
         List<ReminderCandidate> due = notificationSettingRepository
                 .findReminderCandidates(NotificationType.MARKETING_REMINDER, NotificationLogStatus.FAILED)
                 .stream()
                 .filter(candidate -> isDue(candidate, now))
                 // 오래 쓰지 않은 사용자부터 보내고, 하루 상한을 넘은 사용자는 다음 날 다시 대상이 된다
                 .sorted(Comparator.comparing(MarketingReminderService::baseTime))
-                .limit(properties.dailyLimit())
+                .limit(limit)
                 .toList();
 
         int sent = 0;

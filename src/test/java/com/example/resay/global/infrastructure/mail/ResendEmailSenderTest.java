@@ -37,7 +37,7 @@ class ResendEmailSenderTest {
     private ResendEmailSender sender(String apiKey) {
         RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
         server = MockRestServiceServer.bindTo(builder).build();
-        ResendProperties properties = new ResendProperties(apiKey, BASE_URL, FROM, null, null);
+        ResendProperties properties = new ResendProperties(apiKey, BASE_URL, FROM, null, null, java.time.Duration.ZERO);
         return new ResendEmailSender(properties, builder.build(), OBJECT_MAPPER);
     }
 
@@ -118,6 +118,40 @@ class ResendEmailSenderTest {
                 .isInstanceOf(EmailSendException.class)
                 .extracting(exception -> ((EmailSendException) exception).getReason())
                 .isEqualTo("HTTP_403 validation_error");
+    }
+
+    @Test
+    void 요청_제한에_걸리면_같은_중복_방지_키로_한_번_더_보낸다() {
+        ResendEmailSender sender = sender("re_test_key");
+        java.util.List<String> keys = new java.util.ArrayList<>();
+        server.expect(requestTo(BASE_URL + "/emails"))
+                .andExpect(request -> keys.add(request.getHeaders().getFirst("Idempotency-Key")))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"statusCode\": 429, \"name\": \"rate_limit_exceeded\"}"));
+        server.expect(requestTo(BASE_URL + "/emails"))
+                .andExpect(request -> keys.add(request.getHeaders().getFirst("Idempotency-Key")))
+                .andRespond(withSuccess("{\"id\": \"msg-123\"}", MediaType.APPLICATION_JSON));
+
+        assertThat(sender.send(message())).isEqualTo(EmailSendResult.sent("msg-123"));
+        server.verify();
+        assertThat(keys).hasSize(2);
+        assertThat(keys.get(0)).isEqualTo(keys.get(1));
+    }
+
+    @Test
+    void 다시_보내도_요청_제한이면_실패로_알리고_더_보내지_않는다() {
+        ResendEmailSender sender = sender("re_test_key");
+        server.expect(org.springframework.test.web.client.ExpectedCount.times(2), requestTo(BASE_URL + "/emails"))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"statusCode\": 429, \"name\": \"daily_quota_exceeded\"}"));
+
+        assertThatThrownBy(() -> sender.send(message()))
+                .isInstanceOf(EmailSendException.class)
+                .extracting(exception -> ((EmailSendException) exception).getReason())
+                .isEqualTo("HTTP_429 daily_quota_exceeded");
+        server.verify();
     }
 
     @Test

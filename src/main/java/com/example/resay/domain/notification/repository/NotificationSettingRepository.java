@@ -31,4 +31,15 @@ public interface NotificationSettingRepository extends JpaRepository<Notificatio
             @Param("type") NotificationType type,
             @Param("failed") NotificationLogStatus failed
     );
+
+    // 서비스 알림을 켜고 알림 이메일이 있는 사용자
+    @Query("""
+            select new com.example.resay.domain.notification.repository.ServiceAnnouncementTarget(s.userId, s.email)
+            from NotificationSetting s
+            where s.serviceEnabled = true
+              and s.email is not null
+              and exists (select 1 from User u where u.id = s.userId)
+            order by s.userId
+            """)
+    List<ServiceAnnouncementTarget> findServiceAnnouncementTargets();
 }

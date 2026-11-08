@@ -10,7 +10,8 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 // 메일 발송은 분석 저장과 다른 스레드에서 한다. 메일 서비스가 느려도 분석 처리가 기다리지 않는다
 @EnableAsync
 @Configuration
-@EnableConfigurationProperties({NotificationMailProperties.class, MarketingReminderProperties.class})
+@EnableConfigurationProperties({
+        NotificationMailProperties.class, MarketingReminderProperties.class, ServiceAnnouncementProperties.class})
 public class NotificationMailExecutionConfig {
 
     @Bean(name = "notificationMailTaskExecutor")
