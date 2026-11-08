@@ -222,6 +222,8 @@ resend:
   from: ${MAIL_FROM:RE:SAY <onboarding@resend.dev>}
   connect-timeout: 3s
   read-timeout: 10s
+  # 초당 요청 제한(429)에 걸리면 이만큼 쉬고 한 번만 다시 보낸다
+  rate-limit-retry-delay: 1s
 
 # 메일 안의 링크 주소 (운영 값은 application-prod.yml)
 # frontend-base-url: 버튼이 여는 프론트, api-base-url: 로그인 없이 누르는 수신 거부 링크
@@ -230,6 +232,12 @@ app:
   api-base-url: ${API_BASE_URL:http://localhost:8080}
 
 notification:
+  # 메일 서비스의 하루 발송 한도 (Resend 무료 100통). 분석 완료 · 리마인드 · 서비스 알림이 함께 쓴다.
+  # 리마인드는 분석 완료 메일 몫(20통)을 남기고, 서비스 알림은 남은 한도보다 대상이 많으면 거절한다. 유료로 바꾸면 늘린다
+  daily-quota: ${NOTIFICATION_DAILY_QUOTA:100}
+  # 관리자 서비스 알림 (점검 · 약관 변경 · 공지). 서비스 알림을 켠 사용자에게 보낸다
+  service:
+    send-interval: 600ms
   # 미사용자 마케팅 리마인드 (광고). 마케팅 수신 동의 + 알림 이메일이 있는 사용자에게만 보낸다
   reminder:
     # 급히 멈춰야 할 때 false

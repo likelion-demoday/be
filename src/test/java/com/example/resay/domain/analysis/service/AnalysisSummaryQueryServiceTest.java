@@ -52,10 +52,10 @@ class AnalysisSummaryQueryServiceTest {
                 any()
         )).thenReturn(List.of(
                 source(2L, newer, null, friendReport(
-                        2L, 40, 100, 120_000L, 840, 1, "진짜", 3
+                        2L, 40, 100, 120_000L, 30, 840, 1, "진짜", 3
                 )),
                 source(1L, older, null, friendReport(
-                        1L, 60, 100, 60_000L, 300, 1, "진짜", 2
+                        1L, 60, 100, 60_000L, 10, 300, 1, "진짜", 2
                 ))
         ));
 
@@ -67,6 +67,7 @@ class AnalysisSummaryQueryServiceTest {
         );
         assertThat(result.swearWordUsage().count()).isEqualTo(2);
         assertThat(result.swearWordUsage().ratePercent()).isEqualByComparingTo("1.00");
+        assertThat(result.averageUtteranceDurationMs()).isEqualByComparingTo("4500.00");
         assertThat(result.speakingSpeed().syllablesPerSecond()).isEqualByComparingTo("6.33");
         assertThat(result.speakingSpeed().referenceSyllablesPerSecond())
                 .isEqualByComparingTo("5.79");
@@ -86,8 +87,8 @@ class AnalysisSummaryQueryServiceTest {
                 3L,
                 AnalysisScenario.PARENT_CHILD_CONFLICT,
                 List.of(
-                        metrics(SpeakerRole.PARENT, 70, 80, 60_000L, 390),
-                        metrics(SpeakerRole.CHILD, 30, 120, 60_000L, 300)
+                        metrics(SpeakerRole.PARENT, 70, 80, 60_000L, 10, 390),
+                        metrics(SpeakerRole.CHILD, 30, 120, 60_000L, 10, 300)
                 ),
                 List.of(
                         speakerInsight(SpeakerRole.PARENT, "그러니까", 4),
@@ -116,6 +117,7 @@ class AnalysisSummaryQueryServiceTest {
         );
         assertThat(result.swearWordUsage().count()).isEqualTo(2);
         assertThat(result.swearWordUsage().ratePercent()).isEqualByComparingTo("2.50");
+        assertThat(result.averageUtteranceDurationMs()).isEqualByComparingTo("6000.00");
         assertThat(result.speakingSpeed().syllablesPerSecond()).isEqualByComparingTo("6.50");
         assertThat(result.speakingSpeed().differencePercent()).isEqualByComparingTo("12.26");
         assertThat(result.speakingSpeed().level())
@@ -138,6 +140,7 @@ class AnalysisSummaryQueryServiceTest {
         assertThat(result.frequentExpressions()).isEmpty();
         assertThat(result.swearWordUsage().count()).isZero();
         assertThat(result.swearWordUsage().ratePercent()).isEqualByComparingTo("0.00");
+        assertThat(result.averageUtteranceDurationMs()).isNull();
         assertThat(result.speakingSpeed()).isNull();
         assertThat(result.speakingRatioHistory()).isEmpty();
     }
@@ -145,7 +148,7 @@ class AnalysisSummaryQueryServiceTest {
     @Test
     void aggregatesPreviousReportWithoutTotalTurnCount() throws Exception {
         AnalysisReport report = friendReport(
-                5L, 50, 100, 60_000L, 300, 1, "진짜", 2
+                5L, 50, 100, 60_000L, 10, 300, 1, "진짜", 2
         );
         var legacyReport = objectMapper.readTree(objectMapper.writeValueAsString(report));
         ((ObjectNode) legacyReport.get("quantitativeAnalysis")).remove("totalTurnCount");
@@ -167,6 +170,7 @@ class AnalysisSummaryQueryServiceTest {
                 new AnalysisSummaryResponseDto.FrequentExpression("진짜", 2)
         );
         assertThat(result.swearWordUsage().count()).isEqualTo(1);
+        assertThat(result.averageUtteranceDurationMs()).isEqualByComparingTo("6000.00");
         assertThat(result.speakingSpeed().syllablesPerSecond()).isEqualByComparingTo("5.00");
         assertThat(result.speakingSpeed().differencePercent()).isEqualByComparingTo("-13.64");
         assertThat(result.speakingSpeed().description())
@@ -183,7 +187,7 @@ class AnalysisSummaryQueryServiceTest {
                 4L,
                 LocalDateTime.of(2026, 10, 7, 12, 0),
                 null,
-                friendReport(4L, 50, 100, 60_000L, 420, 0, "진짜", 1)
+                friendReport(4L, 50, 100, 60_000L, 10, 420, 0, "진짜", 1)
         )));
 
         AnalysisSummaryResponseDto result = service.getSummary(1L);
@@ -214,6 +218,7 @@ class AnalysisSummaryQueryServiceTest {
             int speakingRatio,
             long wordCount,
             long speakingDurationMs,
+            int utteranceCount,
             long syllableCount,
             int swearWordCount,
             String expression,
@@ -227,6 +232,7 @@ class AnalysisSummaryQueryServiceTest {
                         speakingRatio,
                         wordCount,
                         speakingDurationMs,
+                        utteranceCount,
                         syllableCount
                 )),
                 List.of(speakerInsight(SpeakerRole.SELF, expression, expressionCount)),
@@ -270,12 +276,13 @@ class AnalysisSummaryQueryServiceTest {
             int speakingRatio,
             long wordCount,
             long speakingDurationMs,
+            int utteranceCount,
             long syllableCount
     ) {
         return new SpeakerMetrics(
                 speakerRole,
                 speakingDurationMs,
-                10,
+                utteranceCount,
                 100,
                 syllableCount,
                 wordCount,

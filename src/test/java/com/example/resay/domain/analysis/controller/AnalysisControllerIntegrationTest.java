@@ -158,6 +158,7 @@ class AnalysisControllerIntegrationTest {
                 .andExpect(jsonPath("$.result.frequentExpressions[0].count").value(3))
                 .andExpect(jsonPath("$.result.swearWordUsage.count").value(3))
                 .andExpect(jsonPath("$.result.swearWordUsage.ratePercent").value(3.0))
+                .andExpect(jsonPath("$.result.averageUtteranceDurationMs").value(15000.0))
                 .andExpect(jsonPath("$.result.speakingSpeed.syllablesPerSecond")
                         .value(5.79))
                 .andExpect(jsonPath("$.result.speakingSpeed.referenceSyllablesPerSecond")
