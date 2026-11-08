@@ -138,6 +138,9 @@ app:
   api-base-url: https://api.resay.site
 
 notification:
+  daily-quota: 100
+  service:
+    send-interval: 0ms
   reminder:
     enabled: true
     interval-days: 7

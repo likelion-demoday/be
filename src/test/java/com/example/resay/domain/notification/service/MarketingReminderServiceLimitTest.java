@@ -31,6 +31,11 @@ class MarketingReminderServiceLimitTest {
     private final NotificationSettingRepository repository = mock(NotificationSettingRepository.class);
     private final NotificationLogService logService = mock(NotificationLogService.class);
     private final EmailSender emailSender = mock(EmailSender.class);
+    private final NotificationQuotaService quotaService = mock(NotificationQuotaService.class);
+
+    {
+        given(quotaService.remainingForDeferrable(any())).willReturn(80);
+    }
 
     private MarketingReminderService service(boolean enabled, int dailyLimit) {
         MarketingReminderProperties properties =
@@ -39,7 +44,18 @@ class MarketingReminderServiceLimitTest {
                 new NotificationMailProperties("https://resay.site", "https://api.resay.site"),
                 properties,
                 new UnsubscribeTokenSigner("test-only-secret-0123456789-0123456789"));
-        return new MarketingReminderService(repository, logService, template, emailSender, properties);
+        return new MarketingReminderService(repository, logService, quotaService, template, emailSender, properties);
+    }
+
+    @Test
+    void 같은_날_다른_알림으로_한도를_썼으면_남은_만큼만_보낸다() {
+        given(repository.findReminderCandidates(any(), any())).willReturn(List.of(
+                candidate(1, 30), candidate(2, 20), candidate(3, 10)));
+        given(quotaService.remainingForDeferrable(any())).willReturn(1);
+        given(emailSender.send(any())).willReturn(EmailSendResult.sent("msg"));
+
+        assertThat(service(true, 80).sendDueReminders(NOW)).isEqualTo(1);
+        verify(emailSender, times(1)).send(any());
     }
 
     private static ReminderCandidate candidate(long userId, int daysSinceSignup) {
