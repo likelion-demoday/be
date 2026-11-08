@@ -59,8 +59,12 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("근거 발화 수, 서로 다른 표현 종류")
                 .contains("근거 없이 50:50 또는 5점 단위 비율로 맞추지 마세요")
                 .contains("관심도 90점 이상은")
-                .contains("대화의 평균 분위기가 아니라")
-                .contains("반복되는 직설·명령·압박·강한 반박")
+                .contains("먼저 낮음·보통·높음 중 하나를 판단한 뒤")
+                .contains("낮음은 0~30점")
+                .contains("보통은 31~50점")
+                .contains("높음은 51~100점")
+                .contains("표현의 강도, 반복성, 상대를 직접 겨냥했는지")
+                .contains("직설·명령·압박·강한 반박이 반복")
                 .contains("비속어가 없다는 이유만으로 표독력 점수를 50 이하로 제한하지 말고")
                 .contains("상대도 장난으로 받아 주는 반응이 발화에서 확인될 때만")
                 .contains("전체 점수를 과도하게 낮추지 마세요")
@@ -99,17 +103,24 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("speakerInsights.patterns의 displayEvidences에는")
                 .contains("reportMetrics는 화면에 필요한 세부 횟수와 비율")
                 .contains("reportMetrics의 displayEvidences에는")
+                .contains("SWEAR_WORD, DIRECTNESS, EXPRESSION_INTENSITY, SOFTENING_EXPRESSION")
+                .contains("비속어 횟수 자체가 아니라")
                 .contains("관찰되지 않은 항목도 value 0으로 작성하세요")
                 .contains("화자별 1개 이상 3개 이하");
 
-        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v20");
-        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v9");
+
+        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v22");
+        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v12");
 
         Map<?, ?> input = objectMapper.readValue(request.messages().get(1).content(), Map.class);
-        assertThat(input.get("recordingId")).isEqualTo(1);
+        assertThat(input.keySet().stream().map(Object::toString).toList())
+                .containsExactlyInAnyOrder("scenario", "segments");
         assertThat(input.get("scenario")).isEqualTo("FRIEND_DAILY");
-        assertThat(input.get("durationMs")).isEqualTo(10_000);
-        assertThat((List<?>) input.get("segments")).hasSize(2);
+        List<?> segments = (List<?>) input.get("segments");
+        assertThat(segments).hasSize(2);
+        assertThat(((Map<?, ?>) segments.get(0)).keySet().stream()
+                .map(Object::toString).toList())
+                .containsExactlyInAnyOrder("segmentId", "speakerRole", "content");
 
         assertThat(request.responseFormat()).containsEntry("type", "json_schema");
         Map<?, ?> jsonSchema = (Map<?, ?>) request.responseFormat().get("json_schema");
@@ -127,6 +138,7 @@ class LinerAnalysisRequestFactoryTest {
                 "reactionStyleInsights",
                 "representativeEvidences",
                 "relationshipSummary",
+                "speakerAffectionSummaries",
                 "reportMetrics",
                 "speakerTendencies",
                 "coachingSuggestions"
@@ -153,6 +165,18 @@ class LinerAnalysisRequestFactoryTest {
                 (Map<?, ?>) representativeEvidenceProperties.get("type");
         assertThat(representativeEvidenceType.get("enum"))
                 .isEqualTo(List.of("REACTION_STYLE_EXAMPLE"));
+        Map<?, ?> reportMetrics = (Map<?, ?>) rootProperties.get("reportMetrics");
+        Map<?, ?> reportMetricItems = (Map<?, ?>) reportMetrics.get("items");
+        Map<?, ?> reportMetricProperties = (Map<?, ?>) reportMetricItems.get("properties");
+        Map<?, ?> reportMetricType = (Map<?, ?>) reportMetricProperties.get("type");
+        assertThat(((List<?>) reportMetricType.get("enum")).stream()
+                .map(Object::toString)
+                .toList()).contains(
+                "SWEAR_WORD",
+                "DIRECTNESS",
+                "EXPRESSION_INTENSITY",
+                "SOFTENING_EXPRESSION"
+        );
         Map<?, ?> speakerInsights = (Map<?, ?>) rootProperties.get("speakerInsights");
         assertThat(speakerInsights.keySet().stream().map(Object::toString).toList())
                 .containsExactlyInAnyOrder("type", "items");
@@ -191,6 +215,8 @@ class LinerAnalysisRequestFactoryTest {
                 .containsExactlyInAnyOrder("type", "items");
 
         Map<?, ?> spicinessInsights = (Map<?, ?>) rootProperties.get("spicinessInsights");
+        assertThat(spicinessInsights.keySet().stream().map(Object::toString).toList())
+                .containsExactlyInAnyOrder("type", "items");
         Map<?, ?> spicinessItems = (Map<?, ?>) spicinessInsights.get("items");
         Map<?, ?> spicinessProperties = (Map<?, ?>) spicinessItems.get("properties");
         Map<?, ?> swearWords = (Map<?, ?>) spicinessProperties.get("swearWords");
@@ -212,6 +238,41 @@ class LinerAnalysisRequestFactoryTest {
         Map<?, ?> scenarioCategory = (Map<?, ?>) scenarioInsightProperties.get("category");
         assertThat(scenarioCategory.get("enum"))
                 .isEqualTo(List.of("COMMON_INTEREST", "PLAYFUL_EXCHANGE"));
+        Map<?, ?> speakerAffectionSummaries =
+                (Map<?, ?>) rootProperties.get("speakerAffectionSummaries");
+        assertThat(speakerAffectionSummaries.get("minItems")).isEqualTo(0);
+        assertThat(speakerAffectionSummaries.get("maxItems")).isEqualTo(0);
+    }
+
+    @Test
+    void requiresSpeakerSpecificAffectionSummariesForCoupleDaily() {
+        AnalysisSource source = new AnalysisSource(
+                1L,
+                AnalysisScenario.COUPLE_DAILY,
+                10_000L,
+                speakersFor(AnalysisScenario.COUPLE_DAILY),
+                List.of(
+                        new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "오늘도 보고 싶어"),
+                        new AnalysisSegment(2L, SpeakerRole.PARTNER, 600L, 900L, "밥은 챙겨 먹었어?")
+                )
+        );
+
+        LinerChatRequest request = requestFactory.create(source);
+
+        assertThat(request.messages().get(0).content())
+                .contains("speakerAffectionSummaries는 SELF와 PARTNER 각각 한 개씩")
+                .contains("그 화자가 직접 말한 근거 발화만")
+                .contains("두 화자에게 같은 요약을 반복하지 마세요");
+        Map<?, ?> jsonSchema = (Map<?, ?>) request.responseFormat().get("json_schema");
+        Map<?, ?> rootSchema = (Map<?, ?>) jsonSchema.get("schema");
+        Map<?, ?> rootProperties = (Map<?, ?>) rootSchema.get("properties");
+        Map<?, ?> summaries = (Map<?, ?>) rootProperties.get("speakerAffectionSummaries");
+        assertThat(summaries.get("minItems")).isEqualTo(2);
+        assertThat(summaries.get("maxItems")).isEqualTo(2);
+        Map<?, ?> summaryItems = (Map<?, ?>) summaries.get("items");
+        Map<?, ?> summaryProperties = (Map<?, ?>) summaryItems.get("properties");
+        assertThat(((Map<?, ?>) summaryProperties.get("speakerRole")).get("enum"))
+                .isEqualTo(List.of("PARTNER", "SELF"));
     }
 
     @Test
@@ -265,7 +326,7 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("두 사람의 입장을 한 항목에 합치지 마세요")
                 .contains("공격, 방어, 회피는 사람의 성향이 아니라")
                 .contains("애착 유형이나 정신 상태를 진단하지 마세요")
-                .contains("coachingSuggestions는 대화 개선 단계 세 개")
+                .contains("SELF와 PARTNER 각각에 대해 대화 개선 단계 세 개")
                 .contains("displayEvidences에 대표 발화를 1개 이상 최대 3개")
                 .contains("총 6개가 되게 하세요");
 
@@ -277,8 +338,13 @@ class LinerAnalysisRequestFactoryTest {
         assertThat(representativeEvidences.get("minItems")).isEqualTo(6);
         assertThat(representativeEvidences.get("maxItems")).isEqualTo(6);
         Map<?, ?> coachingSuggestions = (Map<?, ?>) rootProperties.get("coachingSuggestions");
-        assertThat(coachingSuggestions.get("minItems")).isEqualTo(3);
-        assertThat(coachingSuggestions.get("maxItems")).isEqualTo(3);
+        assertThat(coachingSuggestions.get("minItems")).isEqualTo(6);
+        assertThat(coachingSuggestions.get("maxItems")).isEqualTo(6);
+        Map<?, ?> coachingSuggestionItems = (Map<?, ?>) coachingSuggestions.get("items");
+        Map<?, ?> coachingSuggestionProperties =
+                (Map<?, ?>) coachingSuggestionItems.get("properties");
+        assertThat(((Map<?, ?>) coachingSuggestionProperties.get("speakerRole")).get("enum"))
+                .isEqualTo(List.of("PARTNER", "SELF"));
         Map<?, ?> reportMetrics = (Map<?, ?>) rootProperties.get("reportMetrics");
         Map<?, ?> reportMetricItems = (Map<?, ?>) reportMetrics.get("items");
         Map<?, ?> reportMetricProperties = (Map<?, ?>) reportMetricItems.get("properties");
@@ -306,7 +372,7 @@ class LinerAnalysisRequestFactoryTest {
         LinerChatRequest request = requestFactory.create(source);
 
         assertThat(request.messages().get(0).content())
-                .contains("핵심 갈등 주제를 직접 반영한 다시 대화하기 단계 세 개")
+                .contains("PARENT와 CHILD 각각 다시 대화하기 단계 세 개씩")
                 .contains("1단계는 평가나 반박 없이")
                 .contains("2단계는 부모의 걱정과 자녀의 필요")
                 .contains("3단계는 다음 행동·시간·확인 방법")

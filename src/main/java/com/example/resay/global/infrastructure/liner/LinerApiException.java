@@ -33,7 +33,7 @@ public class LinerApiException extends RuntimeException {
             String providerMessage,
             Throwable cause
     ) {
-        super(buildMessage(statusCode, errorCode, requestId), cause);
+        super(buildMessage(statusCode, errorCode, requestId, providerMessage), cause);
         this.statusCode = statusCode;
         this.errorCode = errorCode;
         this.retryable = retryable;
@@ -45,12 +45,16 @@ public class LinerApiException extends RuntimeException {
     private static String buildMessage(
             Integer statusCode,
             String errorCode,
-            String requestId
+            String requestId,
+            String providerMessage
     ) {
         String message = "LINER API 호출에 실패했습니다."
                 + " statusCode=" + statusCode
                 + ", errorCode=" + errorCode
                 + ", requestId=" + requestId;
-        return message;
+        if (providerMessage == null || providerMessage.isBlank()) {
+            return message;
+        }
+        return message + ", providerMessage=" + providerMessage;
     }
 }

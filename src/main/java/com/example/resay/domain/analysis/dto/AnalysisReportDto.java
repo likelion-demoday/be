@@ -167,6 +167,8 @@ public record AnalysisReportDto(
             @Schema(description = "Figma 보고서에서 실제 발화로 표시하는 대표 근거만 포함")
             List<RepresentativeEvidence> representativeEvidences,
             RelationshipSummary relationshipSummary,
+            @Schema(description = "연인-일상 대화의 화자별 애정 표현 요약. 그 외 시나리오는 빈 배열")
+            List<SpeakerAffectionSummary> speakerAffectionSummaries,
             List<ReportMetric> reportMetrics,
             List<SpeakerTendency> speakerTendencies,
             List<CoachingSuggestion> coachingSuggestions
@@ -194,6 +196,9 @@ public record AnalysisReportDto(
                             .map(RepresentativeEvidence::from)
                             .toList(),
                     RelationshipSummary.from(source.relationshipSummary()),
+                    source.speakerAffectionSummaries().stream()
+                            .map(SpeakerAffectionSummary::from)
+                            .toList(),
                     source.reportMetrics().stream().map(ReportMetric::from).toList(),
                     source.speakerTendencies().stream().map(SpeakerTendency::from).toList(),
                     source.coachingSuggestions().stream()
@@ -215,6 +220,23 @@ public record AnalysisReportDto(
                 QualitativeAnalysis.RelationshipSummary source
         ) {
             return source == null ? null : new RelationshipSummary(
+                    source.title(),
+                    source.description()
+            );
+        }
+    }
+
+    public record SpeakerAffectionSummary(
+            SpeakerRole speakerRole,
+            String title,
+            String description
+    ) {
+
+        private static SpeakerAffectionSummary from(
+                QualitativeAnalysis.SpeakerAffectionSummary source
+        ) {
+            return new SpeakerAffectionSummary(
+                    source.speakerRole(),
                     source.title(),
                     source.description()
             );
@@ -261,11 +283,13 @@ public record AnalysisReportDto(
     }
 
     public record CoachingSuggestion(
+            @Schema(description = "개선 힌트를 적용할 화자 역할", example = "SELF")
+            SpeakerRole speakerRole,
             int order,
             String title,
             String description,
             String suggestedPhrase,
-            @Schema(description = "이 제안이 필요한 대화 맥락의 근거 발화")
+            @Schema(description = "이 제안이 필요한 대화 맥락의 대표 근거 발화. 최대 3개")
             List<EvidenceQuote> evidenceQuotes
     ) {
 
@@ -274,13 +298,15 @@ public record AnalysisReportDto(
                 List<AnalysisReport.CoachingSuggestionEvidence> evidences
         ) {
             List<EvidenceQuote> evidenceQuotes = evidences.stream()
-                    .filter(item -> item.order() == source.order())
+                    .filter(item -> item.order() == source.order()
+                            && item.speakerRole() == source.speakerRole())
                     .findFirst()
                     .map(item -> item.evidenceQuotes().stream()
                             .map(EvidenceQuote::from)
                             .toList())
                     .orElse(List.of());
             return new CoachingSuggestion(
+                    source.speakerRole(),
                     source.order(),
                     source.title(),
                     source.description(),
@@ -548,6 +574,8 @@ public record AnalysisReportDto(
             int score,
             @Schema(description = "전사문에서 확인된 비속어 총 등장 횟수", example = "3")
             int swearWordCount,
+            @Schema(description = "전사문에서 확인된 비속어별 원문 표기와 등장 횟수. 표현을 검열하거나 마스킹하지 않음")
+            List<SwearWordUsage> swearWords,
             String description,
             List<SpicinessObservation> observations
     ) {
@@ -559,9 +587,26 @@ public record AnalysisReportDto(
                     source.swearWords() == null ? 0 : source.swearWords().stream()
                             .mapToInt(QualitativeAnalysis.SwearWordUsage::count)
                             .sum(),
+                    source.swearWords() == null ? List.of() : source.swearWords().stream()
+                            .map(SwearWordUsage::from)
+                            .toList(),
                     source.description(),
                     source.observations().stream().map(SpicinessObservation::from).toList()
             );
+        }
+    }
+
+    public record SwearWordUsage(
+            @Schema(description = "분석 결과에 저장된 비속어 원문 표기", example = "미친")
+            String expression,
+            @Schema(description = "해당 표기의 등장 횟수", example = "3")
+            int count
+    ) {
+
+        private static SwearWordUsage from(
+                QualitativeAnalysis.SwearWordUsage source
+        ) {
+            return new SwearWordUsage(source.expression(), source.count());
         }
     }
 

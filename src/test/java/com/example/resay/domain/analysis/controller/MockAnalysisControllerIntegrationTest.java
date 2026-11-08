@@ -63,8 +63,12 @@ class MockAnalysisControllerIntegrationTest {
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.timeline[0].startMs").isNumber())
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.topics[0].timeRanges[0].startMs")
                         .isNumber())
+                .andExpect(jsonPath("$.result.report.qualitativeAnalysis.spicinessInsights.length()")
+                        .value(2))
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.spicinessInsights[0].swearWordCount")
                         .value(0))
+                .andExpect(jsonPath("$.result.report.qualitativeAnalysis.spicinessInsights[0].swearWords")
+                        .isEmpty())
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.representativeEvidences.length()")
                         .value(2))
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.representativeEvidences[0].evidence.originalContent")
@@ -78,6 +82,12 @@ class MockAnalysisControllerIntegrationTest {
         JsonNode response = objectMapper.readTree(responseBody);
         long recordingId = response.get("result").get("recordingId").asLong();
         assertThat(recordingId).isPositive();
+        response.get("result")
+                .get("report")
+                .get("quantitativeAnalysis")
+                .get("speakers")
+                .forEach(speaker -> assertThat(speaker.get("syllablesPerSecond").asDouble())
+                        .isBetween(5.0, 6.5));
         assertThat(containsField(response, "evidenceSegmentIds")).isFalse();
         assertThat(containsField(response, "segmentIds")).isFalse();
 
@@ -92,7 +102,7 @@ class MockAnalysisControllerIntegrationTest {
                 .andExpect(jsonPath("$.result.recordingId").value(recordingId))
                 .andExpect(jsonPath("$.result.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.result.modelName").value("mock-analysis-model"))
-                .andExpect(jsonPath("$.result.schemaVersion").value("analysis-report-v12"))
+                .andExpect(jsonPath("$.result.schemaVersion").value("analysis-report-v14"))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();

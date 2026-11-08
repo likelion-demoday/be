@@ -134,8 +134,12 @@ class AnalysisControllerIntegrationTest {
                         .value(100))
                 .andExpect(jsonPath("$.result.report.qualitativeAnalysis.spicinessInsights[0].swearWordCount")
                         .value(3))
-                .andExpect(jsonPath("$.result.report.qualitativeAnalysis.spicinessInsights[0].swearWords")
-                        .doesNotExist())
+                .andExpect(jsonPath("$.result.report.qualitativeAnalysis.spicinessInsights[0].swearWords.length()")
+                        .value(1))
+                .andExpect(jsonPath("$.result.report.qualitativeAnalysis.spicinessInsights[0].swearWords[0].expression")
+                        .value("씨발"))
+                .andExpect(jsonPath("$.result.report.qualitativeAnalysis.spicinessInsights[0].swearWords[0].count")
+                        .value(3))
                 .andExpect(jsonPath("$.result.modelName").value("liner-mark-1.1"));
     }
 
@@ -154,6 +158,7 @@ class AnalysisControllerIntegrationTest {
                 .andExpect(jsonPath("$.result.frequentExpressions[0].count").value(3))
                 .andExpect(jsonPath("$.result.swearWordUsage.count").value(3))
                 .andExpect(jsonPath("$.result.swearWordUsage.ratePercent").value(3.0))
+                .andExpect(jsonPath("$.result.averageUtteranceDurationMs").value(15000.0))
                 .andExpect(jsonPath("$.result.speakingSpeed.syllablesPerSecond")
                         .value(5.79))
                 .andExpect(jsonPath("$.result.speakingSpeed.referenceSyllablesPerSecond")
@@ -321,7 +326,7 @@ class AnalysisControllerIntegrationTest {
                                 30,
                                 "비속어가 반복적으로 나타났어요.",
                                 List.of(new QualitativeAnalysis.SwearWordUsage(
-                                        "미친",
+                                        "씨발",
                                         3,
                                         List.of(1L)
                                 )),

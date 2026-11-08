@@ -1,0 +1,179 @@
+package com.example.resay.global.infrastructure.mail;
+
+import com.example.resay.domain.notification.port.EmailMessage;
+import com.example.resay.domain.notification.port.EmailSendException;
+import com.example.resay.domain.notification.port.EmailSendResult;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.client.ExpectedCount.never;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.anything;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+
+class ResendEmailSenderTest {
+
+    private static final String BASE_URL = "https://api.resend.test";
+    private static final String FROM = "RE:SAY <noreply@resay.site>";
+    private static final ObjectMapper OBJECT_MAPPER = JsonMapper.builder().build();
+
+    private MockRestServiceServer server;
+
+    private ResendEmailSender sender(String apiKey) {
+        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
+        server = MockRestServiceServer.bindTo(builder).build();
+        ResendProperties properties = new ResendProperties(apiKey, BASE_URL, FROM, null, null, java.time.Duration.ZERO);
+        return new ResendEmailSender(properties, builder.build(), OBJECT_MAPPER);
+    }
+
+    private static EmailMessage message() {
+        return new EmailMessage("user@example.com", "제목", "<p>본문</p>", "본문", "analysis-completed-1", Map.of());
+    }
+
+    @Test
+    void 키와_보내는_주소를_담아_보내고_발송_ID를_돌려준다() {
+        ResendEmailSender sender = sender("re_test_key");
+        server.expect(requestTo(BASE_URL + "/emails"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Authorization", "Bearer re_test_key"))
+                .andExpect(header("Idempotency-Key", org.hamcrest.Matchers.matchesPattern("[0-9a-f]{8}-analysis-completed-1")))
+                .andExpect(jsonPath("$.from").value(FROM))
+                .andExpect(jsonPath("$.to[0]").value("user@example.com"))
+                .andExpect(jsonPath("$.subject").value("제목"))
+                .andExpect(jsonPath("$.html").value("<p>본문</p>"))
+                .andExpect(jsonPath("$.text").value("본문"))
+                .andExpect(jsonPath("$.headers").doesNotExist())
+                .andRespond(withSuccess("{\"id\": \"msg-123\"}", MediaType.APPLICATION_JSON));
+
+        EmailSendResult result = sender.send(message());
+
+        assertThat(result).isEqualTo(EmailSendResult.sent("msg-123"));
+        server.verify();
+    }
+
+    @Test
+    void API_키가_다르면_중복_방지_키도_달라_로컬과_운영이_겹치지_않는다() {
+        java.util.List<String> keys = new java.util.ArrayList<>();
+        for (String apiKey : new String[]{"re_local_key", "re_prod_key"}) {
+            ResendEmailSender sender = sender(apiKey);
+            server.expect(requestTo(BASE_URL + "/emails"))
+                    .andExpect(request -> keys.add(request.getHeaders().getFirst("Idempotency-Key")))
+                    .andRespond(withSuccess("{\"id\": \"msg-123\"}", MediaType.APPLICATION_JSON));
+            sender.send(message());
+        }
+
+        assertThat(keys).hasSize(2).doesNotHaveDuplicates();
+        assertThat(keys).allMatch(key -> key.endsWith("-analysis-completed-1"));
+    }
+
+    @Test
+    void 추가_헤더가_있으면_같이_보낸다() {
+        ResendEmailSender sender = sender("re_test_key");
+        server.expect(requestTo(BASE_URL + "/emails"))
+                .andExpect(jsonPath("$.headers.List-Unsubscribe").value("<https://resay.site/mypage/notifications>"))
+                .andRespond(withSuccess("{\"id\": \"msg-123\"}", MediaType.APPLICATION_JSON));
+
+        sender.send(new EmailMessage("user@example.com", "제목", "<p>본문</p>", "본문", null,
+                Map.of("List-Unsubscribe", "<https://resay.site/mypage/notifications>")));
+
+        server.verify();
+    }
+
+    @Test
+    void 키가_없으면_보내지_않는다() {
+        ResendEmailSender sender = sender("");
+        server.expect(never(), anything());
+
+        assertThat(sender.send(message())).isEqualTo(EmailSendResult.notConfigured());
+        server.verify();
+    }
+
+    @Test
+    void 거절되면_상태_코드와_오류_종류만_담아_실패한다() {
+        ResendEmailSender sender = sender("re_test_key");
+        server.expect(requestTo(BASE_URL + "/emails"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("""
+                                {"statusCode": 403, "name": "validation_error",
+                                 "message": "You can only send testing emails to your own email address (user@example.com)."}
+                                """));
+
+        assertThatThrownBy(() -> sender.send(message()))
+                .isInstanceOf(EmailSendException.class)
+                .extracting(exception -> ((EmailSendException) exception).getReason())
+                .isEqualTo("HTTP_403 validation_error");
+    }
+
+    @Test
+    void 요청_제한에_걸리면_같은_중복_방지_키로_한_번_더_보낸다() {
+        ResendEmailSender sender = sender("re_test_key");
+        java.util.List<String> keys = new java.util.ArrayList<>();
+        server.expect(requestTo(BASE_URL + "/emails"))
+                .andExpect(request -> keys.add(request.getHeaders().getFirst("Idempotency-Key")))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"statusCode\": 429, \"name\": \"rate_limit_exceeded\"}"));
+        server.expect(requestTo(BASE_URL + "/emails"))
+                .andExpect(request -> keys.add(request.getHeaders().getFirst("Idempotency-Key")))
+                .andRespond(withSuccess("{\"id\": \"msg-123\"}", MediaType.APPLICATION_JSON));
+
+        assertThat(sender.send(message())).isEqualTo(EmailSendResult.sent("msg-123"));
+        server.verify();
+        assertThat(keys).hasSize(2);
+        assertThat(keys.get(0)).isEqualTo(keys.get(1));
+    }
+
+    @Test
+    void 다시_보내도_요청_제한이면_실패로_알리고_더_보내지_않는다() {
+        ResendEmailSender sender = sender("re_test_key");
+        server.expect(org.springframework.test.web.client.ExpectedCount.times(2), requestTo(BASE_URL + "/emails"))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"statusCode\": 429, \"name\": \"daily_quota_exceeded\"}"));
+
+        assertThatThrownBy(() -> sender.send(message()))
+                .isInstanceOf(EmailSendException.class)
+                .extracting(exception -> ((EmailSendException) exception).getReason())
+                .isEqualTo("HTTP_429 daily_quota_exceeded");
+        server.verify();
+    }
+
+    @Test
+    void 서버_오류도_실패로_알린다() {
+        ResendEmailSender sender = sender("re_test_key");
+        server.expect(requestTo(BASE_URL + "/emails")).andRespond(withServerError());
+
+        assertThatThrownBy(() -> sender.send(message()))
+                .isInstanceOf(EmailSendException.class)
+                .extracting(exception -> ((EmailSendException) exception).getReason())
+                .isEqualTo("HTTP_500 unknown");
+    }
+
+    @Test
+    void 발송_ID가_없는_응답은_실패로_본다() {
+        ResendEmailSender sender = sender("re_test_key");
+        server.expect(requestTo(BASE_URL + "/emails"))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> sender.send(message()))
+                .isInstanceOf(EmailSendException.class)
+                .extracting(exception -> ((EmailSendException) exception).getReason())
+                .isEqualTo("invalid_response");
+    }
+}

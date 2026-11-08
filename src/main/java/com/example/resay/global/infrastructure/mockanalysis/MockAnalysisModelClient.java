@@ -1,6 +1,7 @@
 package com.example.resay.global.infrastructure.mockanalysis;
 
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
+import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.SpeakerRole;
@@ -71,6 +72,7 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
                 "이번 대화에서는 서로의 말에 반응하며 주제를 이어가는 흐름이 보여요.",
                 List.of(first.segmentId(), second.segmentId())
         ));
+        response.put("speakerAffectionSummaries", speakerAffectionSummaries(source));
         response.put("reportMetrics", reportMetrics(source));
         response.put("speakerTendencies", speakerTendencies(source));
         response.put("coachingSuggestions", coachingSuggestions(source));
@@ -79,38 +81,80 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
             return new AnalysisModelResult(
                     objectMapper.writeValueAsString(response),
                     "mock-analysis-model",
-                    "mock-prompt-v3",
-                    "analysis-result-v7"
+                    "mock-prompt-v4",
+                    "analysis-result-v12"
             );
         } catch (Exception exception) {
             throw new IllegalStateException("목업 정성 분석 결과를 만들 수 없습니다.", exception);
         }
     }
 
+    private List<Map<String, Object>> speakerAffectionSummaries(AnalysisSource source) {
+        if (source.scenario() != AnalysisScenario.COUPLE_DAILY) {
+            return List.of();
+        }
+        return roleItems(source, this::speakerAffectionSummary);
+    }
+
+    private Map<String, Object> speakerAffectionSummary(
+            SpeakerRole role,
+            AnalysisSegment evidence
+    ) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("speakerRole", role);
+        result.put("title", role == SpeakerRole.SELF ? "직접 전하는 다정함" : "세심하게 챙기는 마음");
+        result.put("description", role == SpeakerRole.SELF
+                ? "상대를 향한 마음을 직접적인 말로 표현해요."
+                : "상대의 상황을 살피며 챙기는 말로 애정을 표현해요.");
+        result.put("evidenceSegmentIds", List.of(evidence.segmentId()));
+        return result;
+    }
+
     private List<Map<String, Object>> reportMetrics(AnalysisSource source) {
-        String type = switch (source.scenario()) {
-            case FRIEND_DAILY -> "COMPLIMENT";
-            case COUPLE_DAILY -> "DIRECT_AFFECTION";
-            case COUPLE_CONFLICT -> "DIRECT_EXPRESSION";
-            case PARENT_CHILD_CONFLICT -> "ADVICE";
+        List<MockReportMetric> metrics = switch (source.scenario()) {
+            case FRIEND_DAILY -> List.of(
+                    new MockReportMetric("SWEAR_WORD", "비속어"),
+                    new MockReportMetric("DIRECTNESS", "직설력"),
+                    new MockReportMetric("EXPRESSION_INTENSITY", "표현 강도"),
+                    new MockReportMetric("SOFTENING_EXPRESSION", "완충 표현")
+            );
+            case COUPLE_DAILY -> List.of(
+                    new MockReportMetric("DIRECT_AFFECTION", "직접 표현"),
+                    new MockReportMetric("CARING_EXPRESSION", "챙기는 말"),
+                    new MockReportMetric("COMPLIMENT_OR_ENCOURAGEMENT", "칭찬·응원"),
+                    new MockReportMetric("AFFECTIONATE_ADDRESS", "다정한 호칭")
+            );
+            case COUPLE_CONFLICT -> List.of(
+                    new MockReportMetric("DIRECT_EXPRESSION", "직설 표현"),
+                    new MockReportMetric("ASSERTIVE_EXPRESSION", "단정 표현"),
+                    new MockReportMetric("SOFTENING_EXPRESSION", "완충 표현"),
+                    new MockReportMetric("RECOVERY_EXPRESSION", "회복 표현")
+            );
+            case PARENT_CHILD_CONFLICT -> List.of(
+                    new MockReportMetric("ADVICE", "조언 표현"),
+                    new MockReportMetric("ASSERTIVE_EXPRESSION", "단정 표현"),
+                    new MockReportMetric("EMOTION_CHECK", "감정 확인"),
+                    new MockReportMetric("SOFTENING_EXPRESSION", "완충 표현")
+            );
         };
         return source.scenario().requiredRoles().stream()
                 .sorted()
-                .map(role -> {
+                .flatMap(role -> metrics.stream().map(definition -> {
                     AnalysisSegment evidence = evidenceFor(source, role);
                     Map<String, Object> metric = new LinkedHashMap<>();
-                    metric.put("type", type);
+                    metric.put("type", definition.type());
                     metric.put("speakerRole", role);
-                    metric.put("value", source.scenario() == com.example.resay.domain.analysis.model.AnalysisScenario.FRIEND_DAILY
-                            ? 1 : 50);
-                    metric.put("unit", source.scenario() == com.example.resay.domain.analysis.model.AnalysisScenario.FRIEND_DAILY
-                            ? "COUNT" : "PERCENT");
-                    metric.put("title", "이번 대화의 표현 지표");
+                    metric.put("value", 50);
+                    metric.put("unit", "PERCENT");
+                    metric.put("title", definition.title());
                     metric.put("description", "이번 대화에서 확인된 표현을 기준으로 보여드려요.");
                     metric.put("evidenceSegmentIds", List.of(evidence.segmentId()));
                     return metric;
-                })
+                }))
                 .toList();
+    }
+
+    private record MockReportMetric(String type, String title) {
     }
 
     private List<Map<String, Object>> speakerTendencies(AnalysisSource source) {
@@ -140,16 +184,19 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
                 .limit(2)
                 .map(AnalysisSegment::segmentId)
                 .toList();
-        return java.util.stream.IntStream.rangeClosed(1, 3)
-                .mapToObj(order -> {
-                    Map<String, Object> suggestion = new LinkedHashMap<>();
-                    suggestion.put("order", order);
-                    suggestion.put("title", order + "단계 대화 제안");
-                    suggestion.put("description", "상대의 말을 확인한 뒤 내 생각을 짧게 전해 보세요.");
-                    suggestion.put("suggestedPhrase", "네 말을 먼저 이해하고 싶어. 이 부분을 조금 더 말해줄래?");
-                    suggestion.put("evidenceSegmentIds", evidenceIds);
-                    return suggestion;
-                })
+        return source.scenario().requiredRoles().stream()
+                .sorted()
+                .flatMap(role -> java.util.stream.IntStream.rangeClosed(1, 3)
+                        .mapToObj(order -> {
+                            Map<String, Object> suggestion = new LinkedHashMap<>();
+                            suggestion.put("speakerRole", role);
+                            suggestion.put("order", order);
+                            suggestion.put("title", order + "단계 대화 제안");
+                            suggestion.put("description", "상대의 말을 확인한 뒤 내 생각을 짧게 전해 보세요.");
+                            suggestion.put("suggestedPhrase", "네 말을 먼저 이해하고 싶어. 이 부분을 조금 더 말해줄래?");
+                            suggestion.put("evidenceSegmentIds", evidenceIds);
+                            return suggestion;
+                        }))
                 .toList();
     }
 

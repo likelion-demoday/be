@@ -44,6 +44,14 @@ nicepay:
 payment:
   sandbox-admin-only: ${PAYMENT_SANDBOX_ADMIN_ONLY:true}
 
+# 운영 메일은 인증한 resay.site 도메인으로 보낸다 (Resend에서 도메인이 Verified여야 발송된다)
+resend:
+  from: ${MAIL_FROM:RE:SAY <noreply@resay.site>}
+
+app:
+  frontend-base-url: ${FRONTEND_BASE_URL:https://resay.site}
+  api-base-url: ${API_BASE_URL:https://api.resay.site}
+
 # Swagger는 운영에서 기본적으로 끈다. 런칭 전 테스트 서버에서만 SWAGGER_ENABLED=true로 켠다
 springdoc:
   api-docs:

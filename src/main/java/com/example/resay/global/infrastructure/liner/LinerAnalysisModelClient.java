@@ -9,8 +9,11 @@ import com.example.resay.domain.analysis.model.SpeakerRole;
 import com.example.resay.domain.analysis.port.AnalysisModelClient;
 import com.example.resay.domain.analysis.service.AnalysisFailureCategory;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -54,8 +57,12 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
 
         QualitativeAnalysis response = parseResponse(result.content());
         QualitativeAnalysis groundedResponse = responseGrounder.ground(source, response);
+        QualitativeAnalysis responseWithRequiredMetrics =
+                ensureRequiredPercentReportMetrics(source, groundedResponse);
+        QualitativeAnalysis responseWithRequiredSpiciness =
+                ensureSpicinessInsights(source, responseWithRequiredMetrics);
         QualitativeAnalysis responseWithRequiredCoaching =
-                ensureParentChildCoachingSuggestions(source, groundedResponse);
+                ensureParentChildCoachingSuggestions(source, responseWithRequiredSpiciness);
         QualitativeAnalysis responseWithRequiredFields =
                 ensureParentChildRepresentativeEvidences(
                         source,
@@ -71,6 +78,218 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
                 result.response().model(),
                 requestFactory.promptVersion(),
                 requestFactory.schemaVersion()
+        );
+    }
+
+    private QualitativeAnalysis ensureRequiredPercentReportMetrics(
+            AnalysisSource source,
+            QualitativeAnalysis response
+    ) {
+        List<QualitativeAnalysis.ReportMetricType> requiredTypes =
+                LinerAnalysisPolicy.requiredPercentReportMetricTypes(source.scenario());
+        Map<ReportMetricKey, QualitativeAnalysis.ReportMetric> metricsByKey = new HashMap<>();
+        List<QualitativeAnalysis.ReportMetric> completedMetrics = new ArrayList<>();
+
+        for (QualitativeAnalysis.ReportMetric metric : response.reportMetrics()) {
+            boolean requiredPercentMetric = metric != null
+                    && metric.unit() == QualitativeAnalysis.ReportMetricUnit.PERCENT
+                    && requiredTypes.contains(metric.type());
+            if (!requiredPercentMetric) {
+                completedMetrics.add(metric);
+                continue;
+            }
+            if (source.scenario().requiredRoles().contains(metric.speakerRole())) {
+                metricsByKey.putIfAbsent(
+                        new ReportMetricKey(metric.type(), metric.speakerRole()),
+                        metric
+                );
+            }
+        }
+
+        int missingCount = 0;
+        for (var speaker : source.speakers()) {
+            for (QualitativeAnalysis.ReportMetricType type : requiredTypes) {
+                QualitativeAnalysis.ReportMetric metric = metricsByKey.get(
+                        new ReportMetricKey(type, speaker.speakerRole())
+                );
+                if (metric == null) {
+                    missingCount++;
+                    completedMetrics.add(defaultPercentMetric(type, speaker.speakerRole()));
+                } else {
+                    completedMetrics.add(normalizePercentMetric(metric));
+                }
+            }
+        }
+
+        if (missingCount > 0) {
+            log.warn(
+                    "화자별 필수 보고서 비율 지표를 안전 기본값으로 보완: "
+                            + "recordingId={}, scenario={}, count={}",
+                    source.recordingId(),
+                    source.scenario(),
+                    missingCount
+            );
+        }
+        return copyWithReportMetrics(response, completedMetrics);
+    }
+
+    private QualitativeAnalysis.ReportMetric normalizePercentMetric(
+            QualitativeAnalysis.ReportMetric metric
+    ) {
+        int value = Math.max(0, Math.min(100, metric.value()));
+        return new QualitativeAnalysis.ReportMetric(
+                metric.type(),
+                metric.speakerRole(),
+                value,
+                metric.unit(),
+                reportMetricTitle(metric.type()),
+                StringUtils.hasText(metric.description())
+                        ? metric.description()
+                        : defaultReportMetricDescription(metric.type()),
+                value == 0 ? List.of() : metric.evidenceSegmentIds(),
+                value == 0 ? List.of() : metric.displayEvidences()
+        );
+    }
+
+    private QualitativeAnalysis.ReportMetric defaultPercentMetric(
+            QualitativeAnalysis.ReportMetricType type,
+            SpeakerRole speakerRole
+    ) {
+        return new QualitativeAnalysis.ReportMetric(
+                type,
+                speakerRole,
+                0,
+                QualitativeAnalysis.ReportMetricUnit.PERCENT,
+                reportMetricTitle(type),
+                defaultReportMetricDescription(type),
+                List.of(),
+                List.of()
+        );
+    }
+
+    private String reportMetricTitle(QualitativeAnalysis.ReportMetricType type) {
+        return switch (type) {
+            case SWEAR_WORD -> "비속어";
+            case DIRECTNESS -> "직설력";
+            case EXPRESSION_INTENSITY -> "표현 강도";
+            case SOFTENING_EXPRESSION -> "완충 표현";
+            case DIRECT_AFFECTION -> "직접 표현";
+            case CARING_EXPRESSION -> "챙기는 말";
+            case COMPLIMENT_OR_ENCOURAGEMENT -> "칭찬·응원";
+            case AFFECTIONATE_ADDRESS -> "다정한 호칭";
+            case DIRECT_EXPRESSION -> "직설 표현";
+            case ASSERTIVE_EXPRESSION -> "단정 표현";
+            case RECOVERY_EXPRESSION -> "회복 표현";
+            case ADVICE -> "조언 표현";
+            case EMOTION_CHECK -> "감정 확인";
+            default -> throw new IllegalArgumentException("필수 비율 지표가 아닙니다: " + type);
+        };
+    }
+
+    private String defaultReportMetricDescription(
+            QualitativeAnalysis.ReportMetricType type
+    ) {
+        return switch (type) {
+            case SWEAR_WORD -> "이번 대화에서 비속어가 관찰되지 않았어요.";
+            case DIRECTNESS -> "이번 대화에서 직설적인 표현이 관찰되지 않았어요.";
+            case EXPRESSION_INTENSITY -> "이번 대화에서 강한 표현이 관찰되지 않았어요.";
+            case SOFTENING_EXPRESSION -> "이번 대화에서 완충 표현이 관찰되지 않았어요.";
+            case DIRECT_AFFECTION -> "이번 대화에서 직접적인 애정 표현이 관찰되지 않았어요.";
+            case CARING_EXPRESSION -> "이번 대화에서 상대를 챙기는 말이 관찰되지 않았어요.";
+            case COMPLIMENT_OR_ENCOURAGEMENT -> "이번 대화에서 칭찬이나 응원이 관찰되지 않았어요.";
+            case AFFECTIONATE_ADDRESS -> "이번 대화에서 다정한 호칭이 관찰되지 않았어요.";
+            case DIRECT_EXPRESSION -> "이번 대화에서 직설적인 표현이 관찰되지 않았어요.";
+            case ASSERTIVE_EXPRESSION -> "이번 대화에서 단정적인 표현이 관찰되지 않았어요.";
+            case RECOVERY_EXPRESSION -> "이번 대화에서 관계 회복 표현이 관찰되지 않았어요.";
+            case ADVICE -> "이번 대화에서 조언 표현이 관찰되지 않았어요.";
+            case EMOTION_CHECK -> "이번 대화에서 감정을 확인하는 표현이 관찰되지 않았어요.";
+            default -> throw new IllegalArgumentException("필수 비율 지표가 아닙니다: " + type);
+        };
+    }
+
+    private QualitativeAnalysis copyWithReportMetrics(
+            QualitativeAnalysis response,
+            List<QualitativeAnalysis.ReportMetric> reportMetrics
+    ) {
+        return new QualitativeAnalysis(
+                response.overview(),
+                response.timeline(),
+                response.topics(),
+                response.characterInsights(),
+                response.speakerInsights(),
+                response.interestInsights(),
+                response.spicinessInsights(),
+                response.reactionStyleInsights(),
+                response.scenarioInsights(),
+                response.representativeEvidences(),
+                response.relationshipSummary(),
+                response.speakerAffectionSummaries(),
+                reportMetrics,
+                response.speakerTendencies(),
+                response.coachingSuggestions()
+        );
+    }
+
+    private record ReportMetricKey(
+            QualitativeAnalysis.ReportMetricType type,
+            SpeakerRole speakerRole
+    ) {
+    }
+
+    private QualitativeAnalysis ensureSpicinessInsights(
+            AnalysisSource source,
+            QualitativeAnalysis response
+    ) {
+        List<QualitativeAnalysis.SpicinessInsight> originalInsights =
+                response.spicinessInsights() == null
+                        ? List.of()
+                        : response.spicinessInsights();
+        Map<SpeakerRole, QualitativeAnalysis.SpicinessInsight> insightsByRole = new HashMap<>();
+        originalInsights.stream()
+                .filter(insight -> insight != null
+                        && source.scenario().requiredRoles().contains(insight.speakerRole()))
+                .forEach(insight -> insightsByRole.putIfAbsent(insight.speakerRole(), insight));
+
+        boolean complete = originalInsights.size()
+                == source.scenario().requiredRoles().size()
+                && insightsByRole.keySet().equals(source.scenario().requiredRoles());
+        if (complete) {
+            return response;
+        }
+
+        List<QualitativeAnalysis.SpicinessInsight> completedInsights = source.speakers().stream()
+                .map(speaker -> insightsByRole.getOrDefault(
+                        speaker.speakerRole(),
+                        new QualitativeAnalysis.SpicinessInsight(
+                                speaker.speakerRole(),
+                                0,
+                                "강한 표현으로 분류된 발화가 없어 0점으로 표시해요.",
+                                List.of(),
+                                List.of()
+                        )
+                ))
+                .toList();
+        log.warn(
+                "화자별 표독력 항목을 안전 기본값으로 보완: recordingId={}, scenario={}",
+                source.recordingId(),
+                source.scenario()
+        );
+        return new QualitativeAnalysis(
+                response.overview(),
+                response.timeline(),
+                response.topics(),
+                response.characterInsights(),
+                response.speakerInsights(),
+                response.interestInsights(),
+                completedInsights,
+                response.reactionStyleInsights(),
+                response.scenarioInsights(),
+                response.representativeEvidences(),
+                response.relationshipSummary(),
+                response.speakerAffectionSummaries(),
+                response.reportMetrics(),
+                response.speakerTendencies(),
+                response.coachingSuggestions()
         );
     }
 
@@ -164,6 +383,7 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
                 response.scenarioInsights(),
                 response.representativeEvidences(),
                 response.relationshipSummary(),
+                response.speakerAffectionSummaries(),
                 response.reportMetrics(),
                 response.speakerTendencies(),
                 fallbackSuggestions
@@ -234,6 +454,7 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
                 response.scenarioInsights(),
                 recovered,
                 response.relationshipSummary(),
+                response.speakerAffectionSummaries(),
                 response.reportMetrics(),
                 response.speakerTendencies(),
                 response.coachingSuggestions()
@@ -368,17 +589,18 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
             AnalysisSource source,
             List<QualitativeAnalysis.CoachingSuggestion> suggestions
     ) {
-        if (suggestions == null || suggestions.size() != 3) {
+        if (suggestions == null
+                || suggestions.size() != source.scenario().requiredRoles().size() * 3) {
             return false;
         }
         Set<Long> segmentIds = source.segments().stream()
                 .map(AnalysisSegment::segmentId)
                 .collect(Collectors.toSet());
-        Set<Integer> orders = new LinkedHashSet<>();
+        Map<SpeakerRole, Set<Integer>> ordersByRole = new HashMap<>();
         for (QualitativeAnalysis.CoachingSuggestion suggestion : suggestions) {
             if (suggestion == null
+                    || !source.scenario().requiredRoles().contains(suggestion.speakerRole())
                     || suggestion.order() < 1 || suggestion.order() > 3
-                    || !orders.add(suggestion.order())
                     || !StringUtils.hasText(suggestion.title())
                     || !StringUtils.hasText(suggestion.description())
                     || !StringUtils.hasText(suggestion.suggestedPhrase())
@@ -387,8 +609,15 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
                     || !segmentIds.containsAll(suggestion.evidenceSegmentIds())) {
                 return false;
             }
+            if (!ordersByRole.computeIfAbsent(
+                    suggestion.speakerRole(),
+                    ignored -> new HashSet<>()
+            ).add(suggestion.order())) {
+                return false;
+            }
         }
-        return orders.size() == 3;
+        return source.scenario().requiredRoles().stream()
+                .allMatch(role -> ordersByRole.getOrDefault(role, Set.of()).size() == 3);
     }
 
     private List<QualitativeAnalysis.CoachingSuggestion> parentChildCoachingFallback(
@@ -408,7 +637,6 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
                 QualitativeAnalysis.ScenarioInsightCategory.CONFLICT_POSITION,
                 SpeakerRole.PARENT
         );
-        List<Long> sharedEvidence = mergeEvidence(parentEvidence, childEvidence);
         List<Long> solutionEvidence = evidenceFor(
                 source,
                 response,
@@ -418,24 +646,51 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
 
         return List.of(
                 new QualitativeAnalysis.CoachingSuggestion(
+                        SpeakerRole.PARENT,
                         1,
                         "입장 확인: " + topicTitle,
-                        "‘" + topicTitle + "’을 두고 상대가 중요하게 생각하는 점을 먼저 확인해요.",
+                        "‘" + topicTitle + "’을 두고 자녀가 중요하게 생각하는 점을 먼저 확인해요.",
                         "‘" + topicTitle + "’에 대해 네가 가장 중요하게 생각하는 게 무엇인지 먼저 듣고 싶어.",
                         childEvidence
                 ),
                 new QualitativeAnalysis.CoachingSuggestion(
+                        SpeakerRole.PARENT,
                         2,
-                        "걱정과 필요 나누기",
-                        "‘" + topicTitle + "’에서 생긴 부모의 걱정과 자녀에게 필요한 방식을 차례로 설명해요.",
-                        "내가 걱정한 부분을 먼저 말해도 될까? 너에게 필요한 방식도 같이 알려 줘.",
-                        sharedEvidence
+                        "걱정 설명하기",
+                        "‘" + topicTitle + "’에서 생긴 걱정을 자녀를 탓하지 않고 설명해요.",
+                        "너를 탓하려는 건 아니고, 나는 이 부분이 걱정됐어.",
+                        parentEvidence
                 ),
                 new QualitativeAnalysis.CoachingSuggestion(
+                        SpeakerRole.PARENT,
                         3,
                         "다음 약속 정하기",
                         "비슷한 상황이 생겼을 때 서로 지킬 수 있는 구체적인 행동을 정해요.",
                         "다음에는 언제 어떻게 알려 줄지 우리 둘이 지킬 수 있는 방법으로 정해 볼까?",
+                        solutionEvidence
+                ),
+                new QualitativeAnalysis.CoachingSuggestion(
+                        SpeakerRole.CHILD,
+                        1,
+                        "걱정 확인: " + topicTitle,
+                        "‘" + topicTitle + "’을 두고 부모가 걱정한 점을 먼저 확인해요.",
+                        "내가 이렇게 이해했는데, 어떤 점이 가장 걱정됐는지 먼저 듣고 싶어.",
+                        parentEvidence
+                ),
+                new QualitativeAnalysis.CoachingSuggestion(
+                        SpeakerRole.CHILD,
+                        2,
+                        "필요한 방식 설명하기",
+                        "‘" + topicTitle + "’에서 자신에게 필요했던 방식을 부모를 탓하지 않고 설명해요.",
+                        "나는 그때 내 상황을 먼저 들어 주는 방식이 필요했어.",
+                        childEvidence
+                ),
+                new QualitativeAnalysis.CoachingSuggestion(
+                        SpeakerRole.CHILD,
+                        3,
+                        "다음 약속 제안하기",
+                        "비슷한 상황이 생겼을 때 함께 지킬 수 있는 구체적인 행동을 제안해요.",
+                        "다음에는 내가 먼저 알려 줄게. 그때는 답을 조금 기다려 줄 수 있어?",
                         solutionEvidence
                 )
         );
@@ -492,13 +747,6 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
             return roleEvidence;
         }
         return List.of(source.segments().get(0).segmentId());
-    }
-
-    private List<Long> mergeEvidence(List<Long> first, List<Long> second) {
-        Set<Long> merged = new LinkedHashSet<>();
-        merged.addAll(first);
-        merged.addAll(second);
-        return new ArrayList<>(merged);
     }
 
     private void validateCompletion(LinerChatResult result) {

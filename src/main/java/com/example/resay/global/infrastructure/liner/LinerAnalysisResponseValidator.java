@@ -242,6 +242,8 @@ public class LinerAnalysisResponseValidator {
         response.reactionStyleInsights().forEach(insight -> insight.examples()
                 .forEach(item -> result.addAll(item.evidenceSegmentIds())));
         response.scenarioInsights().forEach(item -> result.addAll(item.evidenceSegmentIds()));
+        response.speakerAffectionSummaries()
+                .forEach(item -> result.addAll(item.evidenceSegmentIds()));
         response.reportMetrics().forEach(item -> result.addAll(item.evidenceSegmentIds()));
         return result;
     }
@@ -252,6 +254,11 @@ public class LinerAnalysisResponseValidator {
             Map<Long, AnalysisSegment> segmentsById
     ) {
         validateRelationshipSummary(response.relationshipSummary(), segmentsById);
+        validateSpeakerAffectionSummaries(
+                source,
+                response.speakerAffectionSummaries(),
+                segmentsById
+        );
         validateReportMetrics(source, response.reportMetrics(), segmentsById);
         validateSpeakerTendencies(source, response.speakerTendencies(), segmentsById);
         validateCoachingSuggestions(source, response.coachingSuggestions(), segmentsById);
@@ -268,6 +275,51 @@ public class LinerAnalysisResponseValidator {
         requireText(summary.title(), "relationshipSummary.title");
         requireText(summary.description(), "relationshipSummary.description");
         validateEvidence(summary.evidenceSegmentIds(), segmentsById, "relationshipSummary");
+    }
+
+    private void validateSpeakerAffectionSummaries(
+            AnalysisSource source,
+            List<QualitativeAnalysis.SpeakerAffectionSummary> summaries,
+            Map<Long, AnalysisSegment> segmentsById
+    ) {
+        // 저장된 구버전 보고서에는 이 필드가 없을 수 있다.
+        if (summaries == null || summaries.isEmpty()) {
+            return;
+        }
+        if (source.scenario() != AnalysisScenario.COUPLE_DAILY) {
+            throw invalidResponse("화자별 애정 표현 요약은 연인 일상 대화에서만 작성할 수 있습니다.");
+        }
+
+        Set<SpeakerRole> roles = new HashSet<>();
+        Set<String> contents = new HashSet<>();
+        for (QualitativeAnalysis.SpeakerAffectionSummary summary : summaries) {
+            if (summary == null || summary.speakerRole() == null) {
+                throw invalidResponse("speakerAffectionSummary 항목이 올바르지 않습니다.");
+            }
+            if (!source.scenario().requiredRoles().contains(summary.speakerRole())
+                    || !roles.add(summary.speakerRole())) {
+                throw invalidResponse("speakerAffectionSummary는 화자별로 하나씩 작성해야 합니다.");
+            }
+            requireText(summary.title(), "speakerAffectionSummary.title");
+            requireText(summary.description(), "speakerAffectionSummary.description");
+            if (!contents.add(summary.title() + "\n" + summary.description())) {
+                throw invalidResponse("화자별 애정 표현 요약은 서로 다르게 작성해야 합니다.");
+            }
+            validateEvidence(
+                    summary.evidenceSegmentIds(),
+                    segmentsById,
+                    "speakerAffectionSummary"
+            );
+            boolean containsOtherSpeaker = summary.evidenceSegmentIds().stream()
+                    .map(segmentsById::get)
+                    .anyMatch(segment -> segment.speakerRole() != summary.speakerRole());
+            if (containsOtherSpeaker) {
+                throw invalidResponse("speakerAffectionSummary에는 해당 화자의 근거만 포함해야 합니다.");
+            }
+        }
+        if (!roles.equals(source.scenario().requiredRoles())) {
+            throw invalidResponse("speakerAffectionSummary는 두 화자 모두 작성해야 합니다.");
+        }
     }
 
     private void validateReportMetrics(
@@ -437,16 +489,24 @@ public class LinerAnalysisResponseValidator {
         }
         if (suggestions == null || suggestions.isEmpty()) {
             if (source.scenario() == AnalysisScenario.PARENT_CHILD_CONFLICT) {
-                throw invalidResponse("부모·자녀 갈등에는 coachingSuggestions가 세 개 필요합니다.");
+                throw invalidResponse("부모·자녀 갈등에는 화자별 coachingSuggestions가 세 개씩 필요합니다.");
             }
             return;
         }
-        if (suggestions.size() != 3) {
-            throw invalidResponse("갈등 대화에는 coachingSuggestions가 세 개 필요합니다.");
+        if (suggestions.size() != source.scenario().requiredRoles().size() * 3) {
+            throw invalidResponse("갈등 대화에는 화자별 coachingSuggestions가 세 개씩 필요합니다.");
         }
-        Set<Integer> orders = new HashSet<>();
+        Map<SpeakerRole, Set<Integer>> ordersByRole = new HashMap<>();
         for (QualitativeAnalysis.CoachingSuggestion suggestion : suggestions) {
-            if (suggestion == null || suggestion.order() < 1 || suggestion.order() > 3
+            if (suggestion == null
+                    || !source.scenario().requiredRoles().contains(suggestion.speakerRole())) {
+                throw invalidResponse("coachingSuggestion.speakerRole이 올바르지 않습니다.");
+            }
+            Set<Integer> orders = ordersByRole.computeIfAbsent(
+                    suggestion.speakerRole(),
+                    ignored -> new HashSet<>()
+            );
+            if (suggestion.order() < 1 || suggestion.order() > 3
                     || !orders.add(suggestion.order())) {
                 throw invalidResponse("coachingSuggestion.order가 올바르지 않습니다.");
             }
@@ -458,6 +518,10 @@ public class LinerAnalysisResponseValidator {
                     segmentsById,
                     "coachingSuggestion"
             );
+        }
+        if (source.scenario().requiredRoles().stream()
+                .anyMatch(role -> ordersByRole.getOrDefault(role, Set.of()).size() != 3)) {
+            throw invalidResponse("각 화자의 coachingSuggestion.order는 1, 2, 3이어야 합니다.");
         }
     }
 

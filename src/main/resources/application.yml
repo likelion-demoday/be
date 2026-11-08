@@ -81,6 +81,11 @@ rate-limit:
     # 가입 화면의 이메일 중복 확인. 가입 여부를 대량으로 조회하지 못하게 요청 횟수를 센다
     max-attempts-per-ip: 60
     window: 10m
+  shared:
+    # 로그인 없이 열린 공유 링크 조회(/api/v1/shared/**). 토큰이 길어 대입은 불가능하므로 과도한 요청만 막는다.
+    # 부스 와이파이처럼 여러 사람이 IP 하나로 QR을 열 수 있어 넉넉하게 둔다 (보고서 1번 열 때 요청 2~3개)
+    max-requests-per-ip: 120
+    window: 1m
 
 # 크레딧 가격 (1원 = 1크레딧)
 # 분석은 일상 중심인지 갈등 중심인지에 따라 다르고, 캐릭터 생성은 계정당 첫 1회가 무료다
@@ -101,6 +106,9 @@ payment:
     - code: CREDIT_1000
       amount: 1000
       credits: 1000
+    - code: CREDIT_2000
+      amount: 2000
+      credits: 2000
     - code: CREDIT_3000
       amount: 3000
       credits: 3000
@@ -206,6 +214,44 @@ analysis:
     minimum-speaker-speaking-duration: ${ANALYSIS_MIN_SPEAKER_SPEAKING_DURATION:15s}
     minimum-speaker-character-count: ${ANALYSIS_MIN_SPEAKER_CHARACTER_COUNT:30}
     minimum-speaker-ratio-percent: ${ANALYSIS_MIN_SPEAKER_RATIO_PERCENT:5}
+
+# 메일 발송 (Resend). 키가 없으면 메일을 실제로 보내지 않고 로그만 남긴다
+# 도메인 인증 전에는 보내는 주소를 onboarding@resend.dev로 두고, Resend 가입 계정 주소로만 받을 수 있다
+resend:
+  api-key: ${RESEND_API_KEY:}
+  from: ${MAIL_FROM:RE:SAY <onboarding@resend.dev>}
+  connect-timeout: 3s
+  read-timeout: 10s
+  # 초당 요청 제한(429)에 걸리면 이만큼 쉬고 한 번만 다시 보낸다
+  rate-limit-retry-delay: 1s
+
+# 메일 안의 링크 주소 (운영 값은 application-prod.yml)
+# frontend-base-url: 버튼이 여는 프론트, api-base-url: 로그인 없이 누르는 수신 거부 링크
+app:
+  frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+  api-base-url: ${API_BASE_URL:http://localhost:8080}
+
+notification:
+  # 메일 서비스의 하루 발송 한도 (Resend 무료 100통). 분석 완료 · 리마인드 · 서비스 알림이 함께 쓴다.
+  # 리마인드는 분석 완료 메일 몫(20통)을 남기고, 서비스 알림은 남은 한도보다 대상이 많으면 거절한다. 유료로 바꾸면 늘린다
+  daily-quota: ${NOTIFICATION_DAILY_QUOTA:100}
+  # 관리자 서비스 알림 (점검 · 약관 변경 · 공지). 서비스 알림을 켠 사용자에게 보낸다
+  service:
+    send-interval: 600ms
+  # 미사용자 마케팅 리마인드 (광고). 마케팅 수신 동의 + 알림 이메일이 있는 사용자에게만 보낸다
+  reminder:
+    # 급히 멈춰야 할 때 false
+    enabled: ${MARKETING_REMINDER_ENABLED:true}
+    # 마지막 녹음(없으면 가입) · 마지막 리마인드 이후 이 일수가 지나면 보낸다. 운영 기간(~11/21)은 7, 이후 늘린다
+    interval-days: ${MARKETING_REMINDER_INTERVAL_DAYS:7}
+    # 매일 저녁 7시(KST). 밤 9시 ~ 아침 8시에는 이 값과 관계없이 보내지 않는다
+    cron: ${MARKETING_REMINDER_CRON:0 0 19 * * *}
+    # Resend 무료 하루 100통 중 분석 완료 메일 몫을 남긴다. 넘은 대상은 다음 날 보낸다
+    daily-limit: ${MARKETING_REMINDER_DAILY_LIMIT:80}
+    # Resend 기본 요청 한도(초당 2건)를 넘지 않게 메일 사이에 쉰다
+    send-interval: 600ms
+    # 광고 메일에 반드시 표시하는 전송자 연락처
+    contact-email: ${MARKETING_CONTACT_EMAIL:hoslee404@gmail.com}
 
 storage:
   local:

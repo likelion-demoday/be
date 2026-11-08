@@ -1,6 +1,7 @@
 package com.example.resay.domain.user.controller;
 
 import com.example.resay.domain.user.code.UserSuccessCode;
+import com.example.resay.domain.user.dto.UpdateAgreementsRequestDto;
 import com.example.resay.domain.user.dto.UpdateUserRequestDto;
 import com.example.resay.domain.user.dto.UserResponseDto;
 import com.example.resay.domain.user.service.UserService;
@@ -32,5 +33,14 @@ public class UserController {
             @Valid @RequestBody UpdateUserRequestDto request
     ) {
         return ApiResponse.onSuccess(UserSuccessCode.UPDATE_ME, userService.updateMyInfo(userId, request));
+    }
+
+    // 가입 후에는 마케팅 수신 동의만 바꿀 수 있다. 필수 동의 철회는 탈퇴에 해당하므로 받지 않는다
+    @PatchMapping("/me/agreements")
+    public ApiResponse<UserResponseDto> updateAgreements(
+            @CurrentUserId Long userId,
+            @Valid @RequestBody UpdateAgreementsRequestDto request
+    ) {
+        return ApiResponse.onSuccess(UserSuccessCode.UPDATE_AGREEMENTS, userService.updateAgreements(userId, request));
     }
 }

@@ -48,6 +48,9 @@ rate-limit:
   email-check:
     max-attempts-per-ip: 60
     window: 10m
+  shared:
+    max-requests-per-ip: 120
+    window: 1m
 
 credit:
   price:
@@ -61,6 +64,9 @@ payment:
     - code: CREDIT_1000
       amount: 1000
       credits: 1000
+    - code: CREDIT_2000
+      amount: 2000
+      credits: 2000
     - code: CREDIT_3000
       amount: 3000
       credits: 3000
@@ -121,6 +127,28 @@ analysis:
     minimum-speaker-speaking-duration: 15s
     minimum-speaker-character-count: 30
     minimum-speaker-ratio-percent: 5
+
+# 테스트에서는 메일을 실제로 보내지 않는다 (키를 비워 둠). 발송은 EmailSender를 목으로 바꿔 확인한다
+resend:
+  api-key:
+  from: "RE:SAY <noreply@resay.site>"
+
+app:
+  frontend-base-url: https://resay.site
+  api-base-url: https://api.resay.site
+
+notification:
+  daily-quota: 100
+  service:
+    send-interval: 0ms
+  reminder:
+    enabled: true
+    interval-days: 7
+    # 테스트 중에 저녁 7시가 되어도 스케줄러가 돌지 않게 끈다. 발송은 MarketingReminderService를 직접 호출해 확인한다
+    cron: "-"
+    daily-limit: 80
+    send-interval: 0ms
+    contact-email: contact@example.com
 
 # 테스트 전용 스토리지 경로 (실제 파일이 쌓이지 않게 임시 폴더 사용)
 storage:

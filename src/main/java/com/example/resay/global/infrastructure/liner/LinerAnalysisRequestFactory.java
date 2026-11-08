@@ -15,8 +15,8 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class LinerAnalysisRequestFactory {
 
-    private static final String PROMPT_VERSION = "analysis-prompt-v20";
-    private static final String SCHEMA_VERSION = "analysis-result-v9";
+    private static final String PROMPT_VERSION = "analysis-prompt-v22";
+    private static final String SCHEMA_VERSION = "analysis-result-v12";
     private static final int MAX_COMPLETION_TOKENS = 32768;
     private static final String REASONING_EFFORT = "medium";
 
@@ -44,13 +44,16 @@ public class LinerAnalysisRequestFactory {
             사람의 성격이나 관계 전체를 진단하지 말고 이번 대화에서 관찰되는 표현과 행동만 설명하세요.
             발화 비중, 말하기 속도처럼 서버가 계산하는 정량 지표는 계산하지 마세요.
             관심도와 표독력 점수는 성격이나 관계의 점수가 아니라 이번 대화에서 관련 표현이 나타난 정도를 0부터 100까지 추정한 값입니다.
-            관심도, 표독력, T/F 비율과 reportMetrics의 PERCENT는 5점이나 10점 단위로 반올림하지 말고 1점 단위 정수로 평가하세요.
+            관심도, T/F 비율과 reportMetrics의 PERCENT는 5점이나 10점 단위로 반올림하지 말고 1점 단위 정수로 평가하세요.
             점수를 정할 때 관련 근거 발화 수, 서로 다른 표현 종류, 대화 앞·중간·뒤에 걸친 분포와 표현 강도를 순서대로 검토하세요.
             근거가 실제로 구간 경계나 동일 비율에 해당할 때만 5의 배수를 사용할 수 있으며, 숫자를 다양하게 보이게 하려고 임의 값을 더하거나 빼지 마세요.
             관심도는 0~20 거의 관찰되지 않음, 21~40 제한적으로 나타남, 41~60 보통, 61~80 지속적으로 나타남, 81~100 여러 종류의 관심 표현이 대화 전반에 반복됨을 기준으로 평가하세요.
             관심도 90점 이상은 질문, 공감, 맞장구, 호감 표현 중 세 종류 이상이 대화 전반에 반복된 경우에만 사용하세요.
-            표독력은 대화의 평균 분위기가 아니라 해당 화자가 실제로 사용한 강한 표현의 강도와 반복성을 함께 기준으로 평가하세요.
-            표독력은 0~10 강한 표현 없음, 11~30 상호 장난 맥락의 표현이나 단발성 직설, 31~50 반복되는 직설·명령·압박·강한 반박, 51~70 반복되는 공격·비하·위협·비속어 또는 단 한 번이어도 명확한 인신공격, 71~100 심한 공격·위협·비속어가 대화 전반에 지속됨을 기준으로 평가하세요.
+            표독력은 대화의 평균 분위기가 아니라 해당 화자가 실제로 사용한 강한 표현을 기준으로 먼저 낮음·보통·높음 중 하나를 판단한 뒤 그 구간 안에서 점수를 정하세요.
+            낮음은 0~30점입니다. 0~10점은 강한 표현이 없고, 11~30점은 상호 장난 맥락의 표현이나 단발성 직설이 있는 경우입니다.
+            보통은 31~50점이며 직설·명령·압박·강한 반박이 반복되지만 상대를 향한 명확한 비하·위협은 없는 경우입니다.
+            높음은 51~100점이며 상대를 향한 공격·비하·위협·비속어가 명확한 경우입니다. 그중 71점 이상은 심한 공격·위협·비속어가 대화 전반에 지속된 경우에만 사용하세요.
+            표독력 구간과 점수를 정할 때는 표현의 강도, 반복성, 상대를 직접 겨냥했는지를 순서대로 검토하세요.
             비속어가 없다는 이유만으로 표독력 점수를 50 이하로 제한하지 말고, 상대를 겨냥한 비하·압박·위협이나 강한 명령이 명확하면 강도에 맞게 51점 이상을 사용할 수 있습니다.
             장난 맥락은 상대도 장난으로 받아 주는 반응이 발화에서 확인될 때만 점수를 낮추는 근거로 사용하세요.
             완충·사과·회복 표현은 별도로 반영하되, 앞서 나타난 강한 표현의 강도와 반복 사실을 없던 것으로 간주해 전체 점수를 과도하게 낮추지 마세요.
@@ -110,6 +113,8 @@ public class LinerAnalysisRequestFactory {
             같은 segmentId를 여러 항목에서 사용하면 displayContent를 항상 동일하게 작성하세요.
             displayContent에는 바깥쪽 따옴표를 포함하지 마세요.
             relationshipSummary는 두 화자의 이번 대화 상호작용을 짧은 조합형 제목과 설명으로 요약하세요. 관계 전체나 속마음을 단정하지 마세요.
+            speakerAffectionSummaries는 COUPLE_DAILY에서만 화자별 애정 표현을 요약하고, 그 외 시나리오에서는 빈 배열로 작성하세요.
+            speakerAffectionSummaries의 title과 description은 해당 speakerRole이 직접 사용한 표현과 그 화자의 PERCENT reportMetrics만 바탕으로 작성하세요. 상대 화자의 행동을 섞거나 두 화자에게 같은 요약을 반복하지 마세요.
             reportMetrics는 화면에 필요한 세부 횟수와 비율입니다. COUNT는 해당 행동이 나타난 서로 다른 발화 수를 value로 작성하고 그 발화를 evidenceSegmentIds에 모두 넣으세요.
             reportMetrics의 PERCENT는 성격 점수가 아니라 이번 대화에서 해당 표현이 관찰된 상대적 정도를 0부터 100까지 추정한 값입니다.
             COUNT가 0이거나 PERCENT가 0이면 evidenceSegmentIds는 빈 배열로 작성하고, 0보다 크면 근거 발화를 하나 이상 작성하세요.
@@ -118,6 +123,7 @@ public class LinerAnalysisRequestFactory {
             같은 type이라도 COUNT와 PERCENT가 모두 필요한 경우 각각 별도 항목으로 작성하세요.
             speakerTendencies는 사람의 고정 성향이 아니라 이번 대화에서 반복된 대응 방식을 짧은 label과 설명으로 작성하세요.
             coachingSuggestions는 실제 발화 인용이 아니라 대화를 다시 이어 갈 때 사용할 수 있는 생성 제안입니다.
+            coachingSuggestions의 speakerRole은 해당 개선 문장을 직접 말할 화자입니다. 두 화자의 제안을 섞지 마세요.
             coachingSuggestions의 suggestedPhrase는 기존 전사문을 복사하지 말고, 해당 상황에서 쓸 수 있는 짧고 구체적인 존댓말 또는 자연스러운 대화체 문장으로 작성하세요.
             coachingSuggestions의 evidenceSegmentIds에는 제안이 필요한 맥락을 보여 주는 기존 발화를 넣으세요.
             결과의 제목과 설명은 한국어로 작성하고 JSON Schema와 일치하는 JSON만 반환하세요.
@@ -162,9 +168,7 @@ public class LinerAnalysisRequestFactory {
 
     private String serializeInput(AnalysisSource source) {
         AnalysisInput input = new AnalysisInput(
-                source.recordingId(),
                 source.scenario(),
-                source.durationMs(),
                 source.segments().stream().map(SegmentInput::from).toList()
         );
 
@@ -187,6 +191,7 @@ public class LinerAnalysisRequestFactory {
                     interestInsights의 점수는 이번 대화에서 관찰된 관심 표현만 기준으로 작성하세요.
                     두 사람의 친밀도나 관계의 좋고 나쁨을 판단하지 마세요.
                     reportMetrics에는 COMPLIMENT, ENCOURAGEMENT, CARING_EXPRESSION, FRIENDLY_ADDRESS, DIRECT_AFFECTION, JOY_OR_GRATITUDE를 화자별 COUNT로 작성하세요. 관찰되지 않은 항목도 value 0으로 작성하세요.
+                    SWEAR_WORD, DIRECTNESS, EXPRESSION_INTENSITY, SOFTENING_EXPRESSION은 화자별 PERCENT로 작성하세요. 비속어 횟수 자체가 아니라 이번 대화에서 각 표현 특성이 관찰된 상대적 정도를 평가하고, 관찰되지 않은 항목도 value 0으로 작성하세요.
                     speakerTendencies와 coachingSuggestions는 빈 배열로 작성하세요.
                     representativeEvidences에는 두 화자의 T/F 유형 대표 반응을 화자별 1개 이상 3개 이하로 작성하세요.
                     type은 REACTION_STYLE_EXAMPLE, reactionCategory는 연결된 reactionStyleInsights.examples의 category와 동일하게 작성하세요.
@@ -198,6 +203,7 @@ public class LinerAnalysisRequestFactory {
                     사랑의 크기나 관계 전체를 점수화하지 말고 속마음을 추측하지 마세요.
                     reportMetrics에는 COMPLIMENT, ENCOURAGEMENT, CARING_EXPRESSION, DIRECT_AFFECTION, JOY_OR_GRATITUDE를 화자별 COUNT로 작성하세요.
                     DIRECT_AFFECTION, CARING_EXPRESSION, COMPLIMENT_OR_ENCOURAGEMENT, AFFECTIONATE_ADDRESS는 화자별 PERCENT도 작성하세요. 관찰되지 않은 항목도 value 0으로 작성하세요.
+                    speakerAffectionSummaries는 SELF와 PARTNER 각각 한 개씩 작성하세요. 각 항목은 해당 화자의 애정 표현 특징을 짧은 제목과 설명으로 요약하고, evidenceSegmentIds에는 그 화자가 직접 말한 근거 발화만 넣으세요.
                     speakerTendencies와 coachingSuggestions는 빈 배열로 작성하세요.
                     representativeEvidences에는 두 화자의 T/F 유형 대표 반응을 화자별 1개 이상 3개 이하로 작성하세요.
                     type은 REACTION_STYLE_EXAMPLE, reactionCategory는 연결된 reactionStyleInsights.examples의 category와 동일하게 작성하세요.
@@ -212,7 +218,9 @@ public class LinerAnalysisRequestFactory {
                     reportMetrics에는 POSITION_EXPLANATION, REBUTTAL, AVOIDANCE, APOLOGY, YIELDING, EMOTION_CHECK, QUESTION, MISSED_RESPONSE를 화자별 COUNT로 작성하세요.
                     POSITION_EXPLANATION, REBUTTAL, AVOIDANCE, APOLOGY, YIELDING의 COUNT 항목은 value가 0보다 클 때 displayEvidences에 대표 발화를 1개 이상 최대 3개 작성하세요. value가 0이거나 그 밖의 reportMetric은 displayEvidences를 빈 배열로 작성하세요.
                     DIRECT_EXPRESSION, ASSERTIVE_EXPRESSION, SOFTENING_EXPRESSION, RECOVERY_EXPRESSION은 화자별 PERCENT로 작성하세요. 관찰되지 않은 항목도 value 0으로 작성하세요.
-                    speakerTendencies는 두 화자에 대해 각각 한 개, coachingSuggestions는 대화 개선 단계 세 개를 순서대로 작성하세요.
+                    speakerTendencies는 두 화자에 대해 각각 한 개 작성하세요.
+                    coachingSuggestions는 SELF와 PARTNER 각각에 대해 대화 개선 단계 세 개를 순서대로 작성하여 총 6개가 되게 하세요.
+                    각 화자의 세 단계는 order 1, 2, 3을 한 번씩 사용하고, suggestedPhrase는 speakerRole의 화자가 실제로 말할 문장으로 작성하세요.
                     representativeEvidences에는 EMOTION_EXPRESSION, MISSED_QUESTION, FOLLOWING_RESPONSE, RECOVERY_START를 각각 한 개씩 작성하세요.
                     SPEAKER_REACTION은 SELF와 PARTNER에 대해 각각 한 개씩 작성하여 총 6개가 되게 하세요.
                     갈등 유형의 representativeEvidences에서 reactionCategory는 null로 작성하세요.
@@ -228,9 +236,10 @@ public class LinerAnalysisRequestFactory {
                     위 COUNT 지표는 value가 0보다 클 때 displayEvidences에 대표 발화를 1개 이상 최대 3개 작성하고, value가 0이면 빈 배열로 작성하세요.
                     ADVICE, ASSERTIVE_EXPRESSION, EMOTION_CHECK, SOFTENING_EXPRESSION은 화자별 PERCENT로 작성하세요. 실제 발화로 확인할 수 없는 침묵은 계산하지 마세요. 관찰되지 않은 항목도 value 0으로 작성하세요.
                     speakerTendencies는 부모와 자녀에 대해 각각 한 개 작성하세요.
-                    coachingSuggestions는 이 대화의 핵심 갈등 주제를 직접 반영한 다시 대화하기 단계 세 개를 순서대로 작성하세요. 어디에나 적용되는 일반적인 조언은 사용하지 마세요.
+                    coachingSuggestions는 이 대화의 핵심 갈등 주제를 직접 반영하여 PARENT와 CHILD 각각 다시 대화하기 단계 세 개씩, 총 6개를 작성하세요. 어디에나 적용되는 일반적인 조언은 사용하지 마세요.
+                    각 화자의 세 단계는 order 1, 2, 3을 한 번씩 사용하세요.
                     1단계는 평가나 반박 없이 상대가 말한 입장이나 감정을 확인하는 문장, 2단계는 부모의 걱정과 자녀의 필요를 비난 없이 설명하는 문장, 3단계는 다음 행동·시간·확인 방법 중 하나를 포함한 구체적인 합의 문장으로 작성하세요.
-                    각 단계의 description에는 왜 이 단계가 필요한지 근거 발화의 맥락을 요약하고, suggestedPhrase는 부모나 자녀가 실제로 바로 말할 수 있는 한 문장으로 작성하세요.
+                    각 단계의 description에는 왜 이 단계가 필요한지 근거 발화의 맥락을 요약하고, suggestedPhrase는 speakerRole의 화자가 실제로 바로 말할 수 있는 한 문장으로 작성하세요.
                     부모나 자녀 어느 한쪽의 성격·태도·양육 능력을 탓하지 말고, 세 단계의 evidenceSegmentIds에는 각 제안과 직접 관련된 기존 발화를 포함하세요.
                     representativeEvidences에는 CHILD_POSITION, FOLLOWING_ADVICE, UNASKED_QUESTION, WORRY_START, EXPRESSION_TURNING_POINT, CLOSING_RESPONSE를 각각 한 개씩 작성하세요.
                     CHILD_POSITION, UNASKED_QUESTION, CLOSING_RESPONSE는 CHILD 발화를 선택하고 나머지는 PARENT 발화를 선택하세요.
@@ -254,6 +263,7 @@ public class LinerAnalysisRequestFactory {
         return objectSchema(
                 Map.ofEntries(
                         Map.entry("relationshipSummary", relationshipSummarySchema()),
+                        Map.entry("speakerAffectionSummaries", speakerAffectionSummariesSchema(scenario)),
                         Map.entry("reportMetrics", arraySchema(reportMetricSchema(scenario))),
                         Map.entry("speakerTendencies", speakerTendenciesSchema(scenario)),
                         Map.entry("coachingSuggestions", coachingSuggestionsSchema(scenario)),
@@ -270,6 +280,7 @@ public class LinerAnalysisRequestFactory {
                 ),
                 List.of(
                         "relationshipSummary",
+                        "speakerAffectionSummaries",
                         "reportMetrics",
                         "speakerTendencies",
                         "coachingSuggestions",
@@ -289,6 +300,23 @@ public class LinerAnalysisRequestFactory {
 
     private Map<String, Object> relationshipSummarySchema() {
         return evidenceObjectSchema();
+    }
+
+    private Map<String, Object> speakerAffectionSummariesSchema(AnalysisScenario scenario) {
+        int count = scenario == AnalysisScenario.COUPLE_DAILY ? 2 : 0;
+        return arraySchema(speakerAffectionSummarySchema(scenario), count, count);
+    }
+
+    private Map<String, Object> speakerAffectionSummarySchema(AnalysisScenario scenario) {
+        return objectSchema(
+                Map.of(
+                        "speakerRole", enumSchema(scenario.requiredRoles()),
+                        "title", stringSchema(),
+                        "description", stringSchema(),
+                        "evidenceSegmentIds", evidenceIdsSchema()
+                ),
+                List.of("speakerRole", "title", "description", "evidenceSegmentIds")
+        );
     }
 
     private Map<String, Object> reportMetricSchema(AnalysisScenario scenario) {
@@ -349,14 +377,15 @@ public class LinerAnalysisRequestFactory {
     private Map<String, Object> coachingSuggestionsSchema(AnalysisScenario scenario) {
         int count = switch (scenario) {
             case FRIEND_DAILY, COUPLE_DAILY -> 0;
-            case COUPLE_CONFLICT, PARENT_CHILD_CONFLICT -> 3;
+            case COUPLE_CONFLICT, PARENT_CHILD_CONFLICT -> 6;
         };
-        return arraySchema(coachingSuggestionSchema(), count, count);
+        return arraySchema(coachingSuggestionSchema(scenario), count, count);
     }
 
-    private Map<String, Object> coachingSuggestionSchema() {
+    private Map<String, Object> coachingSuggestionSchema(AnalysisScenario scenario) {
         return objectSchema(
                 Map.of(
+                        "speakerRole", enumSchema(scenario.requiredRoles()),
                         "order", integerSchema(1, 3),
                         "title", stringSchema(),
                         "description", stringSchema(),
@@ -364,6 +393,7 @@ public class LinerAnalysisRequestFactory {
                         "evidenceSegmentIds", evidenceIdsSchema()
                 ),
                 List.of(
+                        "speakerRole",
                         "order",
                         "title",
                         "description",
@@ -712,9 +742,7 @@ public class LinerAnalysisRequestFactory {
     }
 
     private record AnalysisInput(
-            Long recordingId,
             AnalysisScenario scenario,
-            Long durationMs,
             List<SegmentInput> segments
     ) {
     }
@@ -722,8 +750,6 @@ public class LinerAnalysisRequestFactory {
     private record SegmentInput(
             Long segmentId,
             SpeakerRole speakerRole,
-            Long startMs,
-            Long endMs,
             String content
     ) {
 
@@ -731,8 +757,6 @@ public class LinerAnalysisRequestFactory {
             return new SegmentInput(
                     segment.segmentId(),
                     segment.speakerRole(),
-                    segment.startMs(),
-                    segment.endMs(),
                     segment.content()
             );
         }

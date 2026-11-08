@@ -321,6 +321,47 @@ class LinerAnalysisResponseValidatorTest {
     }
 
     @Test
+    void acceptsThreeCoachingSuggestionsForEachConflictSpeaker() {
+        QualitativeAnalysis response = withCoachingSuggestions(
+                conflictResponse(validConflictInsights()),
+                validConflictCoachingSuggestions()
+        );
+
+        assertThatCode(() -> validator.validate(conflictSource(), response))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsConflictCoachingSuggestionsWithoutThreeOrdersPerSpeaker() {
+        List<QualitativeAnalysis.CoachingSuggestion> suggestions =
+                new java.util.ArrayList<>(validConflictCoachingSuggestions());
+        suggestions.set(5, coachingSuggestion(SpeakerRole.SELF, 3, 2L));
+        QualitativeAnalysis response = withCoachingSuggestions(
+                conflictResponse(validConflictInsights()),
+                suggestions
+        );
+
+        assertThatThrownBy(() -> validator.validate(conflictSource(), response))
+                .isInstanceOf(LinerAnalysisException.class)
+                .hasMessageContaining("order");
+    }
+
+    @Test
+    void rejectsConflictCoachingSuggestionForSpeakerOutsideScenario() {
+        List<QualitativeAnalysis.CoachingSuggestion> suggestions =
+                new java.util.ArrayList<>(validConflictCoachingSuggestions());
+        suggestions.set(5, coachingSuggestion(SpeakerRole.FRIEND, 3, 2L));
+        QualitativeAnalysis response = withCoachingSuggestions(
+                conflictResponse(validConflictInsights()),
+                suggestions
+        );
+
+        assertThatThrownBy(() -> validator.validate(conflictSource(), response))
+                .isInstanceOf(LinerAnalysisException.class)
+                .hasMessageContaining("speakerRole");
+    }
+
+    @Test
     void rejectsConflictPositionsCombinedIntoOneInsight() {
         List<QualitativeAnalysis.ScenarioInsight> insights = List.of(
                 scenarioInsight(
@@ -426,6 +467,41 @@ class LinerAnalysisResponseValidatorTest {
     }
 
     @Test
+    void acceptsDifferentAffectionSummaryForEachCoupleSpeaker() {
+        QualitativeAnalysis response = coupleResponse(List.of(
+                affectionSummary(SpeakerRole.SELF, "직접 전하는 마음", "보고 싶다는 말로 마음을 표현해요.", 1L),
+                affectionSummary(SpeakerRole.PARTNER, "세심한 챙김", "식사를 확인하며 상대를 챙겨요.", 2L)
+        ));
+
+        assertThatCode(() -> validator.validate(coupleSource(), response))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsSameAffectionSummaryForBothCoupleSpeakers() {
+        QualitativeAnalysis response = coupleResponse(List.of(
+                affectionSummary(SpeakerRole.SELF, "다정한 표현", "상대를 다정하게 챙겨요.", 1L),
+                affectionSummary(SpeakerRole.PARTNER, "다정한 표현", "상대를 다정하게 챙겨요.", 2L)
+        ));
+
+        assertThatThrownBy(() -> validator.validate(coupleSource(), response))
+                .isInstanceOf(LinerAnalysisException.class)
+                .hasMessageContaining("서로 다르게");
+    }
+
+    @Test
+    void rejectsAffectionSummaryGroundedInOtherSpeakerUtterance() {
+        QualitativeAnalysis response = coupleResponse(List.of(
+                affectionSummary(SpeakerRole.SELF, "직접 전하는 마음", "보고 싶다는 말로 마음을 표현해요.", 2L),
+                affectionSummary(SpeakerRole.PARTNER, "세심한 챙김", "식사를 확인하며 상대를 챙겨요.", 2L)
+        ));
+
+        assertThatThrownBy(() -> validator.validate(coupleSource(), response))
+                .isInstanceOf(LinerAnalysisException.class)
+                .hasMessageContaining("해당 화자의 근거만");
+    }
+
+    @Test
     void rejectsPercentMetricOverOneHundred() {
         QualitativeAnalysis valid = validResponse();
         QualitativeAnalysis response = withExtendedFields(
@@ -469,6 +545,54 @@ class LinerAnalysisResponseValidatorTest {
                 metrics,
                 List.of(),
                 List.of()
+        );
+    }
+
+    private QualitativeAnalysis withCoachingSuggestions(
+            QualitativeAnalysis source,
+            List<QualitativeAnalysis.CoachingSuggestion> suggestions
+    ) {
+        return new QualitativeAnalysis(
+                source.overview(),
+                source.timeline(),
+                source.topics(),
+                source.characterInsights(),
+                source.speakerInsights(),
+                source.interestInsights(),
+                source.spicinessInsights(),
+                source.reactionStyleInsights(),
+                source.scenarioInsights(),
+                source.representativeEvidences(),
+                source.relationshipSummary(),
+                source.reportMetrics(),
+                source.speakerTendencies(),
+                suggestions
+        );
+    }
+
+    private List<QualitativeAnalysis.CoachingSuggestion> validConflictCoachingSuggestions() {
+        return List.of(
+                coachingSuggestion(SpeakerRole.SELF, 1, 1L),
+                coachingSuggestion(SpeakerRole.SELF, 2, 1L),
+                coachingSuggestion(SpeakerRole.SELF, 3, 1L),
+                coachingSuggestion(SpeakerRole.PARTNER, 1, 2L),
+                coachingSuggestion(SpeakerRole.PARTNER, 2, 2L),
+                coachingSuggestion(SpeakerRole.PARTNER, 3, 2L)
+        );
+    }
+
+    private QualitativeAnalysis.CoachingSuggestion coachingSuggestion(
+            SpeakerRole role,
+            int order,
+            Long evidenceId
+    ) {
+        return new QualitativeAnalysis.CoachingSuggestion(
+                role,
+                order,
+                order + "단계",
+                "대화를 다시 이어가기 위한 제안이에요.",
+                "이 부분을 다시 차분하게 이야기해 볼까?",
+                List.of(evidenceId)
         );
     }
 
@@ -518,6 +642,94 @@ class LinerAnalysisResponseValidatorTest {
                         new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "왜 연락 안 했어?"),
                         new AnalysisSegment(2L, SpeakerRole.PARTNER, 600L, 900L, "회의 중이었어")
                 )
+        );
+    }
+
+    private AnalysisSource coupleSource() {
+        return new AnalysisSource(
+                3L,
+                AnalysisScenario.COUPLE_DAILY,
+                10_000L,
+                speakersFor(AnalysisScenario.COUPLE_DAILY),
+                List.of(
+                        new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "오늘도 보고 싶어"),
+                        new AnalysisSegment(2L, SpeakerRole.PARTNER, 600L, 900L, "밥은 챙겨 먹었어?")
+                )
+        );
+    }
+
+    private QualitativeAnalysis coupleResponse(
+            List<QualitativeAnalysis.SpeakerAffectionSummary> summaries
+    ) {
+        QualitativeAnalysis.ScenarioInsight commonInterest =
+                new QualitativeAnalysis.ScenarioInsight(
+                        QualitativeAnalysis.ScenarioInsightCategory.COMMON_INTEREST,
+                        List.of(SpeakerRole.SELF, SpeakerRole.PARTNER),
+                        "하루 안부",
+                        "서로의 하루와 식사를 이야기했어요.",
+                        List.of(1L, 2L)
+                );
+        return new QualitativeAnalysis(
+                new QualitativeAnalysis.Overview(
+                        "애정 표현 대화",
+                        "서로에게 애정과 관심을 표현했어요.",
+                        List.of(1L, 2L)
+                ),
+                List.of(new QualitativeAnalysis.TimelineItem(
+                        "안부와 애정",
+                        "보고 싶은 마음과 식사 안부를 주고받았어요.",
+                        List.of(1L, 2L)
+                )),
+                List.of(new QualitativeAnalysis.Topic(
+                        "하루 안부",
+                        "서로의 하루를 챙겼어요.",
+                        List.of(1L, 2L)
+                )),
+                List.of(
+                        character(SpeakerRole.SELF, 1L),
+                        character(SpeakerRole.PARTNER, 2L)
+                ),
+                List.of(
+                        speakerInsight(SpeakerRole.SELF, 1L, List.of()),
+                        speakerInsight(SpeakerRole.PARTNER, 2L, List.of())
+                ),
+                List.of(
+                        interest(SpeakerRole.SELF, 1L),
+                        interest(SpeakerRole.PARTNER, 2L)
+                ),
+                List.of(
+                        spiciness(SpeakerRole.SELF),
+                        spiciness(SpeakerRole.PARTNER)
+                ),
+                List.of(
+                        reaction(SpeakerRole.SELF, 1L, 50, 50),
+                        reaction(SpeakerRole.PARTNER, 2L, 50, 50)
+                ),
+                List.of(commonInterest),
+                List.of(),
+                new QualitativeAnalysis.RelationshipSummary(
+                        "마음을 주고받는 두 사람",
+                        "애정 표현과 안부를 함께 나눠요.",
+                        List.of(1L, 2L)
+                ),
+                summaries,
+                List.of(),
+                List.of(),
+                List.of()
+        );
+    }
+
+    private QualitativeAnalysis.SpeakerAffectionSummary affectionSummary(
+            SpeakerRole role,
+            String title,
+            String description,
+            Long evidenceSegmentId
+    ) {
+        return new QualitativeAnalysis.SpeakerAffectionSummary(
+                role,
+                title,
+                description,
+                List.of(evidenceSegmentId)
         );
     }
 

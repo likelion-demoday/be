@@ -131,6 +131,7 @@ class AnalysisReportAssemblerTest {
                           "speakerTendencies": [],
                           "coachingSuggestions": [
                             {
+                              "speakerRole": "SELF",
                               "order": 3,
                               "title": "다음 약속 정하기",
                               "description": "다음 행동을 구체적으로 정해요.",
@@ -138,6 +139,7 @@ class AnalysisReportAssemblerTest {
                               "evidenceSegmentIds": [3]
                             },
                             {
+                              "speakerRole": "SELF",
                               "order": 1,
                               "title": "상대 말 확인하기",
                               "description": "상대가 원하는 내용을 먼저 확인해요.",
@@ -145,10 +147,35 @@ class AnalysisReportAssemblerTest {
                               "evidenceSegmentIds": [1]
                             },
                             {
+                              "speakerRole": "SELF",
                               "order": 2,
                               "title": "내 생각 설명하기",
                               "description": "내가 원하는 시간을 차분하게 설명해요.",
                               "suggestedPhrase": "나는 오후 시간이 더 편해.",
+                              "evidenceSegmentIds": [2]
+                            },
+                            {
+                              "speakerRole": "FRIEND",
+                              "order": 2,
+                              "title": "내 생각 설명하기",
+                              "description": "내가 원하는 시간을 차분하게 설명해요.",
+                              "suggestedPhrase": "나는 오전 시간이 더 편해.",
+                              "evidenceSegmentIds": [2]
+                            },
+                            {
+                              "speakerRole": "FRIEND",
+                              "order": 3,
+                              "title": "다음 약속 정하기",
+                              "description": "다음 행동을 구체적으로 정해요.",
+                              "suggestedPhrase": "토요일 오전은 어때?",
+                              "evidenceSegmentIds": [2]
+                            },
+                            {
+                              "speakerRole": "FRIEND",
+                              "order": 1,
+                              "title": "상대 말 확인하기",
+                              "description": "상대가 원하는 내용을 먼저 확인해요.",
+                              "suggestedPhrase": "오후에 만나고 싶다는 말이지?",
                               "evidenceSegmentIds": [2]
                             }
                           ]
@@ -225,10 +252,20 @@ class AnalysisReportAssemblerTest {
         assertThat(metricEvidence.startMs()).isEqualTo(100L);
         assertThat(json.qualitativeAnalysis().coachingSuggestions())
                 .extracting("order")
-                .containsExactly(1, 2, 3);
+                .containsExactly(1, 2, 3, 1, 2, 3);
+        assertThat(json.qualitativeAnalysis().coachingSuggestions())
+                .extracting("speakerRole")
+                .containsExactly(
+                        SpeakerRole.SELF,
+                        SpeakerRole.SELF,
+                        SpeakerRole.SELF,
+                        SpeakerRole.FRIEND,
+                        SpeakerRole.FRIEND,
+                        SpeakerRole.FRIEND
+                );
         assertThat(json.qualitativeAnalysis().coachingSuggestionEvidences())
                 .extracting("order")
-                .containsExactly(1, 2, 3);
+                .containsExactly(1, 2, 3, 1, 2, 3);
         assertThat(AnalysisReportDto.from(json).qualitativeAnalysis()
                 .coachingSuggestions().get(0).evidenceQuotes())
                 .singleElement()
@@ -238,8 +275,12 @@ class AnalysisReportAssemblerTest {
                     assertThat(evidence.displayContent()).isEqualTo("주말에 만날가?");
                     assertThat(evidence.correctionApplied()).isFalse();
                 });
+        assertThat(AnalysisReportDto.from(json).qualitativeAnalysis()
+                .coachingSuggestions().get(3).evidenceQuotes())
+                .singleElement()
+                .satisfies(evidence -> assertThat(evidence.segmentId()).isEqualTo(2L));
         assertThat(report.modelName()).isEqualTo("liner-mark-1.1");
-        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v12");
+        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v14");
     }
 
     @Test
@@ -260,6 +301,33 @@ class AnalysisReportAssemblerTest {
         );
 
         assertThat(metric.evidenceQuotes()).isEmpty();
+    }
+
+    @Test
+    void limitsCoachingSuggestionEvidenceQuotesToThree() {
+        List<AnalysisReport.EvidenceQuote> evidenceQuotes = java.util.stream.LongStream
+                .rangeClosed(1, 4)
+                .mapToObj(id -> new AnalysisReport.EvidenceQuote(
+                        id,
+                        SpeakerRole.SELF,
+                        "원문 " + id,
+                        "원문 " + id,
+                        false,
+                        id * 100,
+                        id * 100 + 50
+                ))
+                .toList();
+
+        AnalysisReport.CoachingSuggestionEvidence evidence =
+                new AnalysisReport.CoachingSuggestionEvidence(
+                        SpeakerRole.SELF,
+                        1,
+                        evidenceQuotes
+                );
+
+        assertThat(evidence.evidenceQuotes())
+                .extracting(AnalysisReport.EvidenceQuote::segmentId)
+                .containsExactly(1L, 2L, 3L);
     }
 
     private AnalysisSource source() {

@@ -73,6 +73,32 @@ class LinerAnalysisModelClientTest {
                 .contains("\"overview\"")
                 .contains("\"interestInsights\"")
                 .contains("\"evidenceSegmentIds\":[1,2]");
+        QualitativeAnalysis analysis = new ObjectMapper().readValue(
+                result.resultJson(),
+                QualitativeAnalysis.class
+        );
+        assertThat(analysis.spicinessInsights())
+                .extracting(QualitativeAnalysis.SpicinessInsight::speakerRole)
+                .containsExactly(SpeakerRole.SELF, SpeakerRole.FRIEND);
+        assertThat(analysis.spicinessInsights())
+                .extracting(QualitativeAnalysis.SpicinessInsight::score)
+                .containsOnly(0);
+        assertThat(analysis.reportMetrics()).hasSize(8);
+        assertThat(analysis.reportMetrics())
+                .extracting(QualitativeAnalysis.ReportMetric::unit)
+                .containsOnly(QualitativeAnalysis.ReportMetricUnit.PERCENT);
+        assertThat(analysis.reportMetrics())
+                .extracting(QualitativeAnalysis.ReportMetric::value)
+                .containsOnly(0);
+        assertThat(analysis.reportMetrics().stream()
+                .filter(metric -> metric.speakerRole() == SpeakerRole.SELF)
+                .map(QualitativeAnalysis.ReportMetric::type)
+                .toList()).containsExactly(
+                        QualitativeAnalysis.ReportMetricType.SWEAR_WORD,
+                        QualitativeAnalysis.ReportMetricType.DIRECTNESS,
+                        QualitativeAnalysis.ReportMetricType.EXPRESSION_INTENSITY,
+                        QualitativeAnalysis.ReportMetricType.SOFTENING_EXPRESSION
+                );
         then(responseValidator).should().validate(
                 eq(source),
                 any(QualitativeAnalysis.class)
@@ -172,6 +198,7 @@ class LinerAnalysisModelClientTest {
         given(requestFactory.create(source)).willReturn(request);
         given(requestFactory.promptVersion()).willReturn("analysis-prompt-v19");
         given(requestFactory.schemaVersion()).willReturn("analysis-report-v12");
+
         given(linerApiClient.chat(request)).willReturn(result(
                 parentChildContentWithRenderableCore(),
                 "stop"
@@ -265,15 +292,31 @@ class LinerAnalysisModelClientTest {
 
         assertThat(report.qualitativeAnalysis().relationshipSummary()).isNotNull();
         assertThat(report.qualitativeAnalysis().reportMetrics())
+                .filteredOn(metric -> metric.unit()
+                        == QualitativeAnalysis.ReportMetricUnit.COUNT)
                 .singleElement()
                 .satisfies(metric -> {
                     assertThat(metric.type())
                             .isEqualTo(QualitativeAnalysis.ReportMetricType.SITUATION_QUESTION);
                     assertThat(metric.value()).isEqualTo(1);
                 });
+        assertThat(report.qualitativeAnalysis().reportMetrics())
+                .filteredOn(metric -> metric.unit()
+                        == QualitativeAnalysis.ReportMetricUnit.PERCENT)
+                .hasSize(8);
         assertThat(report.qualitativeAnalysis().coachingSuggestions())
                 .extracting(QualitativeAnalysis.CoachingSuggestion::order)
-                .containsExactly(1, 2, 3);
+                .containsExactly(1, 2, 3, 1, 2, 3);
+        assertThat(report.qualitativeAnalysis().coachingSuggestions())
+                .extracting(QualitativeAnalysis.CoachingSuggestion::speakerRole)
+                .containsExactly(
+                        SpeakerRole.PARENT,
+                        SpeakerRole.PARENT,
+                        SpeakerRole.PARENT,
+                        SpeakerRole.CHILD,
+                        SpeakerRole.CHILD,
+                        SpeakerRole.CHILD
+                );
         assertThat(report.qualitativeAnalysis().coachingSuggestions().get(0).title())
                 .isEqualTo("입장 확인: 학교생활");
         assertThat(report.qualitativeAnalysis().representativeEvidences())

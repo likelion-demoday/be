@@ -14,6 +14,7 @@ public record QualitativeAnalysis(
         List<ScenarioInsight> scenarioInsights,
         List<RepresentativeEvidence> representativeEvidences, // Figma에 노출할 대표 발화
         RelationshipSummary relationshipSummary,
+        List<SpeakerAffectionSummary> speakerAffectionSummaries,
         List<ReportMetric> reportMetrics,
         List<SpeakerTendency> speakerTendencies,
         List<CoachingSuggestion> coachingSuggestions
@@ -29,11 +30,49 @@ public record QualitativeAnalysis(
         reactionStyleInsights = copy(reactionStyleInsights);
         scenarioInsights = copy(scenarioInsights);
         representativeEvidences = copy(representativeEvidences);
+        speakerAffectionSummaries = speakerAffectionSummaries == null
+                ? List.of()
+                : List.copyOf(speakerAffectionSummaries);
         reportMetrics = reportMetrics == null ? List.of() : List.copyOf(reportMetrics);
         speakerTendencies = speakerTendencies == null ? List.of() : List.copyOf(speakerTendencies);
         coachingSuggestions = coachingSuggestions == null
                 ? List.of()
                 : List.copyOf(coachingSuggestions);
+    }
+
+    public QualitativeAnalysis(
+            Overview overview,
+            List<TimelineItem> timeline,
+            List<Topic> topics,
+            List<CharacterInsight> characterInsights,
+            List<SpeakerInsight> speakerInsights,
+            List<InterestInsight> interestInsights,
+            List<SpicinessInsight> spicinessInsights,
+            List<ReactionStyleInsight> reactionStyleInsights,
+            List<ScenarioInsight> scenarioInsights,
+            List<RepresentativeEvidence> representativeEvidences,
+            RelationshipSummary relationshipSummary,
+            List<ReportMetric> reportMetrics,
+            List<SpeakerTendency> speakerTendencies,
+            List<CoachingSuggestion> coachingSuggestions
+    ) {
+        this(
+                overview,
+                timeline,
+                topics,
+                characterInsights,
+                speakerInsights,
+                interestInsights,
+                spicinessInsights,
+                reactionStyleInsights,
+                scenarioInsights,
+                representativeEvidences,
+                relationshipSummary,
+                List.of(),
+                reportMetrics,
+                speakerTendencies,
+                coachingSuggestions
+        );
     }
 
     public QualitativeAnalysis(
@@ -60,6 +99,7 @@ public record QualitativeAnalysis(
                 scenarioInsights,
                 representativeEvidences,
                 null,
+                List.of(),
                 List.of(),
                 List.of(),
                 List.of()
@@ -89,6 +129,7 @@ public record QualitativeAnalysis(
                 scenarioInsights,
                 null,
                 null,
+                List.of(),
                 List.of(),
                 List.of(),
                 List.of()
@@ -310,6 +351,17 @@ public record QualitativeAnalysis(
         }
     }
 
+    public record SpeakerAffectionSummary(
+            SpeakerRole speakerRole,
+            String title,
+            String description,
+            List<Long> evidenceSegmentIds
+    ) {
+        public SpeakerAffectionSummary {
+            evidenceSegmentIds = copy(evidenceSegmentIds);
+        }
+    }
+
     public record ReportMetric(
             ReportMetricType type,
             SpeakerRole speakerRole,
@@ -367,12 +419,23 @@ public record QualitativeAnalysis(
     }
 
     public record CoachingSuggestion(
+            SpeakerRole speakerRole,
             int order,
             String title,
             String description,
             String suggestedPhrase,
             List<Long> evidenceSegmentIds
     ) {
+        public CoachingSuggestion(
+                int order,
+                String title,
+                String description,
+                String suggestedPhrase,
+                List<Long> evidenceSegmentIds
+        ) {
+            this(null, order, title, description, suggestedPhrase, evidenceSegmentIds);
+        }
+
         public CoachingSuggestion {
             evidenceSegmentIds = copy(evidenceSegmentIds);
         }
@@ -455,6 +518,9 @@ public record QualitativeAnalysis(
     }
 
     public enum ReportMetricType {
+        SWEAR_WORD,
+        DIRECTNESS,
+        EXPRESSION_INTENSITY,
         COMPLIMENT,
         ENCOURAGEMENT,
         CARING_EXPRESSION,

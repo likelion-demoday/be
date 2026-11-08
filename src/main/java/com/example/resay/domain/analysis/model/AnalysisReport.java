@@ -63,6 +63,7 @@ public record AnalysisReport(
             List<QualitativeAnalysis.ScenarioInsight> scenarioInsights,
             List<RepresentativeEvidence> representativeEvidences,
             QualitativeAnalysis.RelationshipSummary relationshipSummary,
+            List<QualitativeAnalysis.SpeakerAffectionSummary> speakerAffectionSummaries,
             List<ReportMetric> reportMetrics,
             List<QualitativeAnalysis.SpeakerTendency> speakerTendencies,
             List<QualitativeAnalysis.CoachingSuggestion> coachingSuggestions,
@@ -84,6 +85,9 @@ public record AnalysisReport(
             representativeEvidences = representativeEvidences == null
                     ? List.of()
                     : List.copyOf(representativeEvidences);
+            speakerAffectionSummaries = speakerAffectionSummaries == null
+                    ? List.of()
+                    : List.copyOf(speakerAffectionSummaries);
             reportMetrics = reportMetrics == null ? List.of() : List.copyOf(reportMetrics);
             speakerTendencies = speakerTendencies == null
                     ? List.of()
@@ -94,6 +98,45 @@ public record AnalysisReport(
             coachingSuggestionEvidences = coachingSuggestionEvidences == null
                     ? List.of()
                     : List.copyOf(coachingSuggestionEvidences);
+        }
+
+        public QualitativeReport(
+                QualitativeAnalysis.Overview overview,
+                List<TimelineItem> timeline,
+                List<TopicItem> topics,
+                List<QualitativeAnalysis.CharacterInsight> characterInsights,
+                List<QualitativeAnalysis.SpeakerInsight> speakerInsights,
+                List<SpeakerPatternEvidence> speakerPatternEvidences,
+                List<QualitativeAnalysis.InterestInsight> interestInsights,
+                List<QualitativeAnalysis.SpicinessInsight> spicinessInsights,
+                List<QualitativeAnalysis.ReactionStyleInsight> reactionStyleInsights,
+                List<QualitativeAnalysis.ScenarioInsight> scenarioInsights,
+                List<RepresentativeEvidence> representativeEvidences,
+                QualitativeAnalysis.RelationshipSummary relationshipSummary,
+                List<ReportMetric> reportMetrics,
+                List<QualitativeAnalysis.SpeakerTendency> speakerTendencies,
+                List<QualitativeAnalysis.CoachingSuggestion> coachingSuggestions,
+                List<CoachingSuggestionEvidence> coachingSuggestionEvidences
+        ) {
+            this(
+                    overview,
+                    timeline,
+                    topics,
+                    characterInsights,
+                    speakerInsights,
+                    speakerPatternEvidences,
+                    interestInsights,
+                    spicinessInsights,
+                    reactionStyleInsights,
+                    scenarioInsights,
+                    representativeEvidences,
+                    relationshipSummary,
+                    List.of(),
+                    reportMetrics,
+                    speakerTendencies,
+                    coachingSuggestions,
+                    coachingSuggestionEvidences
+            );
         }
 
         public QualitativeReport(
@@ -155,18 +198,28 @@ public record AnalysisReport(
                     List.of(),
                     List.of(),
                     List.of(),
+                    List.of(),
                     List.of()
             );
         }
     }
 
     public record CoachingSuggestionEvidence(
+            SpeakerRole speakerRole,
             int order,
             List<EvidenceQuote> evidenceQuotes
     ) {
 
+        private static final int MAX_EVIDENCE_QUOTES = 3;
+
+        public CoachingSuggestionEvidence(int order, List<EvidenceQuote> evidenceQuotes) {
+            this(null, order, evidenceQuotes);
+        }
+
         public CoachingSuggestionEvidence {
-            evidenceQuotes = evidenceQuotes == null ? List.of() : List.copyOf(evidenceQuotes);
+            evidenceQuotes = evidenceQuotes == null
+                    ? List.of()
+                    : evidenceQuotes.stream().limit(MAX_EVIDENCE_QUOTES).toList();
         }
     }
 
