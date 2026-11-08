@@ -466,6 +466,9 @@ public record QualitativeAnalysis(
     }
 
     public enum ReportMetricType {
+        SWEAR_WORD,
+        DIRECTNESS,
+        EXPRESSION_INTENSITY,
         COMPLIMENT,
         ENCOURAGEMENT,
         CARING_EXPRESSION,

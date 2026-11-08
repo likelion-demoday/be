@@ -280,7 +280,7 @@ class AnalysisReportAssemblerTest {
                 .singleElement()
                 .satisfies(evidence -> assertThat(evidence.segmentId()).isEqualTo(2L));
         assertThat(report.modelName()).isEqualTo("liner-mark-1.1");
-        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v13");
+        assertThat(report.schemaVersion()).isEqualTo("analysis-report-v14");
     }
 
     @Test

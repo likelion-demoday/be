@@ -88,29 +88,50 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
     }
 
     private List<Map<String, Object>> reportMetrics(AnalysisSource source) {
-        String type = switch (source.scenario()) {
-            case FRIEND_DAILY -> "COMPLIMENT";
-            case COUPLE_DAILY -> "DIRECT_AFFECTION";
-            case COUPLE_CONFLICT -> "DIRECT_EXPRESSION";
-            case PARENT_CHILD_CONFLICT -> "ADVICE";
+        List<MockReportMetric> metrics = switch (source.scenario()) {
+            case FRIEND_DAILY -> List.of(
+                    new MockReportMetric("SWEAR_WORD", "비속어"),
+                    new MockReportMetric("DIRECTNESS", "직설력"),
+                    new MockReportMetric("EXPRESSION_INTENSITY", "표현 강도"),
+                    new MockReportMetric("SOFTENING_EXPRESSION", "완충 표현")
+            );
+            case COUPLE_DAILY -> List.of(
+                    new MockReportMetric("DIRECT_AFFECTION", "직접 표현"),
+                    new MockReportMetric("CARING_EXPRESSION", "챙기는 말"),
+                    new MockReportMetric("COMPLIMENT_OR_ENCOURAGEMENT", "칭찬·응원"),
+                    new MockReportMetric("AFFECTIONATE_ADDRESS", "다정한 호칭")
+            );
+            case COUPLE_CONFLICT -> List.of(
+                    new MockReportMetric("DIRECT_EXPRESSION", "직설 표현"),
+                    new MockReportMetric("ASSERTIVE_EXPRESSION", "단정 표현"),
+                    new MockReportMetric("SOFTENING_EXPRESSION", "완충 표현"),
+                    new MockReportMetric("RECOVERY_EXPRESSION", "회복 표현")
+            );
+            case PARENT_CHILD_CONFLICT -> List.of(
+                    new MockReportMetric("ADVICE", "조언 표현"),
+                    new MockReportMetric("ASSERTIVE_EXPRESSION", "단정 표현"),
+                    new MockReportMetric("EMOTION_CHECK", "감정 확인"),
+                    new MockReportMetric("SOFTENING_EXPRESSION", "완충 표현")
+            );
         };
         return source.scenario().requiredRoles().stream()
                 .sorted()
-                .map(role -> {
+                .flatMap(role -> metrics.stream().map(definition -> {
                     AnalysisSegment evidence = evidenceFor(source, role);
                     Map<String, Object> metric = new LinkedHashMap<>();
-                    metric.put("type", type);
+                    metric.put("type", definition.type());
                     metric.put("speakerRole", role);
-                    metric.put("value", source.scenario() == com.example.resay.domain.analysis.model.AnalysisScenario.FRIEND_DAILY
-                            ? 1 : 50);
-                    metric.put("unit", source.scenario() == com.example.resay.domain.analysis.model.AnalysisScenario.FRIEND_DAILY
-                            ? "COUNT" : "PERCENT");
-                    metric.put("title", "이번 대화의 표현 지표");
+                    metric.put("value", 50);
+                    metric.put("unit", "PERCENT");
+                    metric.put("title", definition.title());
                     metric.put("description", "이번 대화에서 확인된 표현을 기준으로 보여드려요.");
                     metric.put("evidenceSegmentIds", List.of(evidence.segmentId()));
                     return metric;
-                })
+                }))
                 .toList();
+    }
+
+    private record MockReportMetric(String type, String title) {
     }
 
     private List<Map<String, Object>> speakerTendencies(AnalysisSource source) {
