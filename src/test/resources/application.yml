@@ -137,6 +137,10 @@ app:
   frontend-base-url: https://resay.site
   api-base-url: https://api.resay.site
 
+share:
+  frontend-base-url: ${app.frontend-base-url}
+  validity: 7d
+
 notification:
   daily-quota: 100
   service:

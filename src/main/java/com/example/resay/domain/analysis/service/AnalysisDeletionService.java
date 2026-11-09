@@ -9,6 +9,7 @@ import com.example.resay.domain.character.service.CharacterImageDeletionInProgre
 import com.example.resay.domain.character.service.CharacterImageService;
 import com.example.resay.domain.recording.code.RecordingErrorCode;
 import com.example.resay.domain.recording.repository.RecordingRepository;
+import com.example.resay.domain.share.repository.AnalysisShareRepository;
 import com.example.resay.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,10 +23,11 @@ public class AnalysisDeletionService {
     private final ConversationAnalysisRepository conversationAnalysisRepository;
     private final AnalysisResultRepository analysisResultRepository;
     private final CharacterImageService characterImageService;
+    private final AnalysisShareRepository analysisShareRepository;
 
     @Transactional
     public void delete(Long recordingId, Long userId) {
-        recordingRepository.findByIdAndUserId(recordingId, userId)
+        recordingRepository.findByIdAndUserIdForUpdate(recordingId, userId)
                 .orElseThrow(() -> new GeneralException(RecordingErrorCode.RECORDING_NOT_FOUND));
         ConversationAnalysis analysis = conversationAnalysisRepository
                 .findByRecordingId(recordingId)
@@ -39,6 +41,7 @@ public class AnalysisDeletionService {
         } catch (CharacterImageDeletionInProgressException exception) {
             throw new GeneralException(AnalysisErrorCode.ANALYSIS_DELETE_IN_PROGRESS);
         }
+        analysisShareRepository.deleteByRecordingId(recordingId);
         analysisResultRepository.findByAnalysisId(analysis.getId())
                 .ifPresent(analysisResultRepository::delete);
         conversationAnalysisRepository.delete(analysis);

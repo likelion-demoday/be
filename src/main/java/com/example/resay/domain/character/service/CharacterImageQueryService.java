@@ -87,8 +87,15 @@ public class CharacterImageQueryService {
             SpeakerRole speakerRole
     ) {
         ConversationAnalysis analysis = findOwnedAnalysis(userId, recordingId);
+        return getContentByAnalysisId(analysis.getId(), speakerRole);
+    }
+
+    public CharacterImageContent getContentByAnalysisId(
+            Long analysisId,
+            SpeakerRole speakerRole
+    ) {
         CharacterImage image = characterImageRepository
-                .findByAnalysisIdAndSpeakerRole(analysis.getId(), speakerRole)
+                .findByAnalysisIdAndSpeakerRole(analysisId, speakerRole)
                 .orElseThrow(() -> new GeneralException(
                         CharacterImageErrorCode.CHARACTER_IMAGE_NOT_FOUND
                 ));

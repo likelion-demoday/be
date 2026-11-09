@@ -231,6 +231,10 @@ app:
   frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
   api-base-url: ${API_BASE_URL:http://localhost:8080}
 
+share:
+  frontend-base-url: ${app.frontend-base-url}
+  validity: 7d
+
 notification:
   # 메일 서비스의 하루 발송 한도 (Resend 무료 100통). 분석 완료 · 리마인드 · 서비스 알림이 함께 쓴다.
   # 리마인드는 분석 완료 메일 몫(20통)을 남기고, 서비스 알림은 남은 한도보다 대상이 많으면 거절한다. 유료로 바꾸면 늘린다
