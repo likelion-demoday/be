@@ -20,6 +20,13 @@ public interface RecordingRepository extends JpaRepository<Recording, Long> {
 
     Optional<Recording> findByIdAndUserId(Long id, Long userId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from Recording r where r.id = :id and r.userId = :userId")
+    Optional<Recording> findByIdAndUserIdForUpdate(
+            @Param("id") Long id,
+            @Param("userId") Long userId
+    );
+
     // 대화 보관함: 분석이 끝난 대화 중 사용자가 지우지 않은 것, 최신순
     @Query(value = """
             select r from Recording r
