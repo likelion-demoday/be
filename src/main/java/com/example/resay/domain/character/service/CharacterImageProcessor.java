@@ -14,6 +14,7 @@ import com.example.resay.domain.character.model.GeneratedCharacterImage;
 import com.example.resay.domain.character.port.CharacterImageGenerator;
 import com.example.resay.domain.character.port.CharacterImageStorage;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -116,6 +117,9 @@ public class CharacterImageProcessor {
         String selectionEvidence = traits.isEmpty()
                 ? insight.description()
                 : String.join(" / ", traits);
+        List<String> conversationKeywords = collectConversationKeywords(
+                report.qualitativeAnalysis()
+        );
 
         return new CharacterImageGenerationCommand(
                 report.recordingInfo().scenario(),
@@ -125,8 +129,25 @@ public class CharacterImageProcessor {
                 bounded(insight.description()),
                 bounded(secondaryTrait),
                 bounded(selectionEvidence),
+                conversationKeywords,
                 characterCardStyleResolver.resolve(insight.speakerRole(), insight.name())
         );
+    }
+
+    private List<String> collectConversationKeywords(AnalysisReport.QualitativeReport report) {
+        return report.topics().stream()
+                .filter(topic -> topic != null && hasText(topic.title()))
+                .sorted(Comparator.comparingLong(
+                        (AnalysisReport.TopicItem topic) -> topic.speakingDurationMs() == null
+                                ? 0L
+                                : topic.speakingDurationMs()
+                ).reversed())
+                .map(AnalysisReport.TopicItem::title)
+                .map(String::trim)
+                .map(this::boundedKeyword)
+                .distinct()
+                .limit(5)
+                .toList();
     }
 
     private List<String> collectTraits(
@@ -178,6 +199,13 @@ public class CharacterImageProcessor {
             return value;
         }
         return value.substring(0, PROMPT_INPUT_MAX_LENGTH);
+    }
+
+    private String boundedKeyword(String value) {
+        if (value.length() <= 80) {
+            return value;
+        }
+        return value.substring(0, 80);
     }
 
     private boolean hasText(String value) {

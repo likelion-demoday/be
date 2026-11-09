@@ -107,6 +107,7 @@ class CharacterImageProcessorTest {
                         CharacterImageGenerationCommand::mainTrait,
                         CharacterImageGenerationCommand::secondaryTrait,
                         CharacterImageGenerationCommand::selectionEvidence,
+                        CharacterImageGenerationCommand::conversationKeywords,
                         command -> command.cardStyle().characterNameTextColor(),
                         command -> command.cardStyle().cardBackgroundGradientColors()
                 )
@@ -116,6 +117,7 @@ class CharacterImageProcessorTest {
                         "상대의 이야기를 차분히 살피는 모습이 보여요.",
                         "꼬리 질문: 상대의 이야기를 질문으로 이어 갔어요.",
                         "꼬리 질문: 상대의 이야기를 질문으로 이어 갔어요.",
+                        List.of("코딩 프로젝트", "주말 카페", "점심 메뉴"),
                         expectedStyle.characterNameTextColor(),
                         expectedStyle.cardBackgroundGradientColors()
                 );
@@ -251,7 +253,35 @@ class CharacterImageProcessorTest {
                 new AnalysisReport.QualitativeReport(
                         new QualitativeAnalysis.Overview("요약", "설명", List.of(1L)),
                         List.of(),
-                        List.of(),
+                        List.of(
+                                new AnalysisReport.TopicItem(
+                                        "점심 메뉴",
+                                        "점심 메뉴를 정했어요.",
+                                        List.of(1L),
+                                        List.of(),
+                                        1,
+                                        30_000L,
+                                        false
+                                ),
+                                new AnalysisReport.TopicItem(
+                                        "코딩 프로젝트",
+                                        "프로젝트 오류를 함께 살폈어요.",
+                                        List.of(1L, 2L),
+                                        List.of(),
+                                        4,
+                                        120_000L,
+                                        true
+                                ),
+                                new AnalysisReport.TopicItem(
+                                        "주말 카페",
+                                        "주말에 갈 카페를 이야기했어요.",
+                                        List.of(2L),
+                                        List.of(),
+                                        2,
+                                        60_000L,
+                                        false
+                                )
+                        ),
                         List.of(
                                 new QualitativeAnalysis.CharacterInsight(
                                         SpeakerRole.SELF,

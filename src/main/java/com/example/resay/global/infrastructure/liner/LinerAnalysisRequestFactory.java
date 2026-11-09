@@ -15,7 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class LinerAnalysisRequestFactory {
 
-    private static final String PROMPT_VERSION = "analysis-prompt-v22";
+    private static final String PROMPT_VERSION = "analysis-prompt-v23";
     private static final String SCHEMA_VERSION = "analysis-result-v12";
     private static final int MAX_COMPLETION_TOKENS = 32768;
     private static final String REASONING_EFFORT = "medium";
@@ -68,12 +68,13 @@ public class LinerAnalysisRequestFactory {
             T/F 비율은 실제 반응 발화를 각각 분류한 비중을 기준으로 계산하고, 근거 없이 50:50 또는 5점 단위 비율로 맞추지 마세요.
             characterInsights.name은 역할명이나 본인, 상대방 같은 일반 명칭이 아니라 이번 대화의 특징을 담은 짧고 재미있는 한국어 별칭으로 작성하세요.
             characterInsights.name은 반드시 공백 하나로 나뉜 정확히 2어절의 한국어 별칭으로 작성하세요. 1어절이나 3어절 이상은 허용하지 않습니다.
-            첫 어절은 이번 대화 특징을 자연스럽게 꾸미는 수식어, 두 번째 어절은 기억에 남는 역할·사물 명사로 작성하세요.
+            첫 어절은 이번 대화에서 관찰된 말투·반응·행동 특징, 두 번째 어절은 이를 캐릭터처럼 보여 주는 친근한 역할·페르소나 명사로 작성하세요.
             수식어와 명사가 같은 의미를 반복하거나 억지로 결합되지 않게 하고, 소리 내어 읽었을 때 실제 별칭처럼 자연스러워야 합니다.
-            '조용한 경계선 지킴이'처럼 번역투인 3어절 표현보다 '단단한 방패', '꼼꼼한 수사관', '다정한 요정'처럼 핵심 비유 하나가 바로 이해되는 2어절 이름을 사용하세요.
+            동물 종이나 사물 자체를 캐릭터 이름으로 사용하지 마세요. '집중한 비버', '포근한 곰돌이', '단단한 방패', '새침한 자물쇠' 같은 이름은 허용하지 않습니다.
+            '조용한 경계선 지킴이'처럼 번역투인 3어절 표현보다 '꼬치꼬치 수사관', '속마음 요정', '팩트체크 기자', '그니까 집착러'처럼 행동 특징과 역할이 바로 이해되는 2어절 이름을 사용하세요.
             characterInsights.name은 카드 레이아웃에 여유 있게 공백을 포함해 10자 이내로 작성하세요.
             characterInsights.description은 카드에 두 줄 이내로 표시할 수 있도록 공백을 포함해 20자 이내의 한 문장으로 작성하세요.
-            별칭은 '꼼꼼한 수사관', '다정한 요정', '정확한 기자', '포근한 바텐더', '든든한 방패'처럼 관찰된 대화 행동이 재치 있는 비유로 연상되는 톤이어야 합니다.
+            별칭은 '꼬치꼬치 수사관', '속마음 요정', '팩트체크 기자', '그니까 집착러'처럼 관찰된 대화 행동이 재치 있는 역할형 캐릭터로 연상되는 톤이어야 합니다.
             위 별칭은 형식과 분위기를 보여주는 예시일 뿐이므로 그대로 고르지 말고, 해당 화자에게 실제로 나타난 특징에 맞춰 새롭게 작성하세요.
             진단명, 성격 단정, 역할명만 있는 표현, 비하하거나 공격적인 표현, 뜻을 이해하기 어려운 억지 조합은 사용하지 마세요.
             자주 등장한 표현은 해당 화자의 전사문에 실제로 두 번 이상 등장한 표현 중 빈도가 높은 순서로 최대 5개를 선택하고 count와 모든 근거 발화를 작성하세요.

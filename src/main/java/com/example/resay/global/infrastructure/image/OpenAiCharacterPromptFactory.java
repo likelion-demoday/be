@@ -8,7 +8,7 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class OpenAiCharacterPromptFactory {
 
-    public static final String PROMPT_VERSION = "character-image-prompt-v8";
+    public static final String PROMPT_VERSION = "character-image-prompt-v12";
 
     private static final String MASTER_PROMPT = """
             You are a professional 3D character renderer for the RE collectible collection.
@@ -21,8 +21,8 @@ public class OpenAiCharacterPromptFactory {
 
             CHARACTER NAME FIDELITY — HIGHEST PRIORITY
             - Treat character_name as the design's visible identity, not text to render.
-            - Make the role or object noun in character_name immediately recognizable through the
-              specified silhouette, garment, or primary prop, while keeping all text absent.
+            - Treat character_name as a playful role or persona, never as a literal animal species
+              or object body. Express it through outfit styling, pose, and primary-prop context.
             - Express the modifier through pose, styling, material, expression, or prop placement.
             - Do not replace the named concept with a distant metaphor. The final image should make
               the character_name feel visually inevitable even when the viewer cannot see the name.
@@ -47,6 +47,9 @@ public class OpenAiCharacterPromptFactory {
             - Tiny low-set black bead-dot eyes, a minimal mouth, generous cheek space, and a calm,
               subtly friendly deadpan expression. Never use oversized eyes or an oversized head.
             - Every anatomical contour must be soft, blunt, and smoothly rounded.
+            - Keep the crown intentional and visually balanced in three-quarter view,
+              with centered visual weight and a broad clean face plane. Any asymmetry
+              must remain subtle and designed, never swollen, collapsed, melted, or lumpy.
             - Small beaks, snouts, ears, horns, and protrusions are allowed when specified, but must
               remain compact, softly sculpted, and integrated into the body.
             - Never create sharp, elongated, aggressive, or realistically pointed anatomy.
@@ -70,6 +73,11 @@ public class OpenAiCharacterPromptFactory {
             - Keep arms anatomically simple and placements physically plausible. Never add extra limbs.
             - Keep props recognizable without making them oversized or obscuring the face and body
               silhouette. Do not omit, replace, add, duplicate, or float props.
+            - Enforce real-world ergonomics for every prop. Handles, openings, controls,
+              working surfaces, and displays face the character in a usable orientation;
+              the viewer sees the natural outward-facing back or side. Preserve correct
+              hinges, gravity, grips, straps, and weight. Never present a tool interface
+              to the camera when the character is supposed to be using it.
 
             COLOR FIDELITY
             - Use the four specified HEX colors as the exact base material colors for BODY,

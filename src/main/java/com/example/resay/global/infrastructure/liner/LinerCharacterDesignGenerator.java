@@ -68,11 +68,35 @@ public class LinerCharacterDesignGenerator implements CharacterDesignGenerator {
         }
         validateCompletion(result);
         CharacterDesignSpec design = parse(result.content());
+        validateKeywordGrounding(command, design);
         if (!command.characterName().equals(design.characterName())) {
             return design.withCharacterName(command.characterName());
         }
         return design;
     }
+
+    private void validateKeywordGrounding(
+            CharacterImageGenerationCommand command,
+            CharacterDesignSpec design
+    ) {
+        if (command.conversationKeywords().isEmpty()) {
+            return;
+        }
+        boolean selectedSuppliedKeyword = command.conversationKeywords().stream()
+                .anyMatch(keyword -> design.designConcept().startsWith("KEYWORD: " + keyword + ";"));
+        if (!selectedSuppliedKeyword || design.props().isEmpty()) {
+            throw invalidKeywordDesign();
+        }
+    }
+
+    private CharacterDesignGenerationException invalidKeywordDesign() {
+        return new CharacterDesignGenerationException(
+                "invalid_character_design_response",
+                "대화 키워드에 맞는 소품·의상·배치가 누락됐습니다.",
+                null
+        );
+    }
+
 
     private void validateCompletion(LinerChatResult result) {
         if (result == null

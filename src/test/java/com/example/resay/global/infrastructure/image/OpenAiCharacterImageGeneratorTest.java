@@ -65,7 +65,7 @@ class OpenAiCharacterImageGeneratorTest {
         assertThat(result.content()).isEqualTo(imageBytes);
         assertThat(result.mediaType()).isEqualTo("image/png");
         assertThat(result.model()).isEqualTo("gpt-image-2.5-flare");
-        assertThat(result.promptVersion()).isEqualTo("character-image-prompt-v8");
+        assertThat(result.promptVersion()).isEqualTo("character-image-prompt-v12");
 
         ArgumentCaptor<OpenAiImageRequest> requestCaptor =
                 ArgumentCaptor.forClass(OpenAiImageRequest.class);

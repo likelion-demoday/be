@@ -31,7 +31,7 @@ class LinerCharacterDesignRequestFactoryTest {
         assertThat(request.model()).isEqualTo("liner-mark-1.1");
         assertThat(request.maxCompletionTokens()).isEqualTo(8192);
         assertThat(request.reasoningEffort()).isEqualTo("medium");
-        assertThat(factory.promptVersion()).isEqualTo("character-design-prompt-v6");
+        assertThat(factory.promptVersion()).isEqualTo("character-design-prompt-v13");
         assertThat(factory.schemaVersion()).isEqualTo("character-design-result-v2");
         assertThat(request.messages()).hasSize(2);
         assertThat(request.messages().get(0).content())
@@ -43,13 +43,34 @@ class LinerCharacterDesignRequestFactoryTest {
                 .contains("Clothing and accents have NO saturation restriction")
                 .contains("harmonious, fashion-forward color combinations")
                 .contains("CLOTHING — HIGHEST PRIORITY")
+                .contains("variety-oriented default")
+                .contains("not a hard")
+                .contains("Do not turn a casual interest into an occupational uniform")
                 .contains("Suits need accurate tailoring")
                 .contains("nylon shirts need realistic")
                 .contains("Fully transparent alpha");
         assertThat(request.messages().get(0).content())
                 .contains("Short dense matte velvet micro-fuzz")
+                .contains("CROWN QUALITY — CRITICAL")
+                .contains("Never create one large side")
+                .contains("rock-like lumps")
                 .contains("1-2 tasteful wearable accessories")
-                .contains("up to two supporting props")
+                .contains("Use no more than two supporting props")
+                .contains("conversation_keywords as the ONLY allowed source for props")
+                .contains("computer science/coding/debugging/software project")
+                .contains("one open")
+                .contains("compact laptop only")
+                .contains("infer one plausible real-world activity context")
+                .contains("Keep styling contemporary, polished, and naturally wearable")
+                .contains("Apply real-world ergonomics to every prop")
+                .contains("working surface, or display must face the character")
+                .contains("Respect real hinges, gravity, grip points, straps, and weight")
+                .contains("create one clearly recognizable primary prop")
+                .contains("KEYWORD: <exact selected keyword>")
+                .contains("allowed only when the input list itself is empty")
+                .contains("the primary prop could be removed")
+                .contains("shared activity context")
+                .contains("could not physically use, hold")
                 .contains("recent_character_designs")
                 .contains("generic bears");
 
@@ -60,6 +81,8 @@ class LinerCharacterDesignRequestFactoryTest {
         assertThat(input.get("characterName")).isEqualTo("질문 수집가");
         assertThat(input.get("scenario")).isEqualTo("FRIEND_DAILY");
         assertThat(input.get("speakerRole")).isEqualTo("SELF");
+        assertThat(input.get("conversation_keywords"))
+                .isEqualTo(List.of("코딩", "디버깅", "프로젝트"));
         assertThat(input.get("cardBackgroundGradientColors"))
                 .isEqualTo(List.of("#FFF5EE", "#F3D2C1"));
         assertThat(input.get("requiredCreatureType"))
@@ -71,7 +94,7 @@ class LinerCharacterDesignRequestFactoryTest {
         } else {
             assertThat(input.get("requiredCreatureDirection")).isNull();
         }
-        assertThat(input.get("requiredOutfitDirection"))
+        assertThat(input.get("suggestedOutfitDirection"))
                 .asString()
                 .contains(":");
         assertThat(input.get("requiredSilhouetteDirection"))
@@ -108,6 +131,7 @@ class LinerCharacterDesignRequestFactoryTest {
                 "질문으로 대화를 이어 가요.",
                 "짧게 맞장구쳐요.",
                 "질문과 맞장구가 반복적으로 관찰됐어요.",
+                List.of("코딩", "디버깅", "프로젝트"),
                 new CharacterCardStyle("#6D3A2A", List.of("#FFF5EE", "#F3D2C1"))
         );
     }

@@ -84,6 +84,29 @@ class LinerCharacterDesignGeneratorTest {
     }
 
     @Test
+    void retriesWhenConversationKeywordPropIsMissing() throws Exception {
+        CharacterDesignSpec grounded = groundedDesign("코딩");
+        when(requestFactory.create(any())).thenReturn(mock(LinerChatRequest.class));
+        when(requestFactory.createRetry(any())).thenReturn(mock(LinerChatRequest.class));
+        when(apiClient.chat(any()))
+                .thenReturn(result(
+                        objectMapper.writeValueAsString(validDesign()),
+                        "stop"
+                ))
+                .thenReturn(result(
+                        objectMapper.writeValueAsString(grounded),
+                        "stop"
+                ));
+
+        CharacterDesignSpec actual = generator.generate(commandWithKeywords());
+
+        assertThat(actual.designConcept()).startsWith("KEYWORD: 코딩;");
+        assertThat(actual.props()).isNotEmpty();
+        verify(apiClient, times(2)).chat(any());
+        verify(requestFactory).createRetry(any());
+    }
+
+    @Test
     void failsAfterOneValidationRetry() throws Exception {
         when(requestFactory.create(any())).thenReturn(mock(LinerChatRequest.class));
         when(requestFactory.createRetry(any())).thenReturn(mock(LinerChatRequest.class));
@@ -126,6 +149,49 @@ class LinerCharacterDesignGeneratorTest {
                 "짧게 맞장구쳐요.",
                 "질문과 맞장구가 반복적으로 관찰됐어요.",
                 new CharacterCardStyle("#6D3A2A", List.of("#FFF5EE", "#F3D2C1"))
+        );
+    }
+
+    private CharacterImageGenerationCommand commandWithKeywords() {
+        return new CharacterImageGenerationCommand(
+                AnalysisScenario.FRIEND_DAILY,
+                SpeakerRole.SELF,
+                "버그추적 개발자",
+                "코드의 흐름을 차근차근 살펴요.",
+                "복잡한 문제를 작은 단위로 나눠 해결해요.",
+                "오류 원인을 찾을 때까지 집중해요.",
+                "코딩과 디버깅 이야기가 반복됐어요.",
+                List.of("코딩", "디버깅", "프로젝트"),
+                new CharacterCardStyle("#6D3A2A", List.of("#FFF5EE", "#F3D2C1"))
+        );
+    }
+
+    private CharacterDesignSpec groundedDesign(String keyword) {
+        CharacterDesignSpec source = validDesign();
+        return new CharacterDesignSpec(
+                source.characterName(),
+                source.primaryConversationPattern(),
+                source.secondaryConversationPattern(),
+                "KEYWORD: " + keyword + "; compact coding workstation concept",
+                source.creatureType(),
+                source.bodyDescription(),
+                new CharacterDesignSpec.Outfit(
+                        "relaxed charcoal zip hoodie over a simple crewneck tee",
+                        "clean straight-leg cotton trousers",
+                        List.of("brushed cotton jersey", "soft cotton twill"),
+                        null
+                ),
+                List.of(new CharacterDesignSpec.Prop(
+                        "Open compact laptop",
+                        "brushed aluminum",
+                        "supported on both forearms with the display facing inward toward the "
+                                + "character and the outer lid facing the viewer"
+                )),
+                source.palette(),
+                source.pose(),
+                "Modern campus developer character holding one compact laptop with the screen "
+                        + "facing the character, "
+                        + String.join(", ", source.palette().hexColors())
         );
     }
 }

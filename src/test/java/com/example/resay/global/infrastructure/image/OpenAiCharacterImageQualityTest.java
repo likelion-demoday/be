@@ -12,6 +12,7 @@ import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Locale;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
@@ -51,6 +52,11 @@ class OpenAiCharacterImageQualityTest {
 
         CharacterImageGenerationCommand command = selected.command(characterCardStyleResolver);
         CharacterDesignSpec design = designGenerator.generate(command);
+        assertThat(command.conversationKeywords())
+                .anyMatch(keyword -> design.designConcept().startsWith("KEYWORD: " + keyword + ";"));
+        assertThat(design.props())
+                .as("대화 키워드에 근거한 대표 소품이 필요합니다")
+                .isNotEmpty();
         GeneratedCharacterImage image = imageGenerator.generate(command, design);
 
         Path outputDirectory = Path.of("build", "reports", "openai-character-quality");
@@ -137,11 +143,12 @@ class OpenAiCharacterImageQualityTest {
         FRIEND_SELF(
                 AnalysisScenario.FRIEND_DAILY,
                 SpeakerRole.SELF,
-                "쫑긋한 토끼",
-                "상대의 말에 귀를 기울여 질문을 이어가요.",
-                "작은 단서도 놓치지 않고 새로운 질문으로 연결해요.",
-                "짧은 맞장구로 상대가 이야기를 계속하게 도와요.",
-                "후속 질문과 맞장구가 대화 전반에 고르게 나타났어요."
+                "버그추적 개발자",
+                "코드 흐름을 차근차근 살펴요.",
+                "복잡한 문제를 작은 단위로 나눠 해결해요.",
+                "오류를 발견하면 원인을 찾을 때까지 집중해요.",
+                "코드 흐름을 정리하고 오류를 추적하는 모습이 반복됐어요.",
+                List.of("컴퓨터공학", "코딩", "디버깅")
         ),
         COUPLE_SELF(
                 AnalysisScenario.COUPLE_DAILY,
@@ -150,7 +157,8 @@ class OpenAiCharacterImageQualityTest {
                 "따뜻한 안부와 공감으로 하루를 받아줘요.",
                 "상대의 하루와 기분을 다정하고 구체적으로 물어봐요.",
                 "감정에 맞장구치며 이야기를 편안하게 받아줘요.",
-                "안부 질문과 부드러운 공감이 여러 주제에서 이어졌어요."
+                "안부 질문과 부드러운 공감이 여러 주제에서 이어졌어요.",
+                List.of("커피", "카페", "퇴근")
         ),
         COUPLE_CONFLICT_PARTNER(
                 AnalysisScenario.COUPLE_CONFLICT,
@@ -159,7 +167,8 @@ class OpenAiCharacterImageQualityTest {
                 "한걸음 물러선 뒤 대화 방향을 다시 맞춰요.",
                 "갈등이 거세지면 바로 맞서기보다 상황을 살펴요.",
                 "대화 후반에는 관계를 풀려는 말을 조심스럽게 건네요.",
-                "거리 두기 뒤에 대화 방향을 되찾으려는 시도가 이어졌어요."
+                "거리 두기 뒤에 대화 방향을 되찾으려는 시도가 이어졌어요.",
+                List.of("여행", "약속", "메시지")
         ),
         PARENT(
                 AnalysisScenario.PARENT_CHILD_CONFLICT,
@@ -168,7 +177,8 @@ class OpenAiCharacterImageQualityTest {
                 "걱정되는 순간마다 확인하는 말을 서둘러 건네요.",
                 "자녀가 안전한지 확인하려는 질문을 여러 번 건네요.",
                 "답을 듣지 못하면 같은 걱정을 더 크고 빠르게 말해요.",
-                "안전을 확인하는 질문과 다급한 걱정 표현이 함께 나타났어요."
+                "안전을 확인하는 질문과 다급한 걱정 표현이 함께 나타났어요.",
+                List.of("학교", "귀가", "우산")
         ),
         CHILD(
                 AnalysisScenario.PARENT_CHILD_CONFLICT,
@@ -177,7 +187,8 @@ class OpenAiCharacterImageQualityTest {
                 "짧고 또렷한 말로 자신만의 선을 지켜요.",
                 "원하지 않는 요구에는 짧고 분명한 말로 선을 그어요.",
                 "감정이 커질수록 긴 설명보다 단호한 대답을 사용해요.",
-                "자신의 선택을 지키는 짧은 응답이 갈등 구간에 반복됐어요."
+                "자신의 선택을 지키는 짧은 응답이 갈등 구간에 반복됐어요.",
+                List.of("게임", "헤드폰", "컴퓨터")
         );
 
         private final AnalysisScenario scenario;
@@ -187,6 +198,7 @@ class OpenAiCharacterImageQualityTest {
         private final String mainTrait;
         private final String secondaryTrait;
         private final String evidence;
+        private final List<String> conversationKeywords;
 
         CharacterCase(
                 AnalysisScenario scenario,
@@ -195,7 +207,8 @@ class OpenAiCharacterImageQualityTest {
                 String description,
                 String mainTrait,
                 String secondaryTrait,
-                String evidence
+                String evidence,
+                List<String> conversationKeywords
         ) {
             this.scenario = scenario;
             this.role = role;
@@ -204,6 +217,7 @@ class OpenAiCharacterImageQualityTest {
             this.mainTrait = mainTrait;
             this.secondaryTrait = secondaryTrait;
             this.evidence = evidence;
+            this.conversationKeywords = conversationKeywords;
         }
 
         CharacterImageGenerationCommand command(CharacterCardStyleResolver styleResolver) {
@@ -215,6 +229,7 @@ class OpenAiCharacterImageQualityTest {
                     mainTrait,
                     secondaryTrait,
                     evidence,
+                    conversationKeywords,
                     styleResolver.resolve(role, name)
             );
         }

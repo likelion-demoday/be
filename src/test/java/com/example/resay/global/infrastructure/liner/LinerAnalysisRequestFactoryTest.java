@@ -75,11 +75,14 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("짧고 재미있는 한국어 별칭")
                 .contains("정확히 2어절의 한국어 별칭")
                 .contains("1어절이나 3어절 이상은 허용하지 않습니다")
-                .contains("첫 어절은 이번 대화 특징을 자연스럽게 꾸미는 수식어")
-                .contains("꼼꼼한 수사관")
+                .contains("말투·반응·행동 특징")
+                .contains("친근한 역할·페르소나 명사")
+                .contains("동물 종이나 사물 자체를 캐릭터 이름으로 사용하지 마세요")
+                .contains("꼬치꼬치 수사관")
+                .contains("팩트체크 기자")
                 .contains("공백을 포함해 10자 이내")
                 .contains("공백을 포함해 20자 이내")
-                .contains("포근한 바텐더")
+                .contains("그니까 집착러")
                 .contains("예시일 뿐이므로 그대로 고르지 말고")
                 .contains("비하하거나 공격적인 표현")
                 .contains("실제로 두 번 이상 등장한 표현")
@@ -109,7 +112,7 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("화자별 1개 이상 3개 이하");
 
 
-        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v22");
+        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v23");
         assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v12");
 
         Map<?, ?> input = objectMapper.readValue(request.messages().get(1).content(), Map.class);
