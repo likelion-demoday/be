@@ -4,6 +4,7 @@ import com.example.resay.domain.recording.code.RecordingErrorCode;
 import com.example.resay.domain.recording.entity.Recording;
 import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.domain.recording.service.RecordingService;
+import com.example.resay.domain.share.repository.AnalysisShareRepository;
 import com.example.resay.domain.transcription.repository.TranscriptSegmentRepository;
 import com.example.resay.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
@@ -21,14 +22,16 @@ public class ConversationDeletionService {
     private final RecordingRepository recordingRepository;
     private final RecordingService recordingService;
     private final TranscriptSegmentRepository transcriptSegmentRepository;
+    private final AnalysisShareRepository analysisShareRepository;
 
     @Transactional
     public void delete(Long recordingId, Long userId) {
-        Recording recording = recordingRepository.findByIdAndUserId(recordingId, userId)
+        Recording recording = recordingRepository.findByIdAndUserIdForUpdate(recordingId, userId)
                 .filter(found -> !found.isDeleted())
                 .orElseThrow(() -> new GeneralException(RecordingErrorCode.RECORDING_NOT_FOUND));
 
         recording.markDeleted();
+        analysisShareRepository.deleteByRecordingId(recordingId);
         transcriptSegmentRepository.deleteByRecordingId(recordingId);
         // 음성 파일 삭제에 실패하면 기록하지 않고 남겨, 보관 기간 정리 스케줄러가 다시 지운다
         if (!recordingService.deleteAudio(recordingId)) {
