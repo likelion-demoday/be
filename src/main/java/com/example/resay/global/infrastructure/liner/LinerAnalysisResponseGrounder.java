@@ -81,6 +81,7 @@ public class LinerAnalysisResponseGrounder {
                 groundScenarioInsights(source, response.scenarioInsights()),
                 groundedRepresentativeEvidences,
                 response.relationshipSummary(),
+                response.speakerAffectionSummaries(),
                 groundReportMetrics(
                         source,
                         response.reportMetrics(),

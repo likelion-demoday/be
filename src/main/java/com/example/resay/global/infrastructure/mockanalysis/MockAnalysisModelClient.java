@@ -1,6 +1,7 @@
 package com.example.resay.global.infrastructure.mockanalysis;
 
 import com.example.resay.domain.analysis.model.AnalysisModelResult;
+import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisSource;
 import com.example.resay.domain.analysis.model.SpeakerRole;
@@ -71,6 +72,7 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
                 "이번 대화에서는 서로의 말에 반응하며 주제를 이어가는 흐름이 보여요.",
                 List.of(first.segmentId(), second.segmentId())
         ));
+        response.put("speakerAffectionSummaries", speakerAffectionSummaries(source));
         response.put("reportMetrics", reportMetrics(source));
         response.put("speakerTendencies", speakerTendencies(source));
         response.put("coachingSuggestions", coachingSuggestions(source));
@@ -79,12 +81,33 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
             return new AnalysisModelResult(
                     objectMapper.writeValueAsString(response),
                     "mock-analysis-model",
-                    "mock-prompt-v3",
-                    "analysis-result-v7"
+                    "mock-prompt-v4",
+                    "analysis-result-v12"
             );
         } catch (Exception exception) {
             throw new IllegalStateException("목업 정성 분석 결과를 만들 수 없습니다.", exception);
         }
+    }
+
+    private List<Map<String, Object>> speakerAffectionSummaries(AnalysisSource source) {
+        if (source.scenario() != AnalysisScenario.COUPLE_DAILY) {
+            return List.of();
+        }
+        return roleItems(source, this::speakerAffectionSummary);
+    }
+
+    private Map<String, Object> speakerAffectionSummary(
+            SpeakerRole role,
+            AnalysisSegment evidence
+    ) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("speakerRole", role);
+        result.put("title", role == SpeakerRole.SELF ? "직접 전하는 다정함" : "세심하게 챙기는 마음");
+        result.put("description", role == SpeakerRole.SELF
+                ? "상대를 향한 마음을 직접적인 말로 표현해요."
+                : "상대의 상황을 살피며 챙기는 말로 애정을 표현해요.");
+        result.put("evidenceSegmentIds", List.of(evidence.segmentId()));
+        return result;
     }
 
     private List<Map<String, Object>> reportMetrics(AnalysisSource source) {

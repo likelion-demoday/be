@@ -303,6 +303,33 @@ class AnalysisReportAssemblerTest {
         assertThat(metric.evidenceQuotes()).isEmpty();
     }
 
+    @Test
+    void limitsCoachingSuggestionEvidenceQuotesToThree() {
+        List<AnalysisReport.EvidenceQuote> evidenceQuotes = java.util.stream.LongStream
+                .rangeClosed(1, 4)
+                .mapToObj(id -> new AnalysisReport.EvidenceQuote(
+                        id,
+                        SpeakerRole.SELF,
+                        "원문 " + id,
+                        "원문 " + id,
+                        false,
+                        id * 100,
+                        id * 100 + 50
+                ))
+                .toList();
+
+        AnalysisReport.CoachingSuggestionEvidence evidence =
+                new AnalysisReport.CoachingSuggestionEvidence(
+                        SpeakerRole.SELF,
+                        1,
+                        evidenceQuotes
+                );
+
+        assertThat(evidence.evidenceQuotes())
+                .extracting(AnalysisReport.EvidenceQuote::segmentId)
+                .containsExactly(1L, 2L, 3L);
+    }
+
     private AnalysisSource source() {
         return new AnalysisSource(
                 10L,

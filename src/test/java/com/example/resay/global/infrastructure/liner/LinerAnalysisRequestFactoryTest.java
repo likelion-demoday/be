@@ -73,10 +73,13 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("서로 다른 표기는 각각 별도 항목으로 작성하세요")
                 .contains("비속어가 없으면 swearWords는 빈 배열")
                 .contains("짧고 재미있는 한국어 별칭")
-                .contains("수식어와 기억에 남는 역할·사물 명사를 결합한 2~3어절")
+                .contains("정확히 2어절의 한국어 별칭")
+                .contains("1어절이나 3어절 이상은 허용하지 않습니다")
+                .contains("첫 어절은 이번 대화 특징을 자연스럽게 꾸미는 수식어")
+                .contains("꼼꼼한 수사관")
                 .contains("공백을 포함해 10자 이내")
                 .contains("공백을 포함해 20자 이내")
-                .contains("꼬리질문 장인")
+                .contains("포근한 바텐더")
                 .contains("예시일 뿐이므로 그대로 고르지 말고")
                 .contains("비하하거나 공격적인 표현")
                 .contains("실제로 두 번 이상 등장한 표현")
@@ -105,8 +108,9 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("관찰되지 않은 항목도 value 0으로 작성하세요")
                 .contains("화자별 1개 이상 3개 이하");
 
-        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v21");
-        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v11");
+
+        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v22");
+        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v12");
 
         Map<?, ?> input = objectMapper.readValue(request.messages().get(1).content(), Map.class);
         assertThat(input.keySet().stream().map(Object::toString).toList())
@@ -134,6 +138,7 @@ class LinerAnalysisRequestFactoryTest {
                 "reactionStyleInsights",
                 "representativeEvidences",
                 "relationshipSummary",
+                "speakerAffectionSummaries",
                 "reportMetrics",
                 "speakerTendencies",
                 "coachingSuggestions"
@@ -142,8 +147,10 @@ class LinerAnalysisRequestFactoryTest {
         Map<?, ?> characterInsightItems = (Map<?, ?>) characterInsights.get("items");
         Map<?, ?> characterInsightProperties =
                 (Map<?, ?>) characterInsightItems.get("properties");
-        assertThat(((Map<?, ?>) characterInsightProperties.get("name"))
-                .containsKey("maxLength")).isFalse();
+        Map<?, ?> characterName = (Map<?, ?>) characterInsightProperties.get("name");
+        assertThat(characterName.get("minLength")).isEqualTo(3);
+        assertThat(characterName.get("maxLength")).isEqualTo(10);
+        assertThat(characterName.get("pattern")).isEqualTo("^\\S+ \\S+$");
         assertThat(((Map<?, ?>) characterInsightProperties.get("description"))
                 .containsKey("maxLength")).isFalse();
         Map<?, ?> representativeEvidences =
@@ -231,6 +238,41 @@ class LinerAnalysisRequestFactoryTest {
         Map<?, ?> scenarioCategory = (Map<?, ?>) scenarioInsightProperties.get("category");
         assertThat(scenarioCategory.get("enum"))
                 .isEqualTo(List.of("COMMON_INTEREST", "PLAYFUL_EXCHANGE"));
+        Map<?, ?> speakerAffectionSummaries =
+                (Map<?, ?>) rootProperties.get("speakerAffectionSummaries");
+        assertThat(speakerAffectionSummaries.get("minItems")).isEqualTo(0);
+        assertThat(speakerAffectionSummaries.get("maxItems")).isEqualTo(0);
+    }
+
+    @Test
+    void requiresSpeakerSpecificAffectionSummariesForCoupleDaily() {
+        AnalysisSource source = new AnalysisSource(
+                1L,
+                AnalysisScenario.COUPLE_DAILY,
+                10_000L,
+                speakersFor(AnalysisScenario.COUPLE_DAILY),
+                List.of(
+                        new AnalysisSegment(1L, SpeakerRole.SELF, 100L, 500L, "오늘도 보고 싶어"),
+                        new AnalysisSegment(2L, SpeakerRole.PARTNER, 600L, 900L, "밥은 챙겨 먹었어?")
+                )
+        );
+
+        LinerChatRequest request = requestFactory.create(source);
+
+        assertThat(request.messages().get(0).content())
+                .contains("speakerAffectionSummaries는 SELF와 PARTNER 각각 한 개씩")
+                .contains("그 화자가 직접 말한 근거 발화만")
+                .contains("두 화자에게 같은 요약을 반복하지 마세요");
+        Map<?, ?> jsonSchema = (Map<?, ?>) request.responseFormat().get("json_schema");
+        Map<?, ?> rootSchema = (Map<?, ?>) jsonSchema.get("schema");
+        Map<?, ?> rootProperties = (Map<?, ?>) rootSchema.get("properties");
+        Map<?, ?> summaries = (Map<?, ?>) rootProperties.get("speakerAffectionSummaries");
+        assertThat(summaries.get("minItems")).isEqualTo(2);
+        assertThat(summaries.get("maxItems")).isEqualTo(2);
+        Map<?, ?> summaryItems = (Map<?, ?>) summaries.get("items");
+        Map<?, ?> summaryProperties = (Map<?, ?>) summaryItems.get("properties");
+        assertThat(((Map<?, ?>) summaryProperties.get("speakerRole")).get("enum"))
+                .isEqualTo(List.of("PARTNER", "SELF"));
     }
 
     @Test

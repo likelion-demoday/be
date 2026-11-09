@@ -167,6 +167,8 @@ public record AnalysisReportDto(
             @Schema(description = "Figma 보고서에서 실제 발화로 표시하는 대표 근거만 포함")
             List<RepresentativeEvidence> representativeEvidences,
             RelationshipSummary relationshipSummary,
+            @Schema(description = "연인-일상 대화의 화자별 애정 표현 요약. 그 외 시나리오는 빈 배열")
+            List<SpeakerAffectionSummary> speakerAffectionSummaries,
             List<ReportMetric> reportMetrics,
             List<SpeakerTendency> speakerTendencies,
             List<CoachingSuggestion> coachingSuggestions
@@ -194,6 +196,9 @@ public record AnalysisReportDto(
                             .map(RepresentativeEvidence::from)
                             .toList(),
                     RelationshipSummary.from(source.relationshipSummary()),
+                    source.speakerAffectionSummaries().stream()
+                            .map(SpeakerAffectionSummary::from)
+                            .toList(),
                     source.reportMetrics().stream().map(ReportMetric::from).toList(),
                     source.speakerTendencies().stream().map(SpeakerTendency::from).toList(),
                     source.coachingSuggestions().stream()
@@ -215,6 +220,23 @@ public record AnalysisReportDto(
                 QualitativeAnalysis.RelationshipSummary source
         ) {
             return source == null ? null : new RelationshipSummary(
+                    source.title(),
+                    source.description()
+            );
+        }
+    }
+
+    public record SpeakerAffectionSummary(
+            SpeakerRole speakerRole,
+            String title,
+            String description
+    ) {
+
+        private static SpeakerAffectionSummary from(
+                QualitativeAnalysis.SpeakerAffectionSummary source
+        ) {
+            return new SpeakerAffectionSummary(
+                    source.speakerRole(),
                     source.title(),
                     source.description()
             );
@@ -267,7 +289,7 @@ public record AnalysisReportDto(
             String title,
             String description,
             String suggestedPhrase,
-            @Schema(description = "이 제안이 필요한 대화 맥락의 근거 발화")
+            @Schema(description = "이 제안이 필요한 대화 맥락의 대표 근거 발화. 최대 3개")
             List<EvidenceQuote> evidenceQuotes
     ) {
 
