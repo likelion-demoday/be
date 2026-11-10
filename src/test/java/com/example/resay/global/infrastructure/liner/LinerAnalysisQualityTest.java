@@ -52,7 +52,7 @@ class LinerAnalysisQualityTest {
         );
         LinerAnalysisQualityEvaluation.TranscriptVariant transcriptVariant =
                 LinerAnalysisQualityEvaluation.TranscriptVariant.valueOf(
-                        System.getenv("LINER_QUALITY_VARIANT")
+                        "CORRECTED"
                 );
         LinerAnalysisEvaluationFixture fixture =
                 new LinerAnalysisEvaluationFixtureLoader(objectMapper).load(scenario);

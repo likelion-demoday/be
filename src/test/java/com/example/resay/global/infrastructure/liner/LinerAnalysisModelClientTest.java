@@ -83,7 +83,7 @@ class LinerAnalysisModelClientTest {
         assertThat(analysis.spicinessInsights())
                 .extracting(QualitativeAnalysis.SpicinessInsight::score)
                 .containsOnly(0);
-        assertThat(analysis.reportMetrics()).hasSize(8);
+        assertThat(analysis.reportMetrics()).hasSize(16);
         assertThat(analysis.reportMetrics())
                 .extracting(QualitativeAnalysis.ReportMetric::unit)
                 .containsOnly(QualitativeAnalysis.ReportMetricUnit.PERCENT);
@@ -94,6 +94,10 @@ class LinerAnalysisModelClientTest {
                 .filter(metric -> metric.speakerRole() == SpeakerRole.SELF)
                 .map(QualitativeAnalysis.ReportMetric::type)
                 .toList()).containsExactly(
+                        QualitativeAnalysis.ReportMetricType.SENTENCE_COMPLETENESS,
+                        QualitativeAnalysis.ReportMetricType.ELABORATION,
+                        QualitativeAnalysis.ReportMetricType.CLARITY,
+                        QualitativeAnalysis.ReportMetricType.SENTENCE_VARIETY,
                         QualitativeAnalysis.ReportMetricType.SWEAR_WORD,
                         QualitativeAnalysis.ReportMetricType.DIRECTNESS,
                         QualitativeAnalysis.ReportMetricType.EXPRESSION_INTENSITY,
@@ -103,6 +107,76 @@ class LinerAnalysisModelClientTest {
                 eq(source),
                 any(QualitativeAnalysis.class)
         );
+    }
+
+    @Test
+    void replacesRequiredMetricUsingCountWithDefaultPercentMetric() {
+        AnalysisSource source = source();
+        LinerChatRequest request = request();
+        given(requestFactory.create(source)).willReturn(request);
+        given(requestFactory.promptVersion()).willReturn("analysis-prompt-v23");
+        given(requestFactory.schemaVersion()).willReturn("analysis-result-v13");
+        given(linerApiClient.chat(request)).willReturn(result(
+                contentWithCommonMetricUsingWrongUnit(),
+                "stop"
+        ));
+
+        AnalysisModelResult result = modelClient.analyze(source);
+        QualitativeAnalysis analysis = new ObjectMapper().readValue(
+                result.resultJson(),
+                QualitativeAnalysis.class
+        );
+
+        assertThat(analysis.reportMetrics())
+                .filteredOn(metric -> metric.type()
+                        == QualitativeAnalysis.ReportMetricType.SENTENCE_COMPLETENESS)
+                .filteredOn(metric -> metric.speakerRole() == SpeakerRole.SELF)
+                .singleElement()
+                .satisfies(metric -> {
+                    assertThat(metric.value()).isZero();
+                    assertThat(metric.unit())
+                            .isEqualTo(QualitativeAnalysis.ReportMetricUnit.PERCENT);
+                    assertThat(metric.title()).isEqualTo("완결성");
+                    assertThat(metric.evidenceSegmentIds()).isEmpty();
+                });
+    }
+
+    @Test
+    void preservesCountMetricWhenScenarioAlsoRequiresSameTypeAsPercent() {
+        AnalysisSource source = parentChildSource();
+        LinerChatRequest request = request();
+        given(requestFactory.create(source)).willReturn(request);
+        given(requestFactory.promptVersion()).willReturn("analysis-prompt-v23");
+        given(requestFactory.schemaVersion()).willReturn("analysis-result-v13");
+        given(linerApiClient.chat(request)).willReturn(result(
+                parentChildContentWithOverlappingCountMetric(),
+                "stop"
+        ));
+
+        AnalysisModelResult result = modelClient.analyze(source);
+        QualitativeAnalysis analysis = new ObjectMapper().readValue(
+                result.resultJson(),
+                QualitativeAnalysis.class
+        );
+
+        assertThat(analysis.reportMetrics())
+                .filteredOn(metric -> metric.type()
+                        == QualitativeAnalysis.ReportMetricType.EMOTION_CHECK)
+                .filteredOn(metric -> metric.speakerRole() == SpeakerRole.PARENT)
+                .extracting(
+                        QualitativeAnalysis.ReportMetric::unit,
+                        QualitativeAnalysis.ReportMetric::value
+                )
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(
+                                QualitativeAnalysis.ReportMetricUnit.COUNT,
+                                1
+                        ),
+                        org.assertj.core.groups.Tuple.tuple(
+                                QualitativeAnalysis.ReportMetricUnit.PERCENT,
+                                0
+                        )
+                );
     }
 
     @Test
@@ -185,6 +259,8 @@ class LinerAnalysisModelClientTest {
         assertThat(result.resultJson())
                 .contains("\"relationshipSummary\":{")
                 .contains("\"reportMetrics\":[{")
+                .contains("\"type\":\"COMPLIMENT\"")
+                .contains("\"unit\":\"COUNT\"")
                 .contains("\"speakerTendencies\":[]")
                 .contains("\"coachingSuggestions\":[]");
         then(responseValidator).should()
@@ -296,14 +372,15 @@ class LinerAnalysisModelClientTest {
                         == QualitativeAnalysis.ReportMetricUnit.COUNT)
                 .singleElement()
                 .satisfies(metric -> {
-                    assertThat(metric.type())
-                            .isEqualTo(QualitativeAnalysis.ReportMetricType.SITUATION_QUESTION);
+                    assertThat(metric.type()).isEqualTo(
+                            QualitativeAnalysis.ReportMetricType.SITUATION_QUESTION
+                    );
                     assertThat(metric.value()).isEqualTo(1);
                 });
         assertThat(report.qualitativeAnalysis().reportMetrics())
                 .filteredOn(metric -> metric.unit()
                         == QualitativeAnalysis.ReportMetricUnit.PERCENT)
-                .hasSize(8);
+                .hasSize(16);
         assertThat(report.qualitativeAnalysis().coachingSuggestions())
                 .extracting(QualitativeAnalysis.CoachingSuggestion::order)
                 .containsExactly(1, 2, 3, 1, 2, 3);
@@ -613,6 +690,46 @@ class LinerAnalysisModelClientTest {
                 ],
                 "speakerTendencies": [],
                 "coachingSuggestions": []
+                """
+        );
+    }
+
+    private String contentWithCommonMetricUsingWrongUnit() {
+        return validContent().replace(
+                "\"scenarioInsights\": []",
+                """
+                "scenarioInsights": [],
+                "reportMetrics": [
+                  {
+                    "type": "SENTENCE_COMPLETENESS",
+                    "speakerRole": "SELF",
+                    "value": 74,
+                    "unit": "COUNT",
+                    "title": "잘못된 제목",
+                    "description": "문장을 끝까지 완성해 말하는 편이에요.",
+                    "evidenceSegmentIds": [1],
+                    "displayEvidences": []
+                  }
+                ]
+                """
+        );
+    }
+
+    private String parentChildContentWithOverlappingCountMetric() {
+        return parentChildContentWithRenderableCore().replace(
+                "\"reportMetrics\": [",
+                """
+                "reportMetrics": [
+                    {
+                      "type": "EMOTION_CHECK",
+                      "speakerRole": "PARENT",
+                      "value": 1,
+                      "unit": "COUNT",
+                      "title": "감정 확인 횟수",
+                      "description": "감정을 확인하는 질문을 했어요.",
+                      "evidenceSegmentIds": [1],
+                      "displayEvidences": []
+                    },
                 """
         );
     }

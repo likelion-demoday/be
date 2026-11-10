@@ -81,8 +81,8 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
             return new AnalysisModelResult(
                     objectMapper.writeValueAsString(response),
                     "mock-analysis-model",
-                    "mock-prompt-v4",
-                    "analysis-result-v12"
+                    "mock-prompt-v6",
+                    "analysis-result-v14"
             );
         } catch (Exception exception) {
             throw new IllegalStateException("목업 정성 분석 결과를 만들 수 없습니다.", exception);
@@ -111,7 +111,7 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
     }
 
     private List<Map<String, Object>> reportMetrics(AnalysisSource source) {
-        List<MockReportMetric> metrics = switch (source.scenario()) {
+        List<MockReportMetric> scenarioPercentMetrics = switch (source.scenario()) {
             case FRIEND_DAILY -> List.of(
                     new MockReportMetric("SWEAR_WORD", "비속어"),
                     new MockReportMetric("DIRECTNESS", "직설력"),
@@ -137,6 +137,60 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
                     new MockReportMetric("SOFTENING_EXPRESSION", "완충 표현")
             );
         };
+        List<MockReportMetric> commonMetrics = List.of(
+                new MockReportMetric("SENTENCE_COMPLETENESS", "완결성"),
+                new MockReportMetric("ELABORATION", "확장성"),
+                new MockReportMetric("CLARITY", "명료성"),
+                new MockReportMetric("SENTENCE_VARIETY", "다양성")
+        );
+        List<MockReportMetric> scenarioCountMetrics = switch (source.scenario()) {
+            case FRIEND_DAILY -> List.of(
+                    MockReportMetric.count("COMPLIMENT", "칭찬"),
+                    MockReportMetric.count("ENCOURAGEMENT", "응원"),
+                    MockReportMetric.count("CARING_EXPRESSION", "챙기는 말"),
+                    MockReportMetric.count("FRIENDLY_ADDRESS", "친근한 호칭"),
+                    MockReportMetric.count("DIRECT_AFFECTION", "직접 표현"),
+                    MockReportMetric.count("JOY_OR_GRATITUDE", "기쁨·감사")
+            );
+            case COUPLE_DAILY -> List.of(
+                    MockReportMetric.count("COMPLIMENT", "칭찬"),
+                    MockReportMetric.count("ENCOURAGEMENT", "응원"),
+                    MockReportMetric.count("CARING_EXPRESSION", "챙기는 말"),
+                    MockReportMetric.count("DIRECT_AFFECTION", "직접 표현"),
+                    MockReportMetric.count("JOY_OR_GRATITUDE", "기쁨·감사")
+            );
+            case COUPLE_CONFLICT -> List.of(
+                    MockReportMetric.count("POSITION_EXPLANATION", "입장 설명"),
+                    MockReportMetric.count("REBUTTAL", "반박"),
+                    MockReportMetric.count("AVOIDANCE", "회피"),
+                    MockReportMetric.count("APOLOGY", "사과"),
+                    MockReportMetric.count("YIELDING", "양보"),
+                    MockReportMetric.count("EMOTION_CHECK", "감정 확인"),
+                    MockReportMetric.count("QUESTION", "질문"),
+                    MockReportMetric.count("MISSED_RESPONSE", "놓친 반응")
+            );
+            case PARENT_CHILD_CONFLICT -> List.of(
+                    MockReportMetric.count("SITUATION_QUESTION", "상황 질문"),
+                    MockReportMetric.count("CONCRETE_ADVICE", "구체적 조언"),
+                    MockReportMetric.count("EMOTION_CHECK", "감정 확인"),
+                    MockReportMetric.count("ASSERTIVE_EXPRESSION", "단정 표현"),
+                    MockReportMetric.count("EXPERIENCE_COMPARISON", "경험 비교"),
+                    MockReportMetric.count("SHORT_RESPONSE", "짧은 반응"),
+                    MockReportMetric.count("TOPIC_AVOIDANCE", "주제 회피"),
+                    MockReportMetric.count("REBUTTAL", "반박"),
+                    MockReportMetric.count("EMOTION_EXPRESSION", "감정 표현"),
+                    MockReportMetric.count("APOLOGY", "사과"),
+                    MockReportMetric.count("CHILD_EXPRESSION", "자녀 표현"),
+                    MockReportMetric.count("PARENT_CONFIRMATION", "부모 확인")
+            );
+        };
+        List<MockReportMetric> metrics = java.util.stream.Stream.of(
+                        commonMetrics,
+                        scenarioPercentMetrics,
+                        scenarioCountMetrics
+                )
+                .flatMap(List::stream)
+                .toList();
         return source.scenario().requiredRoles().stream()
                 .sorted()
                 .flatMap(role -> metrics.stream().map(definition -> {
@@ -144,8 +198,8 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
                     Map<String, Object> metric = new LinkedHashMap<>();
                     metric.put("type", definition.type());
                     metric.put("speakerRole", role);
-                    metric.put("value", 50);
-                    metric.put("unit", "PERCENT");
+                    metric.put("value", definition.unit().equals("COUNT") ? 1 : 50);
+                    metric.put("unit", definition.unit());
                     metric.put("title", definition.title());
                     metric.put("description", "이번 대화에서 확인된 표현을 기준으로 보여드려요.");
                     metric.put("evidenceSegmentIds", List.of(evidence.segmentId()));
@@ -154,7 +208,15 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
                 .toList();
     }
 
-    private record MockReportMetric(String type, String title) {
+    private record MockReportMetric(String type, String title, String unit) {
+
+        private MockReportMetric(String type, String title) {
+            this(type, title, "PERCENT");
+        }
+
+        private static MockReportMetric count(String type, String title) {
+            return new MockReportMetric(type, title, "COUNT");
+        }
     }
 
     private List<Map<String, Object>> speakerTendencies(AnalysisSource source) {

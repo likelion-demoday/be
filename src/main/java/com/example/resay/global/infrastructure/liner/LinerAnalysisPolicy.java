@@ -1,7 +1,9 @@
 package com.example.resay.global.infrastructure.liner;
 
 import com.example.resay.domain.analysis.model.AnalysisScenario;
+import com.example.resay.domain.analysis.model.CommonSentenceMetricPolicy;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -92,7 +94,7 @@ final class LinerAnalysisPolicy {
     static Set<QualitativeAnalysis.ReportMetricType> reportMetricTypes(
             AnalysisScenario scenario
     ) {
-        return switch (scenario) {
+        Set<QualitativeAnalysis.ReportMetricType> types = new HashSet<>(switch (scenario) {
             case FRIEND_DAILY -> Set.of(
                     QualitativeAnalysis.ReportMetricType.SWEAR_WORD,
                     QualitativeAnalysis.ReportMetricType.DIRECTNESS,
@@ -144,13 +146,15 @@ final class LinerAnalysisPolicy {
                     QualitativeAnalysis.ReportMetricType.CHILD_EXPRESSION,
                     QualitativeAnalysis.ReportMetricType.PARENT_CONFIRMATION
             );
-        };
+        });
+        types.addAll(CommonSentenceMetricPolicy.requiredTypes());
+        return Set.copyOf(types);
     }
 
     static List<QualitativeAnalysis.ReportMetricType> requiredPercentReportMetricTypes(
             AnalysisScenario scenario
     ) {
-        return switch (scenario) {
+        List<QualitativeAnalysis.ReportMetricType> scenarioTypes = switch (scenario) {
             case FRIEND_DAILY -> List.of(
                     QualitativeAnalysis.ReportMetricType.SWEAR_WORD,
                     QualitativeAnalysis.ReportMetricType.DIRECTNESS,
@@ -175,6 +179,44 @@ final class LinerAnalysisPolicy {
                     QualitativeAnalysis.ReportMetricType.EMOTION_CHECK,
                     QualitativeAnalysis.ReportMetricType.SOFTENING_EXPRESSION
             );
+        };
+        List<QualitativeAnalysis.ReportMetricType> requiredTypes = new ArrayList<>(
+                CommonSentenceMetricPolicy.requiredTypes()
+        );
+        requiredTypes.addAll(scenarioTypes);
+        return List.copyOf(requiredTypes);
+    }
+
+    static Set<QualitativeAnalysis.ReportMetricType> countReportMetricTypes(
+            AnalysisScenario scenario
+    ) {
+        return switch (scenario) {
+            case FRIEND_DAILY -> Set.of(
+                    QualitativeAnalysis.ReportMetricType.COMPLIMENT,
+                    QualitativeAnalysis.ReportMetricType.ENCOURAGEMENT,
+                    QualitativeAnalysis.ReportMetricType.CARING_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.FRIENDLY_ADDRESS,
+                    QualitativeAnalysis.ReportMetricType.DIRECT_AFFECTION,
+                    QualitativeAnalysis.ReportMetricType.JOY_OR_GRATITUDE
+            );
+            case COUPLE_DAILY -> Set.of(
+                    QualitativeAnalysis.ReportMetricType.COMPLIMENT,
+                    QualitativeAnalysis.ReportMetricType.ENCOURAGEMENT,
+                    QualitativeAnalysis.ReportMetricType.CARING_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.DIRECT_AFFECTION,
+                    QualitativeAnalysis.ReportMetricType.JOY_OR_GRATITUDE
+            );
+            case COUPLE_CONFLICT -> Set.of(
+                    QualitativeAnalysis.ReportMetricType.POSITION_EXPLANATION,
+                    QualitativeAnalysis.ReportMetricType.REBUTTAL,
+                    QualitativeAnalysis.ReportMetricType.AVOIDANCE,
+                    QualitativeAnalysis.ReportMetricType.APOLOGY,
+                    QualitativeAnalysis.ReportMetricType.YIELDING,
+                    QualitativeAnalysis.ReportMetricType.EMOTION_CHECK,
+                    QualitativeAnalysis.ReportMetricType.QUESTION,
+                    QualitativeAnalysis.ReportMetricType.MISSED_RESPONSE
+            );
+            case PARENT_CHILD_CONFLICT -> PARENT_CHILD_METRIC_EVIDENCE_QUOTE_TYPES;
         };
     }
 
