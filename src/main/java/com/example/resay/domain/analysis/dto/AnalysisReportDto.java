@@ -242,12 +242,14 @@ public record AnalysisReportDto(
                     .forEach(speakerRoles::add);
 
             for (AnalysisReport.ReportMetric metric : sourceMetrics) {
+                if (metric == null
+                        || metric.unit() != QualitativeAnalysis.ReportMetricUnit.PERCENT) {
+                    continue;
+                }
                 boolean commonPercentMetric = metric != null
                         && CommonSentenceMetricPolicy.isCommon(metric.type());
                 if (!commonPercentMetric) {
-                    if (metric != null) {
-                        result.add(ReportMetric.from(metric));
-                    }
+                    result.add(ReportMetric.from(metric));
                     continue;
                 }
                 if (speakerRoles.contains(metric.speakerRole())) {

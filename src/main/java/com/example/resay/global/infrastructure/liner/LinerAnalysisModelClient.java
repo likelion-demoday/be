@@ -95,20 +95,17 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
         List<QualitativeAnalysis.ReportMetric> completedMetrics = new ArrayList<>();
 
         for (QualitativeAnalysis.ReportMetric metric : response.reportMetrics()) {
-            boolean requiredPercentMetric = metric != null
+            boolean allowedPercentMetric = metric != null
                     && requiredTypes.contains(metric.type())
-                    && (metric.unit() == QualitativeAnalysis.ReportMetricUnit.PERCENT
-                    || CommonSentenceMetricPolicy.isCommon(metric.type()));
-            if (!requiredPercentMetric) {
-                completedMetrics.add(metric);
+                    && metric.unit() == QualitativeAnalysis.ReportMetricUnit.PERCENT
+                    && source.scenario().requiredRoles().contains(metric.speakerRole());
+            if (!allowedPercentMetric) {
                 continue;
             }
-            if (source.scenario().requiredRoles().contains(metric.speakerRole())) {
-                metricsByKey.putIfAbsent(
-                        new ReportMetricKey(metric.type(), metric.speakerRole()),
-                        metric
-                );
-            }
+            metricsByKey.putIfAbsent(
+                    new ReportMetricKey(metric.type(), metric.speakerRole()),
+                    metric
+            );
         }
 
         int missingCount = 0;

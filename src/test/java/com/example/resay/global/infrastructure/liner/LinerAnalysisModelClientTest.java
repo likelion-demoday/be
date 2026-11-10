@@ -110,7 +110,7 @@ class LinerAnalysisModelClientTest {
     }
 
     @Test
-    void normalizesRequiredPercentMetricBeforeCountGroundingCanChangeItsValue() {
+    void replacesRequiredMetricUsingCountWithDefaultPercentMetric() {
         AnalysisSource source = source();
         LinerChatRequest request = request();
         given(requestFactory.create(source)).willReturn(request);
@@ -133,16 +133,16 @@ class LinerAnalysisModelClientTest {
                 .filteredOn(metric -> metric.speakerRole() == SpeakerRole.SELF)
                 .singleElement()
                 .satisfies(metric -> {
-                    assertThat(metric.value()).isEqualTo(74);
+                    assertThat(metric.value()).isZero();
                     assertThat(metric.unit())
                             .isEqualTo(QualitativeAnalysis.ReportMetricUnit.PERCENT);
                     assertThat(metric.title()).isEqualTo("완결성");
-                    assertThat(metric.evidenceSegmentIds()).containsExactly(1L);
+                    assertThat(metric.evidenceSegmentIds()).isEmpty();
                 });
     }
 
     @Test
-    void preservesLegitimateCountMetricWhenScenarioAlsoRequiresSameTypeAsPercent() {
+    void dropsCountMetricWhenScenarioRequiresSameTypeAsPercent() {
         AnalysisSource source = parentChildSource();
         LinerChatRequest request = request();
         given(requestFactory.create(source)).willReturn(request);
@@ -168,10 +168,6 @@ class LinerAnalysisModelClientTest {
                         QualitativeAnalysis.ReportMetric::value
                 )
                 .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple(
-                                QualitativeAnalysis.ReportMetricUnit.COUNT,
-                                1
-                        ),
                         org.assertj.core.groups.Tuple.tuple(
                                 QualitativeAnalysis.ReportMetricUnit.PERCENT,
                                 0
@@ -366,14 +362,8 @@ class LinerAnalysisModelClientTest {
 
         assertThat(report.qualitativeAnalysis().relationshipSummary()).isNotNull();
         assertThat(report.qualitativeAnalysis().reportMetrics())
-                .filteredOn(metric -> metric.unit()
-                        == QualitativeAnalysis.ReportMetricUnit.COUNT)
-                .singleElement()
-                .satisfies(metric -> {
-                    assertThat(metric.type())
-                            .isEqualTo(QualitativeAnalysis.ReportMetricType.SITUATION_QUESTION);
-                    assertThat(metric.value()).isEqualTo(1);
-                });
+                .noneMatch(metric -> metric.unit()
+                        == QualitativeAnalysis.ReportMetricUnit.COUNT);
         assertThat(report.qualitativeAnalysis().reportMetrics())
                 .filteredOn(metric -> metric.unit()
                         == QualitativeAnalysis.ReportMetricUnit.PERCENT)

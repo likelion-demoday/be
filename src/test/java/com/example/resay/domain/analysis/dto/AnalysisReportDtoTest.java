@@ -145,9 +145,9 @@ class AnalysisReportDtoTest {
                     assertThat(metric.type()).isEqualTo(
                             QualitativeAnalysis.ReportMetricType.SENTENCE_COMPLETENESS
                     );
-                    assertThat(metric.value()).isEqualTo(100);
+                    assertThat(metric.value()).isEqualTo(30);
                     assertThat(metric.title()).isEqualTo("완결성");
-                    assertThat(metric.description()).isEqualTo("관찰 설명");
+                    assertThat(metric.description()).isEqualTo("중복 설명");
                 });
         assertThat(metrics.subList(1, metrics.size()))
                 .extracting(AnalysisReportDto.ReportMetric::value)
