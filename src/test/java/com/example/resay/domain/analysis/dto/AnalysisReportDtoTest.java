@@ -118,6 +118,16 @@ class AnalysisReportDtoTest {
                                         "중복 설명",
                                         List.of(),
                                         List.of()
+                                ),
+                                new AnalysisReport.ReportMetric(
+                                        QualitativeAnalysis.ReportMetricType.COMPLIMENT,
+                                        SpeakerRole.SELF,
+                                        2,
+                                        QualitativeAnalysis.ReportMetricUnit.COUNT,
+                                        "칭찬",
+                                        "칭찬 표현이 두 번 나타났어요.",
+                                        List.of(),
+                                        List.of()
                                 )
                         ),
                         List.of(),
@@ -130,17 +140,21 @@ class AnalysisReportDtoTest {
                 .qualitativeAnalysis()
                 .reportMetrics();
 
-        assertThat(metrics).hasSize(8);
+        assertThat(metrics).hasSize(9);
         assertThat(metrics)
                 .extracting(
                         AnalysisReportDto.ReportMetric::speakerRole,
                         AnalysisReportDto.ReportMetric::type
                 )
                 .doesNotHaveDuplicates();
-        assertThat(metrics)
+        List<AnalysisReportDto.ReportMetric> commonMetrics = metrics.stream()
+                .filter(metric -> metric.unit()
+                        == QualitativeAnalysis.ReportMetricUnit.PERCENT)
+                .toList();
+        assertThat(commonMetrics)
                 .extracting(AnalysisReportDto.ReportMetric::unit)
                 .containsOnly(QualitativeAnalysis.ReportMetricUnit.PERCENT);
-        assertThat(metrics.get(0))
+        assertThat(commonMetrics.get(0))
                 .satisfies(metric -> {
                     assertThat(metric.type()).isEqualTo(
                             QualitativeAnalysis.ReportMetricType.SENTENCE_COMPLETENESS
@@ -149,8 +163,17 @@ class AnalysisReportDtoTest {
                     assertThat(metric.title()).isEqualTo("완결성");
                     assertThat(metric.description()).isEqualTo("중복 설명");
                 });
-        assertThat(metrics.subList(1, metrics.size()))
+        assertThat(commonMetrics.subList(1, commonMetrics.size()))
                 .extracting(AnalysisReportDto.ReportMetric::value)
                 .containsOnly(0);
+        assertThat(metrics)
+                .filteredOn(metric -> metric.unit()
+                        == QualitativeAnalysis.ReportMetricUnit.COUNT)
+                .singleElement()
+                .satisfies(metric -> {
+                    assertThat(metric.type())
+                            .isEqualTo(QualitativeAnalysis.ReportMetricType.COMPLIMENT);
+                    assertThat(metric.value()).isEqualTo(2);
+                });
     }
 }
