@@ -3,6 +3,7 @@ package com.example.resay.domain.credit.controller;
 import com.example.resay.domain.credit.entity.UsagePurpose;
 import com.example.resay.domain.credit.model.AnalysisCategory;
 import com.example.resay.domain.credit.service.CreditService;
+import com.example.resay.domain.user.entity.Provider;
 import com.example.resay.domain.user.entity.User;
 import com.example.resay.domain.user.repository.UserRepository;
 import com.example.resay.global.security.JwtTokenProvider;
@@ -69,7 +70,27 @@ class CreditControllerTest {
                 .andExpect(jsonPath("$.isSuccess").value(true))
                 .andExpect(jsonPath("$.code").value("CREDIT200_1"))
                 .andExpect(jsonPath("$.result.balance").value(0))
-                .andExpect(jsonPath("$.result.characterFreeAvailable").value(true));
+                .andExpect(jsonPath("$.result.characterFreeAvailable").value(true))
+                // 이메일 가입 계정은 분석 무료 대상이 아니다
+                .andExpect(jsonPath("$.result.analysisFreeAvailable").value(false));
+    }
+
+    @Test
+    void returnsAnalysisFreeChanceForSocialAccount() throws Exception {
+        User social = userRepository.saveAndFlush(
+                User.createSocial(Provider.KAKAO, "credit-api-social", null, "소셜닉네임"));
+        String socialToken = jwtTokenProvider.issueAccessToken(social.getId(), social.getRole().name()).value();
+
+        mockMvc.perform(get(SUMMARY_URL).header("Authorization", "Bearer " + socialToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.analysisFreeAvailable").value(true));
+
+        creditService.useForAnalysis(social.getId(), 1L, AnalysisCategory.CONFLICT);
+
+        mockMvc.perform(get(SUMMARY_URL).header("Authorization", "Bearer " + socialToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.balance").value(0))
+                .andExpect(jsonPath("$.result.analysisFreeAvailable").value(false));
     }
 
     @Test
