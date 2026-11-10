@@ -15,8 +15,8 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class LinerAnalysisRequestFactory {
 
-    private static final String PROMPT_VERSION = "analysis-prompt-v22";
-    private static final String SCHEMA_VERSION = "analysis-result-v12";
+    private static final String PROMPT_VERSION = "analysis-prompt-v23";
+    private static final String SCHEMA_VERSION = "analysis-result-v13";
     private static final int MAX_COMPLETION_TOKENS = 32768;
     private static final String REASONING_EFFORT = "medium";
 
@@ -117,6 +117,13 @@ public class LinerAnalysisRequestFactory {
             speakerAffectionSummaries의 title과 description은 해당 speakerRole이 직접 사용한 표현과 그 화자의 PERCENT reportMetrics만 바탕으로 작성하세요. 상대 화자의 행동을 섞거나 두 화자에게 같은 요약을 반복하지 마세요.
             reportMetrics는 화면에 필요한 세부 횟수와 비율입니다. COUNT는 해당 행동이 나타난 서로 다른 발화 수를 value로 작성하고 그 발화를 evidenceSegmentIds에 모두 넣으세요.
             reportMetrics의 PERCENT는 성격 점수가 아니라 이번 대화에서 해당 표현이 관찰된 상대적 정도를 0부터 100까지 추정한 값입니다.
+            모든 시나리오에서 SENTENCE_COMPLETENESS, ELABORATION, CLARITY, SENTENCE_VARIETY를 두 화자 각각의 PERCENT reportMetric으로 반드시 작성하세요.
+            SENTENCE_COMPLETENESS는 문장이 중간에 끊기지 않고 의미가 끝까지 마무리되는 정도입니다.
+            ELABORATION은 단답을 넘어 이유, 예시나 세부 내용을 덧붙여 설명하는 정도입니다.
+            CLARITY는 지시 대상과 의도가 모호하지 않고 문맥에서 이해하기 쉬운 정도입니다.
+            SENTENCE_VARIETY는 서로 다른 어휘, 연결 표현과 문장 구조를 활용하는 정도입니다.
+            공통 문장 구사력 지표는 음성의 억양이나 강세를 추측하지 말고 해당 화자의 전사 발화 전체를 기준으로 평가하세요.
+            공통 문장 구사력 지표의 title은 각각 완결성, 확장성, 명료성, 다양성으로 작성하고, description은 이번 대화에서 관찰된 특징을 한 문장으로 설명하세요.
             COUNT가 0이거나 PERCENT가 0이면 evidenceSegmentIds는 빈 배열로 작성하고, 0보다 크면 근거 발화를 하나 이상 작성하세요.
             reportMetrics의 displayEvidences에는 화면에 문장으로 보여 줄 대표 발화만 작성하세요. segmentId는 반드시 같은 항목의 evidenceSegmentIds에 포함되어야 합니다.
             displayEvidences의 displayContent에도 representativeEvidences와 같은 최소 보정 규칙을 적용하고, 같은 segmentId에는 항상 같은 displayContent를 작성하세요.

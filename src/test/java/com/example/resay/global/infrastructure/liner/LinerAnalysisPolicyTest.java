@@ -14,12 +14,21 @@ class LinerAnalysisPolicyTest {
 
     @ParameterizedTest
     @MethodSource("requiredPercentMetrics")
-    void definesFourOrderedPercentMetricsForEveryScenario(
+    void definesCommonAndScenarioPercentMetricsForEveryScenario(
             AnalysisScenario scenario,
-            List<QualitativeAnalysis.ReportMetricType> expected
+            List<QualitativeAnalysis.ReportMetricType> expectedScenarioTypes
     ) {
         assertThat(LinerAnalysisPolicy.requiredPercentReportMetricTypes(scenario))
-                .containsExactlyElementsOf(expected);
+                .containsExactly(
+                        QualitativeAnalysis.ReportMetricType.SENTENCE_COMPLETENESS,
+                        QualitativeAnalysis.ReportMetricType.ELABORATION,
+                        QualitativeAnalysis.ReportMetricType.CLARITY,
+                        QualitativeAnalysis.ReportMetricType.SENTENCE_VARIETY,
+                        expectedScenarioTypes.get(0),
+                        expectedScenarioTypes.get(1),
+                        expectedScenarioTypes.get(2),
+                        expectedScenarioTypes.get(3)
+                );
     }
 
     private static Stream<Arguments> requiredPercentMetrics() {

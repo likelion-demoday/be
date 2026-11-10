@@ -103,14 +103,17 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("speakerInsights.patterns의 displayEvidences에는")
                 .contains("reportMetrics는 화면에 필요한 세부 횟수와 비율")
                 .contains("reportMetrics의 displayEvidences에는")
+                .contains("SENTENCE_COMPLETENESS, ELABORATION, CLARITY, SENTENCE_VARIETY")
+                .contains("완결성, 확장성, 명료성, 다양성")
+                .contains("음성의 억양이나 강세를 추측하지 말고")
                 .contains("SWEAR_WORD, DIRECTNESS, EXPRESSION_INTENSITY, SOFTENING_EXPRESSION")
                 .contains("비속어 횟수 자체가 아니라")
                 .contains("관찰되지 않은 항목도 value 0으로 작성하세요")
                 .contains("화자별 1개 이상 3개 이하");
 
 
-        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v22");
-        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v12");
+        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v23");
+        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v13");
 
         Map<?, ?> input = objectMapper.readValue(request.messages().get(1).content(), Map.class);
         assertThat(input.keySet().stream().map(Object::toString).toList())
@@ -172,6 +175,10 @@ class LinerAnalysisRequestFactoryTest {
         assertThat(((List<?>) reportMetricType.get("enum")).stream()
                 .map(Object::toString)
                 .toList()).contains(
+                "SENTENCE_COMPLETENESS",
+                "ELABORATION",
+                "CLARITY",
+                "SENTENCE_VARIETY",
                 "SWEAR_WORD",
                 "DIRECTNESS",
                 "EXPRESSION_INTENSITY",

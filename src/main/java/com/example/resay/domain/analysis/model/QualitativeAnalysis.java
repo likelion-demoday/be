@@ -518,6 +518,10 @@ public record QualitativeAnalysis(
     }
 
     public enum ReportMetricType {
+        SENTENCE_COMPLETENESS,
+        ELABORATION,
+        CLARITY,
+        SENTENCE_VARIETY,
         SWEAR_WORD,
         DIRECTNESS,
         EXPRESSION_INTENSITY,

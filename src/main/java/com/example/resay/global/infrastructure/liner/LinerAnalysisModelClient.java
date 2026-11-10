@@ -4,6 +4,7 @@ import com.example.resay.domain.analysis.model.AnalysisModelResult;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
 import com.example.resay.domain.analysis.model.AnalysisSegment;
 import com.example.resay.domain.analysis.model.AnalysisSource;
+import com.example.resay.domain.analysis.model.CommonSentenceMetricPolicy;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import com.example.resay.domain.analysis.port.AnalysisModelClient;
@@ -56,11 +57,14 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
         validateCompletion(result);
 
         QualitativeAnalysis response = parseResponse(result.content());
-        QualitativeAnalysis groundedResponse = responseGrounder.ground(source, response);
         QualitativeAnalysis responseWithRequiredMetrics =
-                ensureRequiredPercentReportMetrics(source, groundedResponse);
+                ensureRequiredPercentReportMetrics(source, response);
+        QualitativeAnalysis groundedResponse = responseGrounder.ground(
+                source,
+                responseWithRequiredMetrics
+        );
         QualitativeAnalysis responseWithRequiredSpiciness =
-                ensureSpicinessInsights(source, responseWithRequiredMetrics);
+                ensureSpicinessInsights(source, groundedResponse);
         QualitativeAnalysis responseWithRequiredCoaching =
                 ensureParentChildCoachingSuggestions(source, responseWithRequiredSpiciness);
         QualitativeAnalysis responseWithRequiredFields =
@@ -92,8 +96,9 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
 
         for (QualitativeAnalysis.ReportMetric metric : response.reportMetrics()) {
             boolean requiredPercentMetric = metric != null
-                    && metric.unit() == QualitativeAnalysis.ReportMetricUnit.PERCENT
-                    && requiredTypes.contains(metric.type());
+                    && requiredTypes.contains(metric.type())
+                    && (metric.unit() == QualitativeAnalysis.ReportMetricUnit.PERCENT
+                    || CommonSentenceMetricPolicy.isCommon(metric.type()));
             if (!requiredPercentMetric) {
                 completedMetrics.add(metric);
                 continue;
@@ -141,7 +146,7 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
                 metric.type(),
                 metric.speakerRole(),
                 value,
-                metric.unit(),
+                QualitativeAnalysis.ReportMetricUnit.PERCENT,
                 reportMetricTitle(metric.type()),
                 StringUtils.hasText(metric.description())
                         ? metric.description()
@@ -168,6 +173,9 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
     }
 
     private String reportMetricTitle(QualitativeAnalysis.ReportMetricType type) {
+        if (CommonSentenceMetricPolicy.isCommon(type)) {
+            return CommonSentenceMetricPolicy.title(type);
+        }
         return switch (type) {
             case SWEAR_WORD -> "비속어";
             case DIRECTNESS -> "직설력";
@@ -189,6 +197,9 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
     private String defaultReportMetricDescription(
             QualitativeAnalysis.ReportMetricType type
     ) {
+        if (CommonSentenceMetricPolicy.isCommon(type)) {
+            return CommonSentenceMetricPolicy.missingDescription(type);
+        }
         return switch (type) {
             case SWEAR_WORD -> "이번 대화에서 비속어가 관찰되지 않았어요.";
             case DIRECTNESS -> "이번 대화에서 직설적인 표현이 관찰되지 않았어요.";

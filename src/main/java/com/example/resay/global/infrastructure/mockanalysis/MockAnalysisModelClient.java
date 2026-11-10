@@ -81,8 +81,8 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
             return new AnalysisModelResult(
                     objectMapper.writeValueAsString(response),
                     "mock-analysis-model",
-                    "mock-prompt-v4",
-                    "analysis-result-v12"
+                    "mock-prompt-v5",
+                    "analysis-result-v13"
             );
         } catch (Exception exception) {
             throw new IllegalStateException("목업 정성 분석 결과를 만들 수 없습니다.", exception);
@@ -111,7 +111,7 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
     }
 
     private List<Map<String, Object>> reportMetrics(AnalysisSource source) {
-        List<MockReportMetric> metrics = switch (source.scenario()) {
+        List<MockReportMetric> scenarioMetrics = switch (source.scenario()) {
             case FRIEND_DAILY -> List.of(
                     new MockReportMetric("SWEAR_WORD", "비속어"),
                     new MockReportMetric("DIRECTNESS", "직설력"),
@@ -137,6 +137,16 @@ public class MockAnalysisModelClient implements AnalysisModelClient {
                     new MockReportMetric("SOFTENING_EXPRESSION", "완충 표현")
             );
         };
+        List<MockReportMetric> commonMetrics = List.of(
+                new MockReportMetric("SENTENCE_COMPLETENESS", "완결성"),
+                new MockReportMetric("ELABORATION", "확장성"),
+                new MockReportMetric("CLARITY", "명료성"),
+                new MockReportMetric("SENTENCE_VARIETY", "다양성")
+        );
+        List<MockReportMetric> metrics = java.util.stream.Stream.concat(
+                commonMetrics.stream(),
+                scenarioMetrics.stream()
+        ).toList();
         return source.scenario().requiredRoles().stream()
                 .sorted()
                 .flatMap(role -> metrics.stream().map(definition -> {

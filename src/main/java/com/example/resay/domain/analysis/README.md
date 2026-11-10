@@ -98,9 +98,16 @@ LINER가 반환한 주제별 발화 ID를 사용해 서버가 계산합니다. �
 생성하며, 공개 응답에서는 근거 발화 ID를 제외하고 `speakerRole`, `title`, `description`을
 제공합니다. 다른 시나리오와 이 필드가 없던 이전 보고서는 빈 배열을 반환합니다.
 
-화면에 표시하는 화자별 `PERCENT` 지표는 대화 유형마다 다음 네 개를 고정된 순서로
-제공합니다. 모델이 일부 항목을 누락하면 서버가 해당 항목을 `0%`로 보완하므로 보고서의
-세부 지표 영역은 항상 네 항목을 표시할 수 있습니다.
+모든 보고서는 각 화자별 문장 구사력 지표 `SENTENCE_COMPLETENESS`(완결성),
+`ELABORATION`(확장성), `CLARITY`(명료성), `SENTENCE_VARIETY`(다양성)를 고정된 순서의
+`PERCENT`로 제공합니다. 모델이 항목을 누락하거나 잘못된 값을 반환해도 분석을 실패시키지
+않고 서버가 값의 범위를 0~100으로 정규화하며, 누락된 항목은 `0%`와 기본 설명으로
+보완합니다. 이전에 저장된 보고서와 공유 보고서도 조회 응답을 만들 때 같은 규칙을 적용해
+각 화자별 네 항목이 항상 포함됩니다.
+
+공통 문장 구사력 지표에 더해 화면에 표시하는 시나리오별 화자 `PERCENT` 지표는 다음 네
+개를 고정된 순서로 제공합니다. 모델이 일부 항목을 누락하면 서버가 해당 항목을 `0%`로
+보완하므로 보고서의 시나리오별 세부 지표 영역도 항상 네 항목을 표시할 수 있습니다.
 
 - 친구 일상: `SWEAR_WORD`, `DIRECTNESS`, `EXPRESSION_INTENSITY`, `SOFTENING_EXPRESSION`
 - 연인 일상: `DIRECT_AFFECTION`, `CARING_EXPRESSION`, `COMPLIMENT_OR_ENCOURAGEMENT`, `AFFECTIONATE_ADDRESS`

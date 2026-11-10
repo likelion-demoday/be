@@ -156,6 +156,14 @@ class SharedAnalysisControllerIntegrationTest {
                         "$.result.qualitativeAnalysis.representativeEvidences[0]"
                                 + ".evidence.displayContent"
                 ).value("화면 표시 발화"))
+                .andExpect(jsonPath("$.result.qualitativeAnalysis.reportMetrics.length()")
+                        .value(8))
+                .andExpect(jsonPath("$.result.qualitativeAnalysis.reportMetrics[0].type")
+                        .value("SENTENCE_COMPLETENESS"))
+                .andExpect(jsonPath("$.result.qualitativeAnalysis.reportMetrics[0].value")
+                        .value(0))
+                .andExpect(jsonPath("$.result.qualitativeAnalysis.reportMetrics[4].speakerRole")
+                        .value("FRIEND"))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
