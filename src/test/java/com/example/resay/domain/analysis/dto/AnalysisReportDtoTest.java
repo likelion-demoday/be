@@ -73,4 +73,107 @@ class AnalysisReportDtoTest {
                         )
                 );
     }
+
+    @Test
+    void alwaysExposesExactlyFourNormalizedCommonSentenceMetricsPerSpeaker() {
+        AnalysisReport report = new AnalysisReport(
+                new AnalysisReport.RecordingInfo(
+                        1L,
+                        AnalysisScenario.FRIEND_DAILY,
+                        1_000L,
+                        List.of()
+                ),
+                new AnalysisReport.QuantitativeAnalysis(List.of(), null, 0),
+                new AnalysisReport.QualitativeReport(
+                        new QualitativeAnalysis.Overview("요약", "설명", List.of()),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        null,
+                        List.of(),
+                        List.of(
+                                new AnalysisReport.ReportMetric(
+                                        QualitativeAnalysis.ReportMetricType.SENTENCE_COMPLETENESS,
+                                        SpeakerRole.SELF,
+                                        140,
+                                        QualitativeAnalysis.ReportMetricUnit.COUNT,
+                                        "잘못된 제목",
+                                        "관찰 설명",
+                                        List.of(),
+                                        List.of()
+                                ),
+                                new AnalysisReport.ReportMetric(
+                                        QualitativeAnalysis.ReportMetricType.SENTENCE_COMPLETENESS,
+                                        SpeakerRole.SELF,
+                                        30,
+                                        QualitativeAnalysis.ReportMetricUnit.PERCENT,
+                                        "중복 제목",
+                                        "중복 설명",
+                                        List.of(),
+                                        List.of()
+                                ),
+                                new AnalysisReport.ReportMetric(
+                                        QualitativeAnalysis.ReportMetricType.COMPLIMENT,
+                                        SpeakerRole.SELF,
+                                        2,
+                                        QualitativeAnalysis.ReportMetricUnit.COUNT,
+                                        "칭찬",
+                                        "칭찬 표현이 두 번 나타났어요.",
+                                        List.of(),
+                                        List.of()
+                                )
+                        ),
+                        List.of(),
+                        List.of(),
+                        List.of()
+                )
+        );
+
+        List<AnalysisReportDto.ReportMetric> metrics = AnalysisReportDto.from(report)
+                .qualitativeAnalysis()
+                .reportMetrics();
+
+        assertThat(metrics).hasSize(9);
+        assertThat(metrics)
+                .extracting(
+                        AnalysisReportDto.ReportMetric::speakerRole,
+                        AnalysisReportDto.ReportMetric::type
+                )
+                .doesNotHaveDuplicates();
+        List<AnalysisReportDto.ReportMetric> commonMetrics = metrics.stream()
+                .filter(metric -> metric.unit()
+                        == QualitativeAnalysis.ReportMetricUnit.PERCENT)
+                .toList();
+        assertThat(commonMetrics)
+                .extracting(AnalysisReportDto.ReportMetric::unit)
+                .containsOnly(QualitativeAnalysis.ReportMetricUnit.PERCENT);
+        assertThat(commonMetrics.get(0))
+                .satisfies(metric -> {
+                    assertThat(metric.type()).isEqualTo(
+                            QualitativeAnalysis.ReportMetricType.SENTENCE_COMPLETENESS
+                    );
+                    assertThat(metric.value()).isEqualTo(30);
+                    assertThat(metric.title()).isEqualTo("완결성");
+                    assertThat(metric.description()).isEqualTo("중복 설명");
+                });
+        assertThat(commonMetrics.subList(1, commonMetrics.size()))
+                .extracting(AnalysisReportDto.ReportMetric::value)
+                .containsOnly(0);
+        assertThat(metrics)
+                .filteredOn(metric -> metric.unit()
+                        == QualitativeAnalysis.ReportMetricUnit.COUNT)
+                .singleElement()
+                .satisfies(metric -> {
+                    assertThat(metric.type())
+                            .isEqualTo(QualitativeAnalysis.ReportMetricType.COMPLIMENT);
+                    assertThat(metric.value()).isEqualTo(2);
+                });
+    }
 }

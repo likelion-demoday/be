@@ -2,6 +2,8 @@ package com.example.resay.domain.analysis.dto;
 
 import com.example.resay.domain.analysis.model.AnalysisReport;
 import com.example.resay.domain.analysis.model.AnalysisScenario;
+import com.example.resay.domain.analysis.model.AnalysisSpeaker;
+import com.example.resay.domain.analysis.model.CommonSentenceMetricPolicy;
 import com.example.resay.domain.analysis.model.QualitativeAnalysis;
 import com.example.resay.domain.analysis.model.SpeakerRole;
 import com.example.resay.domain.analysis.model.SpeakingSpeedDirection;
@@ -9,7 +11,13 @@ import com.example.resay.domain.analysis.model.SpeakingSpeedReference;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.springframework.util.StringUtils;
 
 @Schema(description = "분석 보고서. 화면에 필요한 대표 발화 근거만 포함합니다.")
 public record AnalysisReportDto(
@@ -22,7 +30,11 @@ public record AnalysisReportDto(
         return new AnalysisReportDto(
                 RecordingInfo.from(report.recordingInfo()),
                 QuantitativeAnalysis.from(report.quantitativeAnalysis()),
-                QualitativeReport.from(report.qualitativeAnalysis())
+                QualitativeReport.from(
+                        report.qualitativeAnalysis(),
+                        report.recordingInfo().speakers(),
+                        report.recordingInfo().scenario()
+                )
         );
     }
 
@@ -174,7 +186,11 @@ public record AnalysisReportDto(
             List<CoachingSuggestion> coachingSuggestions
     ) {
 
-        private static QualitativeReport from(AnalysisReport.QualitativeReport source) {
+        private static QualitativeReport from(
+                AnalysisReport.QualitativeReport source,
+                List<AnalysisSpeaker> speakers,
+                AnalysisScenario scenario
+        ) {
             return new QualitativeReport(
                     Overview.from(source.overview()),
                     source.timeline().stream().map(TimelineItem::from).toList(),
@@ -199,7 +215,7 @@ public record AnalysisReportDto(
                     source.speakerAffectionSummaries().stream()
                             .map(SpeakerAffectionSummary::from)
                             .toList(),
-                    source.reportMetrics().stream().map(ReportMetric::from).toList(),
+                    completeReportMetrics(source.reportMetrics(), speakers, scenario),
                     source.speakerTendencies().stream().map(SpeakerTendency::from).toList(),
                     source.coachingSuggestions().stream()
                             .map(suggestion -> CoachingSuggestion.from(
@@ -208,6 +224,59 @@ public record AnalysisReportDto(
                             ))
                             .toList()
             );
+        }
+
+        private static List<ReportMetric> completeReportMetrics(
+                List<AnalysisReport.ReportMetric> sourceMetrics,
+                List<AnalysisSpeaker> speakers,
+                AnalysisScenario scenario
+        ) {
+            List<ReportMetric> result = new ArrayList<>();
+            Map<MetricKey, AnalysisReport.ReportMetric> commonMetrics = new LinkedHashMap<>();
+            Set<SpeakerRole> speakerRoles = speakers.stream()
+                    .map(AnalysisSpeaker::speakerRole)
+                    .filter(scenario.requiredRoles()::contains)
+                    .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+            scenario.requiredRoles().stream()
+                    .sorted(java.util.Comparator.comparingInt(Enum::ordinal))
+                    .forEach(speakerRoles::add);
+
+            for (AnalysisReport.ReportMetric metric : sourceMetrics) {
+                if (metric == null) {
+                    continue;
+                }
+                boolean commonMetric = CommonSentenceMetricPolicy.isCommon(metric.type());
+                if (!commonMetric) {
+                    result.add(ReportMetric.from(metric));
+                    continue;
+                }
+                if (metric.unit() == QualitativeAnalysis.ReportMetricUnit.PERCENT
+                        && speakerRoles.contains(metric.speakerRole())) {
+                    commonMetrics.putIfAbsent(
+                            new MetricKey(metric.type(), metric.speakerRole()),
+                            metric
+                    );
+                }
+            }
+
+            for (SpeakerRole speakerRole : speakerRoles) {
+                for (QualitativeAnalysis.ReportMetricType type
+                        : CommonSentenceMetricPolicy.requiredTypes()) {
+                    AnalysisReport.ReportMetric metric = commonMetrics.get(
+                            new MetricKey(type, speakerRole)
+                    );
+                    result.add(metric == null
+                            ? ReportMetric.missingCommon(type, speakerRole)
+                            : ReportMetric.normalizedCommon(metric));
+                }
+            }
+            return List.copyOf(result);
+        }
+
+        private record MetricKey(
+                QualitativeAnalysis.ReportMetricType type,
+                SpeakerRole speakerRole
+        ) {
         }
     }
 
@@ -263,6 +332,38 @@ public record AnalysisReportDto(
                     source.title(),
                     source.description(),
                     source.evidenceQuotes().stream().map(EvidenceQuote::from).toList()
+            );
+        }
+
+        private static ReportMetric normalizedCommon(AnalysisReport.ReportMetric source) {
+            int value = Math.max(0, Math.min(100, source.value()));
+            return new ReportMetric(
+                    source.type(),
+                    source.speakerRole(),
+                    value,
+                    QualitativeAnalysis.ReportMetricUnit.PERCENT,
+                    CommonSentenceMetricPolicy.title(source.type()),
+                    StringUtils.hasText(source.description())
+                            ? source.description()
+                            : CommonSentenceMetricPolicy.missingDescription(source.type()),
+                    value == 0
+                            ? List.of()
+                            : source.evidenceQuotes().stream().map(EvidenceQuote::from).toList()
+            );
+        }
+
+        private static ReportMetric missingCommon(
+                QualitativeAnalysis.ReportMetricType type,
+                SpeakerRole speakerRole
+        ) {
+            return new ReportMetric(
+                    type,
+                    speakerRole,
+                    0,
+                    QualitativeAnalysis.ReportMetricUnit.PERCENT,
+                    CommonSentenceMetricPolicy.title(type),
+                    CommonSentenceMetricPolicy.missingDescription(type),
+                    List.of()
             );
         }
     }

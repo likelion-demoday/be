@@ -113,11 +113,11 @@ class AnalysisReportAssemblerTest {
                           },
                           "reportMetrics": [
                             {
-                              "type": "POSITION_EXPLANATION",
+                              "type": "DIRECTNESS",
                               "speakerRole": "SELF",
-                              "value": 2,
-                              "unit": "COUNT",
-                              "title": "응원 표현",
+                              "value": 40,
+                              "unit": "PERCENT",
+                              "title": "직설력",
                               "description": "대화를 이어 주는 표현이 보여요.",
                               "evidenceSegmentIds": [1, 3],
                               "displayEvidences": [
@@ -243,7 +243,7 @@ class AnalysisReportAssemblerTest {
         assertThat(AnalysisReportDto.from(json).qualitativeAnalysis()
                 .relationshipSummary().title()).contains("계획하는 사람");
         assertThat(AnalysisReportDto.from(json).qualitativeAnalysis()
-                .reportMetrics().get(0).value()).isEqualTo(2);
+                .reportMetrics().get(0).value()).isEqualTo(40);
         AnalysisReportDto.EvidenceQuote metricEvidence = AnalysisReportDto.from(json)
                 .qualitativeAnalysis().reportMetrics().get(0).evidenceQuotes().get(0);
         assertThat(metricEvidence.originalContent()).isEqualTo("주말에 만날가?");
