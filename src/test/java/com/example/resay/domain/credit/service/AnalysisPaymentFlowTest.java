@@ -24,6 +24,7 @@ import com.example.resay.domain.recording.entity.RelationshipType;
 import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.domain.recording.service.RecordingService;
 import com.example.resay.domain.transcription.service.TranscriptionStartListener;
+import com.example.resay.domain.user.entity.Provider;
 import com.example.resay.domain.user.entity.User;
 import com.example.resay.domain.user.repository.UserRepository;
 import com.example.resay.global.exception.GeneralException;
@@ -153,6 +154,76 @@ class AnalysisPaymentFlowTest {
         assertThat(balanceOf(userId)).isEqualTo(3000);
         assertThat(statusOf(recordingId)).isEqualTo(RecordingStatus.PAYMENT_COMPLETED);
         assertThat(usageRepository.count()).isEqualTo(1);
+        assertLedgerMatchesBalance(userId);
+    }
+
+    // 소셜 가입 계정은 잔액 0이어도 첫 분석을 결제할 수 있고, 그 분석이 실패하면 무료 기회가 되살아난다
+    @Test
+    void socialAccountPaysFirstAnalysisFreeAndGetsChanceBackWhenItFails() {
+        Long userId = socialUser();
+        Long recordingId = recordingWithType(userId, RelationshipType.COUPLE_CONFLICT);
+
+        AnalysisPaymentResponseDto response = analysisPaymentService.pay(userId, recordingId);
+
+        assertThat(response.usedCredits()).isZero();
+        assertThat(response.balance()).isZero();
+        assertThat(response.alreadyPaid()).isFalse();
+        assertThat(statusOf(recordingId)).isEqualTo(RecordingStatus.PAYMENT_COMPLETED);
+        assertThat(creditQueryService.getSummary(userId).analysisFreeAvailable()).isFalse();
+        // 다시 눌러도 이미 결제된 것으로 답한다
+        assertThat(analysisPaymentService.pay(userId, recordingId).alreadyPaid()).isTrue();
+
+        recordingService.startTranscribing(recordingId);
+        recordingService.failTranscription(recordingId, RecordingFailureReason.TRANSCRIPTION_FAILED);
+
+        assertThat(creditQueryService.getSummary(userId).analysisFreeAvailable()).isTrue();
+        assertThat(usageRepository.findAll().get(0).getStatus()).isEqualTo(UsageStatus.REFUNDED);
+        assertThat(analysisPaymentService.pay(userId, recordingWithType(userId, RelationshipType.FRIEND_DAILY))
+                .usedCredits()).isZero();
+        assertThat(balanceOf(userId)).isZero();
+        assertLedgerMatchesBalance(userId);
+    }
+
+    @Test
+    void socialAccountFreeAnalysisIsUsedOnceWhenPaymentIsRequestedConcurrently() throws Exception {
+        Long userId = socialUser();
+        Long recordingId = recordingWithType(userId, RelationshipType.FRIEND_DAILY);
+
+        int threads = 10;
+        ExecutorService executor = Executors.newFixedThreadPool(threads);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<AnalysisPaymentResponseDto>> futures = new ArrayList<>();
+        try {
+            for (int i = 0; i < threads; i++) {
+                futures.add(executor.submit(() -> {
+                    start.await();
+                    try {
+                        return analysisPaymentService.pay(userId, recordingId);
+                    } catch (GeneralException exception) {
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("CREDIT409_1");
+                        return null;
+                    }
+                }));
+            }
+            start.countDown();
+
+            int paid = 0;
+            for (Future<AnalysisPaymentResponseDto> future : futures) {
+                AnalysisPaymentResponseDto response = future.get(30, TimeUnit.SECONDS);
+                if (response != null) {
+                    assertThat(response.usedCredits()).isZero();
+                    paid += response.alreadyPaid() ? 0 : 1;
+                }
+            }
+            assertThat(paid).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+            executor.awaitTermination(30, TimeUnit.SECONDS);
+        }
+
+        assertThat(statusOf(recordingId)).isEqualTo(RecordingStatus.PAYMENT_COMPLETED);
+        assertThat(usageRepository.count()).isEqualTo(1);
+        assertThat(creditQueryService.getSummary(userId).analysisFreeAvailable()).isFalse();
         assertLedgerMatchesBalance(userId);
     }
 
@@ -420,6 +491,13 @@ class AnalysisPaymentFlowTest {
         ).getId();
         creditService.adjust(userId, credits, "테스트 지급", ADMIN_ID);
         return userId;
+    }
+
+    private Long socialUser() {
+        long sequence = SEQUENCE.incrementAndGet();
+        return userRepository.saveAndFlush(
+                User.createSocial(Provider.KAKAO, "pay-flow-social-" + sequence, null, "소셜결제" + sequence)
+        ).getId();
     }
 
     private Long recordingWithType(Long userId, RelationshipType type) {

@@ -53,10 +53,12 @@ public class CreditJdbcRepository {
                 userId, now, now
         );
         List<WalletRow> rows = jdbcTemplate.query(
-                "SELECT balance, character_free_usage_id FROM credit_wallets WHERE user_id = ? FOR UPDATE",
+                "SELECT balance, character_free_usage_id, analysis_free_usage_id FROM credit_wallets "
+                        + "WHERE user_id = ? FOR UPDATE",
                 (resultSet, rowNumber) -> new WalletRow(
                         resultSet.getInt("balance"),
-                        resultSet.getObject("character_free_usage_id", Long.class)
+                        resultSet.getObject("character_free_usage_id", Long.class),
+                        resultSet.getObject("analysis_free_usage_id", Long.class)
                 ),
                 userId
         );
@@ -75,12 +77,16 @@ public class CreditJdbcRepository {
     }
 
     /**
-     * 캐릭터 무료 기회를 쓴 사용 건을 지갑에 기록한다. null이면 기회를 되돌린다.
+     * 용도별 무료 기회를 쓴 사용 건을 지갑에 기록한다. null이면 기회를 되돌린다.
      * lockWallet으로 잠근 뒤에만 호출한다.
      */
-    public void setCharacterFreeUsage(Long userId, Long usageId, LocalDateTime now) {
+    public void setFreeUsage(Long userId, UsagePurpose purpose, Long usageId, LocalDateTime now) {
+        String column = switch (purpose) {
+            case ANALYSIS -> "analysis_free_usage_id";
+            case CHARACTER -> "character_free_usage_id";
+        };
         requireSingleRow(jdbcTemplate.update(
-                "UPDATE credit_wallets SET character_free_usage_id = ?, updated_at = ? WHERE user_id = ?",
+                "UPDATE credit_wallets SET " + column + " = ?, updated_at = ? WHERE user_id = ?",
                 usageId, now, userId
         ));
     }
@@ -183,14 +189,19 @@ public class CreditJdbcRepository {
 
     /**
      * @param characterFreeUsageId 캐릭터 무료 기회를 쓴 사용 건. 기회가 남아 있으면 null
+     * @param analysisFreeUsageId  분석 무료 기회를 쓴 사용 건. 기회가 남아 있으면 null (소셜 가입 계정만 쓸 수 있다)
      */
     public record WalletRow(
             int balance,
-            Long characterFreeUsageId
+            Long characterFreeUsageId,
+            Long analysisFreeUsageId
     ) {
 
-        public boolean hasCharacterFreeChance() {
-            return characterFreeUsageId == null;
+        public Long freeUsageId(UsagePurpose purpose) {
+            return switch (purpose) {
+                case ANALYSIS -> analysisFreeUsageId;
+                case CHARACTER -> characterFreeUsageId;
+            };
         }
     }
 

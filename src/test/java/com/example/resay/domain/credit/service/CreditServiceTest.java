@@ -11,6 +11,7 @@ import com.example.resay.domain.credit.model.UsageResult;
 import com.example.resay.domain.credit.repository.CreditLedgerRepository;
 import com.example.resay.domain.credit.repository.CreditUsageRepository;
 import com.example.resay.domain.credit.repository.CreditWalletRepository;
+import com.example.resay.domain.user.entity.Provider;
 import com.example.resay.domain.user.entity.User;
 import com.example.resay.domain.user.repository.UserRepository;
 import com.example.resay.global.exception.GeneralException;
@@ -326,6 +327,116 @@ class CreditServiceTest {
 
         assertThat(balanceOf(userId)).isEqualTo(500);
         assertThat(creditQueryService.getSummary(userId).characterFreeAvailable()).isFalse();
+    }
+
+    @Test
+    void firstAnalysisOfSocialAccountIsFreeEvenWithoutCredits() {
+        Long userId = newSocialUser(Provider.KAKAO);
+        assertThat(creditQueryService.getSummary(userId).analysisFreeAvailable()).isTrue();
+
+        UsageResult result = creditService.useForAnalysis(userId, 1L, AnalysisCategory.DAILY);
+
+        assertThat(result.freeUse()).isTrue();
+        assertThat(result.amount()).isZero();
+        assertThat(result.balance()).isZero();
+        assertThat(creditQueryService.getSummary(userId).analysisFreeAvailable()).isFalse();
+        CreditLedgerEntry entry = lastLedgerEntry(userId);
+        assertThat(entry.getType()).isEqualTo(CreditLedgerType.USE);
+        assertThat(entry.getAmount()).isZero();
+        assertThat(entry.getPurpose()).isEqualTo(UsagePurpose.ANALYSIS);
+        assertThat(usageRepository.findAll()).singleElement()
+                .satisfies(usage -> assertThat(usage.isFreeUse()).isTrue());
+    }
+
+    @Test
+    void conflictAnalysisIsAlsoFreeForGoogleAccount() {
+        Long userId = newSocialUser(Provider.GOOGLE);
+
+        UsageResult result = creditService.useForAnalysis(userId, 1L, AnalysisCategory.CONFLICT);
+
+        assertThat(result.freeUse()).isTrue();
+        assertThat(result.amount()).isZero();
+    }
+
+    @Test
+    void emailAccountHasNoFreeAnalysis() {
+        Long userId = newUser();
+
+        assertThat(creditQueryService.getSummary(userId).analysisFreeAvailable()).isFalse();
+        assertThatThrownBy(() -> creditService.useForAnalysis(userId, 1L, AnalysisCategory.DAILY))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("CREDIT402_1"));
+        assertThat(usageRepository.count()).isZero();
+    }
+
+    @Test
+    void secondAnalysisOfSocialAccountCostsCredits() {
+        Long userId = socialUserWithCredits(2000);
+        creditService.useForAnalysis(userId, 1L, AnalysisCategory.CONFLICT);
+
+        UsageResult second = creditService.useForAnalysis(userId, 2L, AnalysisCategory.DAILY);
+
+        assertThat(second.freeUse()).isFalse();
+        assertThat(second.amount()).isEqualTo(1500);
+        assertThat(balanceOf(userId)).isEqualTo(500);
+        assertLedgerMatchesBalance(userId);
+    }
+
+    @Test
+    void freeAnalysisChanceComesBackWhenFreeAnalysisFails() {
+        Long userId = newSocialUser(Provider.KAKAO);
+        creditService.useForAnalysis(userId, 1L, AnalysisCategory.DAILY);
+
+        assertThat(creditService.refund(UsagePurpose.ANALYSIS, 1L, "분석 실패")).isTrue();
+
+        assertThat(creditQueryService.getSummary(userId).analysisFreeAvailable()).isTrue();
+        assertThat(creditService.useForAnalysis(userId, 1L, AnalysisCategory.DAILY).freeUse()).isTrue();
+        assertThat(balanceOf(userId)).isZero();
+        assertLedgerMatchesBalance(userId);
+    }
+
+    @Test
+    void paidAnalysisRefundReturnsCreditsButNotFreeAnalysisChance() {
+        Long userId = socialUserWithCredits(1500);
+        creditService.useForAnalysis(userId, 1L, AnalysisCategory.DAILY);
+        creditService.useForAnalysis(userId, 2L, AnalysisCategory.DAILY);
+
+        creditService.refund(UsagePurpose.ANALYSIS, 2L, "분석 실패");
+
+        assertThat(balanceOf(userId)).isEqualTo(1500);
+        assertThat(creditQueryService.getSummary(userId).analysisFreeAvailable()).isFalse();
+        assertLedgerMatchesBalance(userId);
+    }
+
+    // 분석 무료와 캐릭터 무료는 따로 센다. 한쪽을 쓰거나 환급해도 다른 쪽 기회는 그대로다
+    @Test
+    void analysisAndCharacterFreeChancesAreSeparate() {
+        Long userId = newSocialUser(Provider.KAKAO);
+
+        assertThat(creditService.useForAnalysis(userId, 1L, AnalysisCategory.DAILY).freeUse()).isTrue();
+        assertThat(creditQueryService.getSummary(userId).characterFreeAvailable()).isTrue();
+        assertThat(creditService.useForCharacter(userId, 1L).freeUse()).isTrue();
+
+        creditService.refund(UsagePurpose.CHARACTER, 1L, "이미지 생성 실패");
+
+        assertThat(creditQueryService.getSummary(userId).characterFreeAvailable()).isTrue();
+        assertThat(creditQueryService.getSummary(userId).analysisFreeAvailable()).isFalse();
+        assertThat(balanceOf(userId)).isZero();
+        assertLedgerMatchesBalance(userId);
+    }
+
+    @Test
+    void sameFreeAnalysisRequestTwiceIsNotCountedTwice() {
+        Long userId = socialUserWithCredits(1500);
+        UsageResult first = creditService.useForAnalysis(userId, 1L, AnalysisCategory.DAILY);
+
+        UsageResult again = creditService.useForAnalysis(userId, 1L, AnalysisCategory.DAILY);
+
+        assertThat(again.alreadyUsed()).isTrue();
+        assertThat(again.usageId()).isEqualTo(first.usageId());
+        assertThat(again.freeUse()).isTrue();
+        assertThat(balanceOf(userId)).isEqualTo(1500);
+        assertThat(usageRepository.count()).isEqualTo(1);
     }
 
     @Test
@@ -705,6 +816,19 @@ class CreditServiceTest {
         long sequence = SEQUENCE.incrementAndGet();
         return userRepository.saveAndFlush(
                 User.createLocal("credit-" + sequence + "@example.com", "encoded-password", "크레딧" + sequence)
+        ).getId();
+    }
+
+    private Long socialUserWithCredits(int credits) {
+        Long userId = newSocialUser(Provider.KAKAO);
+        creditService.adjust(userId, credits, "테스트 지급", ADMIN_ID);
+        return userId;
+    }
+
+    private Long newSocialUser(Provider provider) {
+        long sequence = SEQUENCE.incrementAndGet();
+        return userRepository.saveAndFlush(
+                User.createSocial(provider, "social-" + sequence, null, "소셜" + sequence)
         ).getId();
     }
 

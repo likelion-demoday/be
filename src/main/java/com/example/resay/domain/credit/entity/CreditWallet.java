@@ -32,7 +32,15 @@ public class CreditWallet extends BaseEntity {
     @Column(name = "character_free_usage_id")
     private Long characterFreeUsageId;
 
+    // 분석 무료 기회(소셜 가입 계정당 1회)를 쓴 사용 건. 캐릭터와 같은 방식이다
+    @Column(name = "analysis_free_usage_id")
+    private Long analysisFreeUsageId;
+
     public boolean hasCharacterFreeChance() {
         return characterFreeUsageId == null;
+    }
+
+    public boolean hasAnalysisFreeChance() {
+        return analysisFreeUsageId == null;
     }
 }

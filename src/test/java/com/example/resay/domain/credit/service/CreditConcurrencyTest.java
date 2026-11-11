@@ -6,6 +6,7 @@ import com.example.resay.domain.credit.model.UsageResult;
 import com.example.resay.domain.credit.repository.CreditLedgerRepository;
 import com.example.resay.domain.credit.repository.CreditUsageRepository;
 import com.example.resay.domain.credit.repository.CreditWalletRepository;
+import com.example.resay.domain.user.entity.Provider;
 import com.example.resay.domain.user.entity.User;
 import com.example.resay.domain.user.repository.UserRepository;
 import com.example.resay.global.exception.GeneralException;
@@ -123,6 +124,43 @@ class CreditConcurrencyTest {
         assertThat(outcomes).filteredOn(outcome -> outcome.succeeded() && !outcome.result().freeUse()).hasSize(2);
         assertThat(balanceOf(userId)).isZero();
         assertThat(creditQueryService.getSummary(userId).characterFreeAvailable()).isFalse();
+        assertLedgerMatchesBalance(userId);
+    }
+
+    @Test
+    void givesFreeAnalysisOnlyOncePerSocialAccount() throws Exception {
+        Long userId = socialUserWithCredits(3000);
+
+        // 서로 다른 녹음의 분석을 동시에 결제한다. 무료는 1건, 1,500짜리는 잔액 3,000으로 2건까지만 가능하다
+        List<Outcome> outcomes = runConcurrently(index ->
+                () -> creditService.useForAnalysis(userId, 300L + index, AnalysisCategory.DAILY));
+
+        assertThat(outcomes).filteredOn(outcome -> outcome.succeeded() && outcome.result().freeUse()).hasSize(1);
+        assertThat(outcomes).filteredOn(outcome -> outcome.succeeded() && !outcome.result().freeUse()).hasSize(2);
+        assertThat(outcomes).filteredOn(outcome -> !outcome.succeeded())
+                .extracting(Outcome::errorCode)
+                .containsOnly("CREDIT402_1");
+        assertThat(balanceOf(userId)).isZero();
+        assertThat(creditQueryService.getSummary(userId).analysisFreeAvailable()).isFalse();
+        assertLedgerMatchesBalance(userId);
+    }
+
+    // 무료 대상자가 같은 녹음의 결제 버튼을 연달아 눌러도 무료 기회 · 사용 건은 하나만 생긴다
+    @Test
+    void usesFreeAnalysisOnceWhenSameRecordingIsRequestedConcurrently() throws Exception {
+        Long userId = socialUserWithCredits(0);
+
+        List<Outcome> outcomes = runConcurrently(index ->
+                () -> creditService.useForAnalysis(userId, 1L, AnalysisCategory.CONFLICT));
+
+        assertThat(outcomes).filteredOn(outcome -> outcome.succeeded() && !outcome.result().alreadyUsed())
+                .singleElement()
+                .satisfies(outcome -> assertThat(outcome.result().freeUse()).isTrue());
+        assertThat(outcomes).filteredOn(outcome -> !outcome.succeeded())
+                .extracting(Outcome::errorCode)
+                .isSubsetOf("CREDIT409_1");
+        assertThat(usageRepository.count()).isEqualTo(1);
+        assertThat(balanceOf(userId)).isZero();
         assertLedgerMatchesBalance(userId);
     }
 
@@ -244,6 +282,17 @@ class CreditConcurrencyTest {
         return userRepository.saveAndFlush(
                 User.createLocal("credit-race-" + sequence + "@example.com", "encoded-password", "동시" + sequence)
         ).getId();
+    }
+
+    private Long socialUserWithCredits(int credits) {
+        long sequence = SEQUENCE.incrementAndGet();
+        Long userId = userRepository.saveAndFlush(
+                User.createSocial(Provider.KAKAO, "race-social-" + sequence, null, "동시소셜" + sequence)
+        ).getId();
+        if (credits > 0) {
+            creditService.adjust(userId, credits, "테스트 지급", ADMIN_ID);
+        }
+        return userId;
     }
 
     private int balanceOf(Long userId) {

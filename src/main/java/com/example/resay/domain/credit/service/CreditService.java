@@ -12,6 +12,7 @@ import com.example.resay.domain.credit.repository.CreditJdbcRepository.UsageRow;
 import com.example.resay.domain.credit.repository.CreditJdbcRepository.WalletRow;
 import com.example.resay.domain.credit.repository.CreditLedgerRepository;
 import com.example.resay.domain.user.code.UserErrorCode;
+import com.example.resay.domain.user.entity.User;
 import com.example.resay.domain.user.repository.UserRepository;
 import com.example.resay.global.exception.GeneralException;
 import java.time.LocalDateTime;
@@ -48,7 +49,8 @@ public class CreditService {
     private final CreditProperties creditProperties;
 
     /**
-     * 분석 비용을 차감한다. 이미 차감된 녹음이면 다시 차감하지 않고 그 결과를 돌려준다.
+     * 분석 비용을 차감한다. 소셜 가입 계정의 무료 기회가 남아 있으면 유형과 무관하게 차감 없이 그 기회를 쓴다.
+     * 이미 차감된 녹음이면 다시 차감하지 않고 그 결과를 돌려준다.
      * 잔액이 부족하면 INSUFFICIENT_CREDIT 예외를 던지고 아무것도 바꾸지 않는다.
      */
     @Transactional
@@ -57,7 +59,7 @@ public class CreditService {
             case DAILY -> creditProperties.price().analysisDaily();
             case CONFLICT -> creditProperties.price().analysisConflict();
         };
-        return use(userId, UsagePurpose.ANALYSIS, recordingId, price, false);
+        return use(userId, UsagePurpose.ANALYSIS, recordingId, price);
     }
 
     /**
@@ -66,7 +68,15 @@ public class CreditService {
      */
     @Transactional
     public UsageResult useForCharacter(Long userId, Long recordingId) {
-        return use(userId, UsagePurpose.CHARACTER, recordingId, creditProperties.price().character(), true);
+        return use(userId, UsagePurpose.CHARACTER, recordingId, creditProperties.price().character());
+    }
+
+    /**
+     * 분석 무료 기회를 받을 수 있는 계정인지. 이메일 가입은 주소 확인이 없어 계정을 새로 만들어 무료를 반복해 받을 수 있으므로
+     * 카카오 · 구글 가입 계정만 받는다.
+     */
+    boolean canUseFreeAnalysis(Long userId) {
+        return userRepository.findById(userId).map(User::isSocial).orElse(false);
     }
 
     /**
@@ -112,8 +122,8 @@ public class CreditService {
             return false;
         }
 
-        if (usage.id().equals(wallet.characterFreeUsageId())) {
-            creditJdbcRepository.setCharacterFreeUsage(usage.userId(), null, now);
+        if (usage.id().equals(wallet.freeUsageId(usage.purpose()))) {
+            creditJdbcRepository.setFreeUsage(usage.userId(), usage.purpose(), null, now);
         }
         if (usage.amount() > 0) {
             creditJdbcRepository.changeBalance(usage.userId(), usage.amount(), now);
@@ -230,7 +240,7 @@ public class CreditService {
         return (int) adjusted;
     }
 
-    private UsageResult use(Long userId, UsagePurpose purpose, Long recordingId, int price, boolean freeEligible) {
+    private UsageResult use(Long userId, UsagePurpose purpose, Long recordingId, int price) {
         LocalDateTime now = LocalDateTime.now();
         WalletRow wallet = creditJdbcRepository.lockWallet(userId, now);
         int balance = wallet.balance();
@@ -246,7 +256,9 @@ public class CreditService {
                     existing.get().id(), existing.get().amount(), existing.get().freeUse(), balance, true);
         }
 
-        boolean free = freeEligible && wallet.hasCharacterFreeChance();
+        // 사용자 조회는 지갑 잠금 · 기존 사용 건 확인 뒤에 한다 (잠금 전에 조회하면 이 트랜잭션이 옛 데이터를 보게 된다)
+        boolean free = wallet.freeUsageId(purpose) == null
+                && (purpose == UsagePurpose.CHARACTER || canUseFreeAnalysis(userId));
         int amount = free ? 0 : price;
         if (balance < amount) {
             throw new GeneralException(
@@ -265,7 +277,7 @@ public class CreditService {
         }
 
         if (free) {
-            creditJdbcRepository.setCharacterFreeUsage(userId, usageId, now);
+            creditJdbcRepository.setFreeUsage(userId, purpose, usageId, now);
         } else {
             creditJdbcRepository.changeBalance(userId, -amount, now);
         }
