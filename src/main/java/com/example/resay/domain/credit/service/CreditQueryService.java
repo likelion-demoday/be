@@ -21,12 +21,17 @@ public class CreditQueryService {
     private final CreditWalletRepository walletRepository;
     private final CreditLedgerRepository ledgerRepository;
     private final CreditProperties creditProperties;
+    private final CreditService creditService;
 
     // 한 번도 크레딧을 쓰거나 받지 않은 사용자는 지갑이 없다. 잔액 0, 무료 기회 있음으로 본다
     public CreditSummaryResponseDto getSummary(Long userId) {
+        boolean freeAnalysisAccount = creditService.canUseFreeAnalysis(userId);
         return walletRepository.findById(userId)
-                .map(wallet -> new CreditSummaryResponseDto(wallet.getBalance(), wallet.hasCharacterFreeChance()))
-                .orElseGet(() -> new CreditSummaryResponseDto(0, true));
+                .map(wallet -> new CreditSummaryResponseDto(
+                        wallet.getBalance(),
+                        wallet.hasCharacterFreeChance(),
+                        freeAnalysisAccount && wallet.hasAnalysisFreeChance()))
+                .orElseGet(() -> new CreditSummaryResponseDto(0, true, freeAnalysisAccount));
     }
 
     public CreditHistoryResponseDto getHistory(Long userId, int page, int size) {

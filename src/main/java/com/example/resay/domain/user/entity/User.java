@@ -121,6 +121,11 @@ public class User extends BaseEntity {
         }
     }
 
+    // 카카오 · 구글로 가입한 계정인지 (이메일 가입은 LOCAL)
+    public boolean isSocial() {
+        return provider != Provider.LOCAL;
+    }
+
     public void updateNickname(String nickname) {
         requireText(nickname, "nickname");
         this.nickname = nickname;
