@@ -232,7 +232,7 @@ class CreditServiceTest {
 
         assertThat(usageRepository.findByActiveKey(CreditUsage.activeKey(UsagePurpose.ANALYSIS, 1L))).isPresent();
         assertThat(usageRepository.findByActiveKey(CreditUsage.activeKey(UsagePurpose.CHARACTER, 1L))).isPresent();
-        assertThat(balanceOf(userId)).isEqualTo(3500);
+        assertThat(balanceOf(userId)).isEqualTo(3000);
     }
 
     @Test
@@ -257,76 +257,45 @@ class CreditServiceTest {
         assertLedgerMatchesBalance(userId);
     }
 
+    // 캐릭터 생성은 첫 회부터 유료다 (계정당 1회 무료는 11/11에 없앴다)
     @Test
-    void firstCharacterIsFreeEvenWithoutCredits() {
-        Long userId = newUser();
+    void characterCostsCreditsFromFirstRequest() {
+        Long userId = userWithCredits(500);
 
         UsageResult result = creditService.useForCharacter(userId, 1L);
 
-        assertThat(result.freeUse()).isTrue();
-        assertThat(result.amount()).isZero();
+        assertThat(result.freeUse()).isFalse();
+        assertThat(result.amount()).isEqualTo(500);
         assertThat(result.balance()).isZero();
         assertThat(creditQueryService.getSummary(userId).characterFreeAvailable()).isFalse();
         CreditLedgerEntry entry = lastLedgerEntry(userId);
         assertThat(entry.getType()).isEqualTo(CreditLedgerType.USE);
-        assertThat(entry.getAmount()).isZero();
+        assertThat(entry.getAmount()).isEqualTo(-500);
         assertThat(entry.getPurpose()).isEqualTo(UsagePurpose.CHARACTER);
     }
 
     @Test
-    void secondCharacterCostsCredits() {
-        Long userId = userWithCredits(1000);
-        creditService.useForCharacter(userId, 1L);
-
-        UsageResult second = creditService.useForCharacter(userId, 2L);
-
-        assertThat(second.freeUse()).isFalse();
-        assertThat(second.amount()).isEqualTo(500);
-        assertThat(balanceOf(userId)).isEqualTo(500);
-    }
-
-    @Test
-    void secondCharacterIsRejectedWithoutCredits() {
+    void characterIsRejectedWithoutCredits() {
         Long userId = newUser();
-        creditService.useForCharacter(userId, 1L);
+        assertThat(creditQueryService.getSummary(userId).characterFreeAvailable()).isFalse();
 
-        assertThatThrownBy(() -> creditService.useForCharacter(userId, 2L))
+        assertThatThrownBy(() -> creditService.useForCharacter(userId, 1L))
                 .isInstanceOfSatisfying(GeneralException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("CREDIT402_1"));
+        assertThat(usageRepository.count()).isZero();
     }
 
     @Test
-    void freeChanceIsPerAccount() {
-        Long first = newUser();
-        Long second = newUser();
-        creditService.useForCharacter(first, 1L);
-
-        assertThat(creditService.useForCharacter(second, 2L).freeUse()).isTrue();
-    }
-
-    @Test
-    void freeChanceComesBackWhenFreeCharacterFails() {
-        Long userId = newUser();
+    void characterRefundReturnsCredits() {
+        Long userId = userWithCredits(500);
         creditService.useForCharacter(userId, 1L);
 
         assertThat(creditService.refund(UsagePurpose.CHARACTER, 1L, "이미지 생성 실패")).isTrue();
 
-        assertThat(creditQueryService.getSummary(userId).characterFreeAvailable()).isTrue();
-        assertThat(creditService.useForCharacter(userId, 1L).freeUse()).isTrue();
+        assertThat(balanceOf(userId)).isEqualTo(500);
+        assertThat(creditService.useForCharacter(userId, 1L).freeUse()).isFalse();
         assertThat(balanceOf(userId)).isZero();
         assertLedgerMatchesBalance(userId);
-    }
-
-    @Test
-    void paidCharacterRefundReturnsCreditsButNotFreeChance() {
-        Long userId = userWithCredits(500);
-        creditService.useForCharacter(userId, 1L);
-        creditService.useForCharacter(userId, 2L);
-
-        creditService.refund(UsagePurpose.CHARACTER, 2L, "이미지 생성 실패");
-
-        assertThat(balanceOf(userId)).isEqualTo(500);
-        assertThat(creditQueryService.getSummary(userId).characterFreeAvailable()).isFalse();
     }
 
     @Test
@@ -408,19 +377,16 @@ class CreditServiceTest {
         assertLedgerMatchesBalance(userId);
     }
 
-    // 분석 무료와 캐릭터 무료는 따로 센다. 한쪽을 쓰거나 환급해도 다른 쪽 기회는 그대로다
+    // 분석 무료를 받는 소셜 계정도 캐릭터는 유료다
     @Test
-    void analysisAndCharacterFreeChancesAreSeparate() {
-        Long userId = newSocialUser(Provider.KAKAO);
+    void socialAccountStillPaysForCharacter() {
+        Long userId = socialUserWithCredits(500);
 
         assertThat(creditService.useForAnalysis(userId, 1L, AnalysisCategory.DAILY).freeUse()).isTrue();
-        assertThat(creditQueryService.getSummary(userId).characterFreeAvailable()).isTrue();
-        assertThat(creditService.useForCharacter(userId, 1L).freeUse()).isTrue();
+        UsageResult character = creditService.useForCharacter(userId, 1L);
 
-        creditService.refund(UsagePurpose.CHARACTER, 1L, "이미지 생성 실패");
-
-        assertThat(creditQueryService.getSummary(userId).characterFreeAvailable()).isTrue();
-        assertThat(creditQueryService.getSummary(userId).analysisFreeAvailable()).isFalse();
+        assertThat(character.freeUse()).isFalse();
+        assertThat(character.amount()).isEqualTo(500);
         assertThat(balanceOf(userId)).isZero();
         assertLedgerMatchesBalance(userId);
     }
@@ -441,7 +407,7 @@ class CreditServiceTest {
 
     @Test
     void refundUsageRefundsOnlyThatUsageOnce() {
-        Long userId = userWithCredits(500);
+        Long userId = userWithCredits(1000);
         creditService.useForCharacter(userId, 1L);
         Long usageId = creditService.useForCharacter(userId, 2L).usageId();
 
@@ -456,7 +422,7 @@ class CreditServiceTest {
     // 잠근 지갑과 다른 사용자의 건을 환급하면 잔액과 장부가 어긋난다
     @Test
     void refundUsageRejectsUsageOfAnotherUserWithoutChangingAnything() {
-        Long owner = userWithCredits(500);
+        Long owner = userWithCredits(1000);
         Long other = newUser();
         creditService.useForCharacter(owner, 1L);
         Long usageId = creditService.useForCharacter(owner, 2L).usageId();
@@ -471,7 +437,7 @@ class CreditServiceTest {
 
     @Test
     void sameCharacterRequestTwiceIsNotChargedOrCountedTwice() {
-        Long userId = userWithCredits(1000);
+        Long userId = userWithCredits(1500);
         creditService.useForCharacter(userId, 1L);
         creditService.useForCharacter(userId, 2L);
 

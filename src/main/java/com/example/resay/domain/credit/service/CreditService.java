@@ -63,7 +63,7 @@ public class CreditService {
     }
 
     /**
-     * 캐릭터 생성 비용을 차감한다. 계정의 무료 기회가 남아 있으면 차감 없이 그 기회를 쓴다.
+     * 캐릭터 생성 비용을 차감한다. 무료 기회는 없다.
      * 캐릭터는 분석 1건(녹음 1건)에 한 세트이며 화자 수와 무관하다.
      */
     @Transactional
@@ -256,9 +256,11 @@ public class CreditService {
                     existing.get().id(), existing.get().amount(), existing.get().freeUse(), balance, true);
         }
 
+        // 무료 기회는 소셜 가입 계정의 분석 1회뿐이다 (캐릭터 1회 무료는 11/11 팀 결정으로 없앴다).
         // 사용자 조회는 지갑 잠금 · 기존 사용 건 확인 뒤에 한다 (잠금 전에 조회하면 이 트랜잭션이 옛 데이터를 보게 된다)
-        boolean free = wallet.freeUsageId(purpose) == null
-                && (purpose == UsagePurpose.CHARACTER || canUseFreeAnalysis(userId));
+        boolean free = purpose == UsagePurpose.ANALYSIS
+                && wallet.freeUsageId(purpose) == null
+                && canUseFreeAnalysis(userId);
         int amount = free ? 0 : price;
         if (balance < amount) {
             throw new GeneralException(

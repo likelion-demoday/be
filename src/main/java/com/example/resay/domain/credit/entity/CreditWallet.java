@@ -26,19 +26,15 @@ public class CreditWallet extends BaseEntity {
     @Column(nullable = false)
     private int balance;
 
-    // 캐릭터 생성 무료 기회(계정당 1회)를 쓴 사용 건. 기회가 남아 있으면 null이다.
-    // 그 사용 건이 실패로 환급되면 다시 null로 돌아가 기회가 되살아난다.
-    // 잔액과 같은 행에 두는 이유: 지갑을 잠글 때 함께 읽혀서, 동시에 요청해도 무료가 두 번 성립하지 않는다
+    // 캐릭터 생성 무료 기회(계정당 1회)를 쓴 사용 건. 11/11에 캐릭터 무료를 없애 새로 쓰이지 않고, 기존 기록만 남는다
     @Column(name = "character_free_usage_id")
     private Long characterFreeUsageId;
 
-    // 분석 무료 기회(소셜 가입 계정당 1회)를 쓴 사용 건. 캐릭터와 같은 방식이다
+    // 분석 무료 기회(소셜 가입 계정당 1회)를 쓴 사용 건. 기회가 남아 있으면 null이다.
+    // 그 사용 건이 실패로 환급되면 다시 null로 돌아가 기회가 되살아난다.
+    // 잔액과 같은 행에 두는 이유: 지갑을 잠글 때 함께 읽혀서, 동시에 요청해도 무료가 두 번 성립하지 않는다
     @Column(name = "analysis_free_usage_id")
     private Long analysisFreeUsageId;
-
-    public boolean hasCharacterFreeChance() {
-        return characterFreeUsageId == null;
-    }
 
     public boolean hasAnalysisFreeChance() {
         return analysisFreeUsageId == null;
