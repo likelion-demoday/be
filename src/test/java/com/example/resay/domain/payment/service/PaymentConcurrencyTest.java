@@ -228,8 +228,8 @@ class PaymentConcurrencyTest {
         assertThat(failures).isEmpty();
         assertThat(paymentRepository.findAll()).allMatch(payment -> payment.getStatus() == PaymentStatus.PAID);
         assertThat(chargeCount(userId)).isEqualTo(THREADS);
-        // 환급 4건(+1,500), 회수 4건(−100), 캐릭터 4건(첫 1건 무료, 나머지 −500), 충전 12건(+1,000)
-        assertThat(balanceOf(userId)).isEqualTo(balanceBefore + 4 * 1500 - 4 * 100 - 3 * 500 + THREADS * 1000);
+        // 환급 4건(+1,500), 회수 4건(−100), 캐릭터 4건(−500), 충전 12건(+1,000)
+        assertThat(balanceOf(userId)).isEqualTo(balanceBefore + 4 * 1500 - 4 * 100 - 4 * 500 + THREADS * 1000);
         assertLedgerMatchesBalance(userId);
     }
 

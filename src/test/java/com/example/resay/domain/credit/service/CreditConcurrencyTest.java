@@ -113,17 +113,19 @@ class CreditConcurrencyTest {
     }
 
     @Test
-    void givesFreeCharacterOnlyOncePerAccount() throws Exception {
+    void chargesCharactersOnlyUpToBalance() throws Exception {
         Long userId = userWithCredits(1000);
 
-        // 서로 다른 녹음의 캐릭터를 동시에 요청한다. 무료는 1건, 500짜리는 잔액 1,000으로 2건까지만 가능하다
+        // 서로 다른 녹음의 캐릭터를 동시에 요청한다. 무료는 없고, 500짜리는 잔액 1,000으로 2건까지만 가능하다
         List<Outcome> outcomes = runConcurrently(index ->
                 () -> creditService.useForCharacter(userId, 200L + index));
 
-        assertThat(outcomes).filteredOn(outcome -> outcome.succeeded() && outcome.result().freeUse()).hasSize(1);
-        assertThat(outcomes).filteredOn(outcome -> outcome.succeeded() && !outcome.result().freeUse()).hasSize(2);
+        assertThat(outcomes).filteredOn(Outcome::succeeded).hasSize(2)
+                .allSatisfy(outcome -> assertThat(outcome.result().freeUse()).isFalse());
+        assertThat(outcomes).filteredOn(outcome -> !outcome.succeeded())
+                .extracting(Outcome::errorCode)
+                .containsOnly("CREDIT402_1");
         assertThat(balanceOf(userId)).isZero();
-        assertThat(creditQueryService.getSummary(userId).characterFreeAvailable()).isFalse();
         assertLedgerMatchesBalance(userId);
     }
 
@@ -220,7 +222,6 @@ class CreditConcurrencyTest {
                 Long userId = userIds.get(index);
                 long recordingId = base + index * 10L;
                 creditService.adjust(userId, 4000, "동시 지급", ADMIN_ID);
-                // 첫 회차에는 무료, 이후에는 500
                 creditService.useForCharacter(userId, recordingId);
                 creditService.useForAnalysis(userId, recordingId, AnalysisCategory.CONFLICT);
                 creditService.useForCharacter(userId, recordingId + 1);
@@ -235,8 +236,8 @@ class CreditConcurrencyTest {
         }
 
         for (Long userId : userIds) {
-            // 회차마다 +4,000 − 2,000(분석), 캐릭터는 첫 회차만 무료이고 이후 회차는 500
-            assertThat(balanceOf(userId)).isEqualTo(5 * 2000 - 4 * 500);
+            // 회차마다 +4,000 − 2,000(분석) − 500(캐릭터). 두 번째 캐릭터는 환급된다
+            assertThat(balanceOf(userId)).isEqualTo(5 * 1500);
             assertLedgerMatchesBalance(userId);
         }
     }

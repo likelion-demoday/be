@@ -29,9 +29,9 @@ public class CreditQueryService {
         return walletRepository.findById(userId)
                 .map(wallet -> new CreditSummaryResponseDto(
                         wallet.getBalance(),
-                        wallet.hasCharacterFreeChance(),
+                        false,
                         freeAnalysisAccount && wallet.hasAnalysisFreeChance()))
-                .orElseGet(() -> new CreditSummaryResponseDto(0, true, freeAnalysisAccount));
+                .orElseGet(() -> new CreditSummaryResponseDto(0, false, freeAnalysisAccount));
     }
 
     public CreditHistoryResponseDto getHistory(Long userId, int page, int size) {
