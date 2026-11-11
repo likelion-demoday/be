@@ -127,19 +127,19 @@ class CharacterCreditFlowTest {
     }
 
     @Test
-    void usesFreeChanceFirstAndThenChargesPrice() {
+    void chargesPriceFromFirstRequest() {
         Long userId = userWithCredits(1000);
         Long first = completedAnalysis(userId);
         Long second = completedAnalysis(userId);
 
         characterImageRequestService.request(userId, first);
-        assertThat(balanceOf(userId)).isEqualTo(1000);
-        assertThat(freeChanceAvailable(userId)).isFalse();
+        assertThat(balanceOf(userId)).isEqualTo(500);
+        assertThat(activeUsage(first).isFreeUse()).isFalse();
 
         CharacterImageRequestResponseDto response = characterImageRequestService.request(userId, second);
 
         assertThat(response.alreadyRequested()).isFalse();
-        assertThat(balanceOf(userId)).isEqualTo(500);
+        assertThat(balanceOf(userId)).isZero();
         assertThat(activeUsage(second).getAmount()).isEqualTo(500);
         assertThat(activeUsage(second).isFreeUse()).isFalse();
         assertThat(imageStatuses(second)).containsOnly(CharacterImageStatus.PENDING).hasSize(2);
@@ -149,7 +149,6 @@ class CharacterCreditFlowTest {
     @Test
     void rejectsRequestWithoutEnoughCreditsAndPreparesNothing() {
         Long userId = userWithCredits(300);
-        characterImageRequestService.request(userId, completedAnalysis(userId));
         Long recordingId = completedAnalysis(userId);
 
         assertThatThrownBy(() -> characterImageRequestService.request(userId, recordingId))
@@ -167,7 +166,6 @@ class CharacterCreditFlowTest {
     @Test
     void refundsFailedSetAndRetriesOnlyFailedImagesWithNewCharge() {
         Long userId = userWithCredits(1000);
-        useFreeChance(userId);
         Long recordingId = completedAnalysis(userId);
         characterImageRequestService.request(userId, recordingId);
         Long analysisId = analysisIdOf(recordingId);
@@ -192,18 +190,18 @@ class CharacterCreditFlowTest {
 
     // 서버가 재시작되면 생성 작업이 사라져 이미지가 PENDING · GENERATING에 남고 실패 처리도 일어나지 않는다
     @Test
-    void reconcilerRefundsSetStalledByRestartAndRestoresFreeChance() {
-        Long userId = userWithCredits(0);
+    void reconcilerRefundsSetStalledByRestart() {
+        Long userId = userWithCredits(500);
         Long recordingId = completedAnalysis(userId);
         characterImageRequestService.request(userId, recordingId);
         characterImageService.begin(analysisIdOf(recordingId), SpeakerRole.SELF);
-        assertThat(freeChanceAvailable(userId)).isFalse();
+        assertThat(balanceOf(userId)).isZero();
 
         assertThat(creditRefundReconciler.refundStalledCharacters(LocalDateTime.now())).isZero();
         int refunded = creditRefundReconciler.refundStalledCharacters(LocalDateTime.now().plusMinutes(20));
 
         assertThat(refunded).isEqualTo(1);
-        assertThat(freeChanceAvailable(userId)).isTrue();
+        assertThat(balanceOf(userId)).isEqualTo(500);
         CreditUsage usage = usagesOf(recordingId).get(0);
         assertThat(usage.getStatus()).isEqualTo(UsageStatus.REFUNDED);
         assertThat(usage.getRefundReason()).isEqualTo("RECONCILED");
@@ -212,7 +210,7 @@ class CharacterCreditFlowTest {
         // 멈춘 이미지가 실패로 바뀌지 않은 채라 다시 요청해도 생성이 시작되지 않는다. 그 경우에도 차감하지 않는다
         assertThat(characterImageRequestService.request(userId, recordingId).alreadyRequested()).isTrue();
         assertThat(usagesOf(recordingId)).hasSize(1);
-        assertThat(freeChanceAvailable(userId)).isTrue();
+        assertThat(balanceOf(userId)).isEqualTo(500);
         assertLedgerMatchesBalance(userId);
     }
 
@@ -220,7 +218,6 @@ class CharacterCreditFlowTest {
     @Test
     void scheduledReconcileAlsoRefundsStalledCharacters() {
         Long userId = userWithCredits(500);
-        useFreeChance(userId);
         Long recordingId = completedAnalysis(userId);
         characterImageRequestService.request(userId, recordingId);
         backdate(recordingId, 30);
@@ -234,7 +231,6 @@ class CharacterCreditFlowTest {
     @Test
     void reconcilerRefundsFailedSetWhoseRefundWasMissed() {
         Long userId = userWithCredits(500);
-        useFreeChance(userId);
         Long recordingId = completedAnalysis(userId);
         characterImageRequestService.request(userId, recordingId);
         Long analysisId = analysisIdOf(recordingId);
@@ -249,14 +245,13 @@ class CharacterCreditFlowTest {
         assertThat(balanceOf(userId)).isEqualTo(500);
         assertThat(ledgerRepository.findByUserIdOrderByIdAsc(userId))
                 .extracting(CreditLedgerEntry::getType)
-                .containsExactly(CreditLedgerType.ADJUST, CreditLedgerType.USE, CreditLedgerType.USE,
-                        CreditLedgerType.USE_REFUND);
+                .containsExactly(CreditLedgerType.ADJUST, CreditLedgerType.USE, CreditLedgerType.USE_REFUND);
         assertLedgerMatchesBalance(userId);
     }
 
     @Test
     void reconcilerLeavesCompletedSetsAndRecentRequestsAlone() {
-        Long userId = userWithCredits(500);
+        Long userId = userWithCredits(1000);
         Long completed = completedAnalysis(userId);
         characterImageRequestService.request(userId, completed);
         complete(analysisIdOf(completed), SpeakerRole.SELF);
@@ -277,7 +272,6 @@ class CharacterCreditFlowTest {
     @Test
     void reconcilerWaitsWhileImagesAreStillProgressing() {
         Long userId = userWithCredits(500);
-        useFreeChance(userId);
         Long recordingId = completedAnalysis(userId);
         characterImageRequestService.request(userId, recordingId);
         Long analysisId = analysisIdOf(recordingId);
@@ -299,7 +293,6 @@ class CharacterCreditFlowTest {
     @Test
     void reconcilerWaitsForRetryThatReusesUnrefundedUsage() {
         Long userId = userWithCredits(500);
-        useFreeChance(userId);
         Long recordingId = completedAnalysis(userId);
         characterImageRequestService.request(userId, recordingId);
         Long analysisId = analysisIdOf(recordingId);
@@ -322,7 +315,6 @@ class CharacterCreditFlowTest {
     @Test
     void reconcilerDoesNotRefundAfterAnalysisIsDeleted() {
         Long userId = userWithCredits(500);
-        useFreeChance(userId);
         Long recordingId = completedAnalysis(userId);
         characterImageRequestService.request(userId, recordingId);
         complete(analysisIdOf(recordingId), SpeakerRole.SELF);
@@ -339,7 +331,6 @@ class CharacterCreditFlowTest {
     @Test
     void reconcilerDoesNotTreatRecentlyFailedImagesAsProgress() {
         Long userId = userWithCredits(500);
-        useFreeChance(userId);
         Long recordingId = completedAnalysis(userId);
         characterImageRequestService.request(userId, recordingId);
         backdate(recordingId, 30);
@@ -355,7 +346,6 @@ class CharacterCreditFlowTest {
     @Test
     void reconcilerWaitsUntilUsageItselfIsOldEnough() {
         Long userId = userWithCredits(500);
-        useFreeChance(userId);
         Long recordingId = completedAnalysis(userId);
         characterImageRequestService.request(userId, recordingId);
         jdbcTemplate.update("update character_images set updated_at = ? where analysis_id = ?",
@@ -370,7 +360,6 @@ class CharacterCreditFlowTest {
     @Test
     void reconcilerDoesNotRefundNewUsageCreatedAfterItsQuery() {
         Long userId = userWithCredits(1000);
-        useFreeChance(userId);
         Long recordingId = completedAnalysis(userId);
         characterImageRequestService.request(userId, recordingId);
         Long analysisId = analysisIdOf(recordingId);
@@ -392,7 +381,6 @@ class CharacterCreditFlowTest {
     @Test
     void chargesOnceWhenSameCharacterRequestArrivesConcurrently() throws Exception {
         Long userId = userWithCredits(5000);
-        useFreeChance(userId);
         Long recordingId = completedAnalysis(userId);
 
         int threads = 8;
@@ -446,15 +434,6 @@ class CharacterCreditFlowTest {
             creditService.adjust(userId, credits, "테스트 지급", ADMIN_ID);
         }
         return userId;
-    }
-
-    // 무료 기회를 쓴 요청은 생성까지 끝낸다 (정리 작업의 대상이 되지 않게)
-    private void useFreeChance(Long userId) {
-        Long recordingId = completedAnalysis(userId);
-        characterImageRequestService.request(userId, recordingId);
-        complete(analysisIdOf(recordingId), SpeakerRole.SELF);
-        complete(analysisIdOf(recordingId), SpeakerRole.FRIEND);
-        assertThat(freeChanceAvailable(userId)).isFalse();
     }
 
     private Long completedAnalysis(Long userId) {
@@ -554,10 +533,6 @@ class CharacterCreditFlowTest {
 
     private int balanceOf(Long userId) {
         return creditQueryService.getSummary(userId).balance();
-    }
-
-    private boolean freeChanceAvailable(Long userId) {
-        return creditQueryService.getSummary(userId).characterFreeAvailable();
     }
 
     private void assertLedgerMatchesBalance(Long userId) {

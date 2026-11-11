@@ -70,7 +70,7 @@ class CreditControllerTest {
                 .andExpect(jsonPath("$.isSuccess").value(true))
                 .andExpect(jsonPath("$.code").value("CREDIT200_1"))
                 .andExpect(jsonPath("$.result.balance").value(0))
-                .andExpect(jsonPath("$.result.characterFreeAvailable").value(true))
+                .andExpect(jsonPath("$.result.characterFreeAvailable").value(false))
                 // 이메일 가입 계정은 분석 무료 대상이 아니다
                 .andExpect(jsonPath("$.result.analysisFreeAvailable").value(false));
     }
@@ -94,14 +94,14 @@ class CreditControllerTest {
     }
 
     @Test
-    void returnsBalanceAndFreeChanceAfterUse() throws Exception {
+    void returnsBalanceAfterUse() throws Exception {
         creditService.adjust(user.getId(), 3000, "테스트 지급", ADMIN_ID);
         creditService.useForAnalysis(user.getId(), 1L, AnalysisCategory.DAILY);
         creditService.useForCharacter(user.getId(), 1L);
 
         mockMvc.perform(get(SUMMARY_URL).header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.balance").value(1500))
+                .andExpect(jsonPath("$.result.balance").value(1000))
                 .andExpect(jsonPath("$.result.characterFreeAvailable").value(false));
     }
 

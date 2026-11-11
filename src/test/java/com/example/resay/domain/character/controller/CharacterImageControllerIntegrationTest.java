@@ -13,6 +13,7 @@ import com.example.resay.domain.character.repository.CharacterImageRepository;
 import com.example.resay.domain.character.service.CharacterCardStyleResolver;
 import com.example.resay.domain.character.service.CharacterImageService;
 import com.example.resay.domain.credit.service.CreditQueryService;
+import com.example.resay.domain.credit.service.CreditService;
 import com.example.resay.domain.recording.entity.Recording;
 import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.domain.user.entity.User;
@@ -71,6 +72,9 @@ class CharacterImageControllerIntegrationTest {
     private CreditQueryService creditQueryService;
 
     @Autowired
+    private CreditService creditService;
+
+    @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
     @Autowired
@@ -95,12 +99,14 @@ class CharacterImageControllerIntegrationTest {
         recording = recordingRepository.saveAndFlush(
                 Recording.create(owner.getId(), "character-test.m4a", 600)
         );
+        // 캐릭터 생성은 첫 회부터 500 크레딧이다
+        creditService.adjust(owner.getId(), 500, "테스트 지급", 999_999L);
         accessToken = token(owner);
         otherUserAccessToken = token(otherUser);
     }
 
     @Test
-    void requestsCharacterImagesAndUsesFreeChanceOnlyOnce() throws Exception {
+    void requestsCharacterImagesAndChargesOnlyOnce() throws Exception {
         completeAnalysis();
 
         performRequest(accessToken)
@@ -111,12 +117,13 @@ class CharacterImageControllerIntegrationTest {
 
         assertThat(characterImageRepository.findAll()).hasSize(2)
                 .allMatch(image -> image.getStatus() == CharacterImageStatus.PENDING);
-        assertThat(creditQueryService.getSummary(owner.getId()).characterFreeAvailable()).isFalse();
+        assertThat(creditQueryService.getSummary(owner.getId()).balance()).isZero();
 
         performRequest(accessToken)
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.result.alreadyRequested").value(true));
         assertThat(characterImageRepository.findAll()).hasSize(2);
+        assertThat(creditQueryService.getSummary(owner.getId()).balance()).isZero();
     }
 
     @Test
@@ -135,7 +142,7 @@ class CharacterImageControllerIntegrationTest {
         performRequest(accessToken)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("CHARACTER409_1"));
-        assertThat(creditQueryService.getSummary(owner.getId()).characterFreeAvailable()).isTrue();
+        assertThat(creditQueryService.getSummary(owner.getId()).balance()).isEqualTo(500);
     }
 
     @Test
