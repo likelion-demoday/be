@@ -5,6 +5,7 @@ import com.example.resay.domain.recording.entity.RecordingStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -64,17 +65,22 @@ public interface RecordingRepository extends JpaRepository<Recording, Long> {
     @Query("select r from Recording r where r.id = :id")
     Optional<Recording> findByIdForUpdate(@Param("id") Long id);
 
-    // 음성 파일이 남아 있는데 지워야 하는 녹음
-    // - 분석이 끝났거나 실패한 뒤 보관 기간이 지남
-    // - 사용자가 대화를 삭제했는데 그때 파일 삭제에 실패함 (보관 기간과 상관없이 바로 다시 지운다)
+    // 분석이 끝났거나 실패했는데 원본 음성 또는 전사 구간이 남은 녹음.
+    // 완료·실패 이벤트의 즉시 정리가 실패했거나 서버가 중단된 경우 재시도 대상으로 사용한다.
     @Query("""
             select r.id from Recording r
-            where r.audioDeletedAt is null
-              and ((r.status = com.example.resay.domain.recording.entity.RecordingStatus.COMPLETED and r.completedAt < :cutoff)
-                or (r.status = com.example.resay.domain.recording.entity.RecordingStatus.FAILED and r.failedAt < :cutoff)
-                or r.deletedAt is not null)
+            where r.status in :statuses
+              and (r.audioDeletedAt is null
+                or exists (
+                    select s.id from TranscriptSegment s
+                    where s.recordingId = r.id
+                ))
+            order by r.id
             """)
-    List<Long> findAudioExpiredIds(@Param("cutoff") LocalDateTime cutoff);
+    List<Long> findSourceCleanupPendingIds(
+            @Param("statuses") Collection<RecordingStatus> statuses,
+            Pageable pageable
+    );
 
     // 결제 단계까지 가지 않고 기한이 지난 녹음
     @Query("select r.id from Recording r where r.status in :statuses and r.createdAt < :cutoff")

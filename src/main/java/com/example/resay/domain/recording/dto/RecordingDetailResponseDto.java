@@ -6,7 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
 
-@Schema(description = "대화 보관함 상세 (다시 듣기)")
+@Schema(description = "대화 보관함 상세")
 public record RecordingDetailResponseDto(
         @Schema(description = "녹음 ID", example = "1")
         Long recordingId,
@@ -18,21 +18,21 @@ public record RecordingDetailResponseDto(
         Integer durationSeconds,
         @Schema(description = "녹음을 올린 시각")
         LocalDateTime createdAt,
-        @Schema(description = "음성을 다시 들을 수 있는지. 분석이 끝나고 3일이 지나면 음성이 삭제되어 false", example = "true")
+        @Schema(description = "분석 종료 후 원본 음성을 삭제하므로 항상 false", example = "false")
         boolean audioAvailable,
-        @Schema(description = "<audio src>에 그대로 넣는 재생 주소 (1시간 후 만료되면 다시 조회). 음성이 삭제됐으면 null")
+        @Schema(description = "분석이 끝난 녹음은 원본을 삭제하므로 항상 null", nullable = true)
         String audioUrl
 ) {
 
-    public static RecordingDetailResponseDto of(Recording recording, String audioUrl) {
+    public static RecordingDetailResponseDto from(Recording recording) {
         return new RecordingDetailResponseDto(
                 recording.getId(),
                 recording.getTitle(),
                 recording.getRelationshipType(),
                 recording.getDurationSeconds(),
                 recording.getCreatedAt(),
-                recording.hasAudio(),
-                recording.hasAudio() ? audioUrl : null
+                false,
+                null
         );
     }
 }

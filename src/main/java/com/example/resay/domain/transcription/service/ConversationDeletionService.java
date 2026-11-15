@@ -12,7 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-// 사용자가 보관 기간(3일)보다 먼저 대화를 지우는 기능
+// 사용자가 분석이 끝난 대화를 보관함에서 지우는 기능
 // 음성과 전사 원문은 지우고, 녹음은 숨김 처리한다 (보고서는 남는다. 보고서 삭제는 분석 쪽 기능)
 @Slf4j
 @Service
@@ -33,9 +33,9 @@ public class ConversationDeletionService {
         recording.markDeleted();
         analysisShareRepository.deleteByRecordingId(recordingId);
         transcriptSegmentRepository.deleteByRecordingId(recordingId);
-        // 음성 파일 삭제에 실패하면 기록하지 않고 남겨, 보관 기간 정리 스케줄러가 다시 지운다
+        // 음성 파일 삭제에 실패하면 기록하지 않고 남겨, 원본 데이터 정리 스케줄러가 다시 지운다
         if (!recordingService.deleteAudio(recordingId)) {
-            log.warn("대화 삭제 중 음성 파일을 지우지 못해 보관 기간 정리에서 다시 시도합니다. recordingId={}", recordingId);
+            log.warn("대화 삭제 중 음성 파일을 지우지 못해 원본 데이터 정리에서 다시 시도합니다. recordingId={}", recordingId);
         }
     }
 }

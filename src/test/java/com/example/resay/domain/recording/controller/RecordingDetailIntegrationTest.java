@@ -7,7 +7,7 @@ import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.domain.user.entity.User;
 import com.example.resay.domain.user.repository.UserRepository;
 import com.example.resay.global.security.JwtTokenProvider;
-import com.jayway.jsonpath.JsonPath;
+import com.example.resay.global.security.AudioUrlSigner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -24,7 +24,6 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -48,6 +47,9 @@ class RecordingDetailIntegrationTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Autowired
+    private AudioUrlSigner audioUrlSigner;
+
     private User user;
     private Recording recording;
 
@@ -62,8 +64,8 @@ class RecordingDetailIntegrationTest {
     }
 
     @Test
-    void 대화_정보와_재생_주소를_주고_그_주소로_음성을_들을_수_있다() throws Exception {
-        String body = getDetail(user)
+    void 대화_정보는_주지만_분석이_끝난_음성의_재생_주소는_주지_않는다() throws Exception {
+        getDetail(user)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("RECORDING200_7"))
                 .andExpect(jsonPath("$.result.recordingId").value(recording.getId()))
@@ -71,24 +73,29 @@ class RecordingDetailIntegrationTest {
                 .andExpect(jsonPath("$.result.relationshipType").value("FRIEND_DAILY"))
                 .andExpect(jsonPath("$.result.durationSeconds").value(783))
                 .andExpect(jsonPath("$.result.createdAt").exists())
-                .andExpect(jsonPath("$.result.audioAvailable").value(true))
-                .andReturn().getResponse().getContentAsString();
-
-        // <audio src>처럼 로그인 토큰 없이 재생 주소만으로 음성을 받는다
-        String audioUrl = JsonPath.read(body, "$.result.audioUrl");
-        mockMvc.perform(get(audioUrl))
-                .andExpect(status().isOk())
-                .andExpect(content().string("audio"));
+                .andExpect(jsonPath("$.result.audioAvailable").value(false))
+                .andExpect(jsonPath("$.result.audioUrl").doesNotExist());
     }
 
     @Test
-    void 보관_기간이_지나_음성이_삭제됐으면_재생_주소를_주지_않는다() throws Exception {
+    void 음성이_이미_삭제됐어도_상세_정보는_조회한다() throws Exception {
         recording.markAudioDeleted();
 
         getDetail(user)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.audioAvailable").value(false))
                 .andExpect(jsonPath("$.result.audioUrl").doesNotExist());
+    }
+
+    @Test
+    void 분석이_끝나면_파일_삭제가_지연돼도_기존_재생_주소를_차단한다() throws Exception {
+        AudioUrlSigner.SignedAudioUrl signed = audioUrlSigner.sign(recording.getId());
+
+        mockMvc.perform(get("/api/v1/recordings/{id}/audio", recording.getId())
+                        .param("expires", String.valueOf(signed.expires()))
+                        .param("signature", signed.signature()))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("RECORDING410_1"));
     }
 
     @Test
