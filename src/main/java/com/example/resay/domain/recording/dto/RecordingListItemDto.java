@@ -18,7 +18,7 @@ public record RecordingListItemDto(
         Integer durationSeconds,
         @Schema(description = "녹음을 올린 시각")
         LocalDateTime createdAt,
-        @Schema(description = "음성을 다시 들을 수 있는지. 분석이 끝나고 3일이 지나면 음성이 삭제되어 false", example = "true")
+        @Schema(description = "분석 종료 후 원본 음성을 삭제하므로 항상 false", example = "false")
         boolean audioAvailable
 ) {
 
@@ -29,7 +29,7 @@ public record RecordingListItemDto(
                 recording.getRelationshipType(),
                 recording.getDurationSeconds(),
                 recording.getCreatedAt(),
-                recording.hasAudio()
+                false
         );
     }
 }

@@ -40,11 +40,11 @@ public class RecordingQueryService {
         );
     }
 
-    // 대화 보관함 상세 (다시 듣기). 목록에 보이는 대화만 연다
-    public RecordingDetailResponseDto getDetail(Long recordingId, Long userId, String audioUrl) {
+    // 대화 보관함 상세. 목록에 보이는 대화만 연다 (원본 음성은 분석 종료 후 삭제한다)
+    public RecordingDetailResponseDto getDetail(Long recordingId, Long userId) {
         Recording recording = recordingRepository.findByIdAndUserId(recordingId, userId)
                 .filter(found -> !found.isDeleted() && found.getStatus() == RecordingStatus.COMPLETED)
                 .orElseThrow(() -> new GeneralException(RecordingErrorCode.RECORDING_NOT_FOUND));
-        return RecordingDetailResponseDto.of(recording, audioUrl);
+        return RecordingDetailResponseDto.from(recording);
     }
 }

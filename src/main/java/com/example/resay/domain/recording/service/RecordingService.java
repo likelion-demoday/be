@@ -167,7 +167,7 @@ public class RecordingService {
         eventPublisher.publishEvent(new RecordingFailedEvent(recordingId, reason));
     }
 
-    // 음성 파일만 지우고 녹음·보고서·전사 텍스트는 남긴다 (보관 기간 만료, 대화 삭제에서 사용)
+    // 음성 파일만 지우고 녹음·보고서·전사 텍스트는 남긴다 (사용자 대화 삭제에서 사용)
     // 파일 삭제에 실패하면 기록하지 않아 다음 실행에서 다시 시도된다
     @Transactional
     public boolean deleteAudio(Long recordingId) {

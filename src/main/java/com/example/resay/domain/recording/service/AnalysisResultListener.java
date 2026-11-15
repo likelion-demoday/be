@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-// 분석 결과를 녹음 상태에 반영한다 (완료·실패 시각이 음성 3일 보관의 기준이 된다)
+// 분석 결과를 녹음 상태에 반영한다
 // 분석 저장이 커밋된 뒤 별도 트랜잭션으로 처리해, 여기서 실패해도 분석 결과는 남는다
 @Slf4j
 @Component

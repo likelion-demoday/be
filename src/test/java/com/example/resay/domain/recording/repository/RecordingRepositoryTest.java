@@ -3,6 +3,8 @@ package com.example.resay.domain.recording.repository;
 import com.example.resay.domain.recording.entity.Recording;
 import com.example.resay.domain.recording.entity.RecordingStatus;
 import com.example.resay.domain.recording.entity.RelationshipType;
+import com.example.resay.domain.transcription.entity.TranscriptSegment;
+import com.example.resay.domain.transcription.repository.TranscriptSegmentRepository;
 import com.example.resay.global.config.JpaAuditingConfig; // createdAt 자동 채우기 기능을 테스트에서도 켜기 위해 필요
 import com.example.resay.global.exception.GeneralException;
 import org.junit.jupiter.api.Test;
@@ -11,6 +13,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.util.EnumSet;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,6 +25,9 @@ class RecordingRepositoryTest {
 
     @org.springframework.beans.factory.annotation.Autowired
     private RecordingRepository recordingRepository; // 진짜 DB에 접근하는 진짜 Repository를 스프링이 주입해줌
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private TranscriptSegmentRepository transcriptSegmentRepository;
 
     @Test
     void selectType_성공시_제목과_상태가_바뀐다() {
@@ -46,21 +52,25 @@ class RecordingRepositoryTest {
     }
 
     @Test
-    void findAudioExpiredIds_완료_실패_후_기한이_지나고_음성이_남은_녹음만_조회된다() {
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(3);
-        Long 완료_만료 = saveWith(RecordingStatus.COMPLETED, "completedAt", cutoff.minusMinutes(1));
-        Long 실패_만료 = saveWith(RecordingStatus.FAILED, "failedAt", cutoff.minusMinutes(1));
-        saveWith(RecordingStatus.COMPLETED, "completedAt", cutoff.plusMinutes(1)); // 아직 기한 전
-        Long 이미_삭제 = saveWith(RecordingStatus.COMPLETED, "completedAt", cutoff.minusDays(1));
-        recordingRepository.findById(이미_삭제).orElseThrow().markAudioDeleted(); // 음성은 이미 지움
-        saveWith(RecordingStatus.ANALYZING, "completedAt", cutoff.minusDays(1)); // 아직 분석 중
-        // 사용자가 대화를 지웠는데 파일 삭제에 실패한 녹음은 보관 기간 전이어도 다시 지운다
-        Long 대화_삭제 = saveWith(RecordingStatus.COMPLETED, "completedAt", cutoff.plusDays(1));
-        recordingRepository.findById(대화_삭제).orElseThrow().markDeleted();
+    void findSourceCleanupPendingIds_종료됐지만_음성이나_전사가_남은_녹음만_조회된다() {
+        Long 완료_음성_남음 = saveWith(RecordingStatus.COMPLETED, "completedAt", LocalDateTime.now());
+        Long 실패_음성_남음 = saveWith(RecordingStatus.FAILED, "failedAt", LocalDateTime.now());
 
-        List<Long> ids = recordingRepository.findAudioExpiredIds(cutoff);
+        Long 전사만_남음 = saveWith(RecordingStatus.COMPLETED, "completedAt", LocalDateTime.now());
+        recordingRepository.findById(전사만_남음).orElseThrow().markAudioDeleted();
+        transcriptSegmentRepository.save(TranscriptSegment.create(
+                전사만_남음, 1, "1", 0, 1000, "삭제되지 않은 전사"
+        ));
 
-        assertThat(ids).containsExactlyInAnyOrder(완료_만료, 실패_만료, 대화_삭제);
+        Long 모두_삭제 = saveWith(RecordingStatus.COMPLETED, "completedAt", LocalDateTime.now());
+        recordingRepository.findById(모두_삭제).orElseThrow().markAudioDeleted();
+        saveWith(RecordingStatus.ANALYZING, "completedAt", LocalDateTime.now());
+
+        List<Long> ids = recordingRepository.findSourceCleanupPendingIds(
+                EnumSet.of(RecordingStatus.COMPLETED, RecordingStatus.FAILED)
+        );
+
+        assertThat(ids).containsExactly(완료_음성_남음, 실패_음성_남음, 전사만_남음);
     }
 
     @Test

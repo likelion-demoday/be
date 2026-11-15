@@ -15,9 +15,8 @@ public class RecordingRetentionScheduler {
 
     // 결제 전 녹음(3시간) 기준이 가장 짧아 1시간마다 실행한다
     @Scheduled(cron = "${storage.retention.cron:0 0 * * * *}", zone = "Asia/Seoul")
-    public void deleteExpiredRecordings() {
+    public void deleteAbandonedRecordings() {
         LocalDateTime now = LocalDateTime.now();
         recordingRetentionService.deleteAbandonedRecordings(now);
-        recordingRetentionService.deleteExpiredAudio(now);
     }
 }

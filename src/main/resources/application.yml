@@ -258,6 +258,9 @@ notification:
     contact-email: ${MARKETING_CONTACT_EMAIL:hoslee404@gmail.com}
 
 storage:
+  source-cleanup:
+    # 완료·실패 이벤트에서 즉시 지우지 못한 원본 음성과 전사문을 다시 정리한다
+    cron: ${SOURCE_CLEANUP_CRON:0 */10 * * * *}
   local:
     base-path: ${STORAGE_BASE_PATH:./storage/recordings}
   character:
