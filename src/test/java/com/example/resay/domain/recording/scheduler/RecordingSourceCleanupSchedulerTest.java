@@ -10,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -29,7 +30,10 @@ class RecordingSourceCleanupSchedulerTest {
     @Test
     void 한_건의_정리가_실패해도_나머지를_계속_처리한다() {
         var terminalStatuses = EnumSet.of(RecordingStatus.COMPLETED, RecordingStatus.FAILED);
-        when(recordingRepository.findSourceCleanupPendingIds(terminalStatuses))
+        when(recordingRepository.findSourceCleanupPendingIds(
+                terminalStatuses,
+                PageRequest.of(0, RecordingSourceCleanupScheduler.BATCH_SIZE)
+        ))
                 .thenReturn(List.of(1L, 2L, 3L));
         when(cleanupService.deleteSourceData(1L)).thenThrow(new IllegalStateException("DB 오류"));
         when(cleanupService.deleteSourceData(2L)).thenReturn(false);

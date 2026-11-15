@@ -1,6 +1,7 @@
 package com.example.resay.domain.recording.service;
 
 import com.example.resay.domain.recording.entity.Recording;
+import com.example.resay.domain.recording.entity.RecordingStatus;
 import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.domain.transcription.repository.TranscriptSegmentRepository;
 import com.example.resay.global.infrastructure.storage.LocalFileStorage;
@@ -27,6 +28,15 @@ public class RecordingSourceCleanupService {
         Recording recording = recordingRepository.findByIdForUpdate(recordingId).orElse(null);
         if (recording == null) {
             return true;
+        }
+        if (recording.getStatus() != RecordingStatus.COMPLETED
+                && recording.getStatus() != RecordingStatus.FAILED) {
+            log.warn(
+                    "종료되지 않은 녹음의 원본 데이터 정리를 건너뜁니다. recordingId={}, status={}",
+                    recordingId,
+                    recording.getStatus()
+            );
+            return false;
         }
 
         boolean audioDeleted = deleteAudio(recording);

@@ -5,6 +5,7 @@ import com.example.resay.domain.recording.entity.RecordingStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -76,7 +77,10 @@ public interface RecordingRepository extends JpaRepository<Recording, Long> {
                 ))
             order by r.id
             """)
-    List<Long> findSourceCleanupPendingIds(@Param("statuses") Collection<RecordingStatus> statuses);
+    List<Long> findSourceCleanupPendingIds(
+            @Param("statuses") Collection<RecordingStatus> statuses,
+            Pageable pageable
+    );
 
     // 결제 단계까지 가지 않고 기한이 지난 녹음
     @Query("select r.id from Recording r where r.status in :statuses and r.createdAt < :cutoff")

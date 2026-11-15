@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -17,15 +18,19 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class RecordingSourceCleanupScheduler {
 
+    static final int BATCH_SIZE = 100;
     private static final Set<RecordingStatus> TERMINAL_STATUSES =
             EnumSet.of(RecordingStatus.COMPLETED, RecordingStatus.FAILED);
 
     private final RecordingRepository recordingRepository;
     private final RecordingSourceCleanupService cleanupService;
 
-    @Scheduled(cron = "${storage.source-cleanup.cron:0 */10 * * * *}", zone = "Asia/Seoul")
+    @Scheduled(cron = "${storage.source-cleanup.cron:15 */10 * * * *}", zone = "Asia/Seoul")
     public void retryPendingCleanup() {
-        List<Long> ids = recordingRepository.findSourceCleanupPendingIds(TERMINAL_STATUSES);
+        List<Long> ids = recordingRepository.findSourceCleanupPendingIds(
+                TERMINAL_STATUSES,
+                PageRequest.of(0, BATCH_SIZE)
+        );
         int completed = 0;
         for (Long id : ids) {
             try {

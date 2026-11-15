@@ -10,6 +10,7 @@ import com.example.resay.global.exception.GeneralException;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest; // Spring Boot 4 기준 새 패키지 경로 (지난번 PR #15에서 배운 그 변경사항)
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -67,7 +68,8 @@ class RecordingRepositoryTest {
         saveWith(RecordingStatus.ANALYZING, "completedAt", LocalDateTime.now());
 
         List<Long> ids = recordingRepository.findSourceCleanupPendingIds(
-                EnumSet.of(RecordingStatus.COMPLETED, RecordingStatus.FAILED)
+                EnumSet.of(RecordingStatus.COMPLETED, RecordingStatus.FAILED),
+                PageRequest.of(0, 100)
         );
 
         assertThat(ids).containsExactly(완료_음성_남음, 실패_음성_남음, 전사만_남음);

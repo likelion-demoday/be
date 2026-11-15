@@ -19,13 +19,14 @@ public class RecordingSourceCleanupEventListener {
 
     private final RecordingSourceCleanupService cleanupService;
 
-    @Order(Ordered.HIGHEST_PRECEDENCE)
+    // 녹음 상태가 먼저 COMPLETED로 커밋돼야 중간 장애가 나도 재시도 스케줄러가 찾을 수 있다.
+    @Order(Ordered.LOWEST_PRECEDENCE)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onAnalysisCompleted(AnalysisCompletedEvent event) {
         cleanup(event.recordingId(), "분석 완료");
     }
 
-    @Order(Ordered.HIGHEST_PRECEDENCE)
+    @Order(Ordered.LOWEST_PRECEDENCE)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onRecordingFailed(RecordingFailedEvent event) {
         cleanup(event.recordingId(), "처리 실패");
