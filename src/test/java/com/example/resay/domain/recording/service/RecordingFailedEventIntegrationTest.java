@@ -5,9 +5,14 @@ import com.example.resay.domain.recording.entity.RecordingFailureReason;
 import com.example.resay.domain.recording.entity.RecordingStatus;
 import com.example.resay.domain.recording.event.RecordingFailedEvent;
 import com.example.resay.domain.recording.repository.RecordingRepository;
+import com.example.resay.domain.transcription.entity.TranscriptSegment;
+import com.example.resay.domain.transcription.repository.TranscriptSegmentRepository;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -27,11 +32,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 class RecordingFailedEventIntegrationTest {
 
+    @TempDir
+    Path tempDir;
+
     @Autowired
     private RecordingService recordingService;
 
     @Autowired
     private RecordingRepository recordingRepository;
+
+    @Autowired
+    private TranscriptSegmentRepository transcriptSegmentRepository;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -40,17 +51,25 @@ class RecordingFailedEventIntegrationTest {
     private ReceivedEvents receivedEvents;
 
     private Recording recording;
+    private Path audioPath;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         receivedEvents.events.clear();
-        recording = Recording.create(1L, "failed-event-test.m4a", 600);
+        audioPath = Files.writeString(tempDir.resolve("failed-event-test.m4a"), "audio");
+        recording = Recording.create(1L, audioPath.toString(), 600);
         ReflectionTestUtils.setField(recording, "status", RecordingStatus.TRANSCRIBING);
         recordingRepository.save(recording);
+        transcriptSegmentRepository.save(TranscriptSegment.create(
+                recording.getId(), 1, "1", 0, 1000, "실패 전에 저장된 전사"
+        ));
     }
 
     @AfterEach
     void tearDown() {
+        transcriptSegmentRepository.deleteAll(
+                transcriptSegmentRepository.findByRecordingIdOrderBySegmentNo(recording.getId())
+        );
         recordingRepository.deleteById(recording.getId());
     }
 
@@ -61,6 +80,11 @@ class RecordingFailedEventIntegrationTest {
 
         assertThat(receivedEvents.events).containsExactly(
                 new RecordingFailedEvent(recording.getId(), RecordingFailureReason.TRANSCRIPTION_TIMEOUT));
+        Recording failed = recordingRepository.findById(recording.getId()).orElseThrow();
+        assertThat(failed.hasAudio()).isFalse();
+        assertThat(Files.exists(audioPath)).isFalse();
+        assertThat(transcriptSegmentRepository.findByRecordingIdOrderBySegmentNo(recording.getId()))
+                .isEmpty();
     }
 
     @Test
@@ -73,6 +97,9 @@ class RecordingFailedEventIntegrationTest {
         assertThat(receivedEvents.events).isEmpty();
         assertThat(recordingRepository.findById(recording.getId()).orElseThrow().getStatus())
                 .isEqualTo(RecordingStatus.TRANSCRIBING);
+        assertThat(Files.exists(audioPath)).isTrue();
+        assertThat(transcriptSegmentRepository.findByRecordingIdOrderBySegmentNo(recording.getId()))
+                .hasSize(1);
     }
 
     @TestConfiguration

@@ -56,7 +56,7 @@ public class RecordingController {
                         recordingQueryService.getList(userId, page, size)));
     }
 
-    // 대화 보관함 상세 (다시 듣기): 대화 정보와 재생 주소(1시간 후 만료)를 준다
+    // 대화 보관함 상세. 원본 음성은 분석 종료 후 삭제하므로 재생 주소를 제공하지 않는다
     @GetMapping("/{recordingId}")
     public ResponseEntity<ApiResponse<RecordingDetailResponseDto>> getDetail(
             @CurrentUserId Long userId,
@@ -64,7 +64,7 @@ public class RecordingController {
     ) {
         return ResponseEntity.status(RecordingSuccessCode.GET_DETAIL.getHttpStatus())
                 .body(ApiResponse.onSuccess(RecordingSuccessCode.GET_DETAIL,
-                        recordingQueryService.getDetail(recordingId, userId, signedAudioUrl(recordingId))));
+                        recordingQueryService.getDetail(recordingId, userId)));
     }
 
     // 대화 삭제: 음성·전사 원문을 지우고 녹음은 숨긴다 (보고서는 남음). 분석이 끝난 대화만 가능

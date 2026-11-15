@@ -20,10 +20,13 @@ import com.example.resay.domain.transcription.service.SpeakerMappingService;
 import com.example.resay.domain.user.entity.User;
 import com.example.resay.domain.user.repository.UserRepository;
 import java.time.Duration;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -37,6 +40,9 @@ import static org.mockito.Mockito.when;
 
 @SpringBootTest
 class SpeakerMappingAnalysisPipelineIntegrationTest {
+
+    @TempDir
+    Path tempDir;
 
     @Autowired
     private SpeakerMappingService speakerMappingService;
@@ -84,8 +90,9 @@ class SpeakerMappingAnalysisPipelineIntegrationTest {
     }
 
     @Test
-    void 화자_매핑이_완료되면_분석_결과가_저장되고_녹음이_완료된다() throws InterruptedException {
+    void 화자_매핑이_완료되면_보고서를_남기고_원본_음성과_전사를_삭제한다() throws Exception {
         prepareTranscribedRecording();
+        Path audioPath = Path.of(recording.getAudioFilePath());
         AtomicReference<AnalysisSource> receivedSource = new AtomicReference<>();
         when(analysisModelClient.analyze(any())).thenAnswer(invocation -> {
             AnalysisSource source = invocation.getArgument(0);
@@ -113,15 +120,20 @@ class SpeakerMappingAnalysisPipelineIntegrationTest {
         assertThat(result.getSchemaVersion()).isEqualTo("analysis-report-v14");
         assertThat(completedRecording.getStatus()).isEqualTo(RecordingStatus.COMPLETED);
         assertThat(completedRecording.getCompletedAt()).isNotNull();
+        assertThat(completedRecording.hasAudio()).isFalse();
+        assertThat(Files.exists(audioPath)).isFalse();
+        assertThat(transcriptSegmentRepository.findByRecordingIdOrderBySegmentNo(recording.getId()))
+                .isEmpty();
         assertThat(receivedSource.get().speakers())
                 .extracting(speaker -> speaker.speakerRole() + ":" + speaker.speakerName())
                 .containsExactly("SELF:호준", "FRIEND:호석");
         verify(analysisModelClient, times(1)).analyze(any());
     }
 
-    private void prepareTranscribedRecording() {
+    private void prepareTranscribedRecording() throws Exception {
         user = userRepository.save(User.createLocal("pipeline@example.com", "encoded", "호준"));
-        Recording created = Recording.create(user.getId(), "pipeline-test.m4a", 90);
+        Path audioPath = Files.writeString(tempDir.resolve("pipeline-test.m4a"), "audio");
+        Recording created = Recording.create(user.getId(), audioPath.toString(), 90);
         ReflectionTestUtils.setField(created, "relationshipType", RelationshipType.FRIEND_DAILY);
         ReflectionTestUtils.setField(created, "status", RecordingStatus.TRANSCRIBING);
         recording = recordingRepository.save(created);
@@ -205,7 +217,8 @@ class SpeakerMappingAnalysisPipelineIntegrationTest {
                             && analysisResultRepository.existsByAnalysisId(value.getId()))
                     .orElse(false);
             boolean recordingCompleted = storedRecording
-                    .map(value -> value.getStatus() == RecordingStatus.COMPLETED)
+                    .map(value -> value.getStatus() == RecordingStatus.COMPLETED
+                            && !value.hasAudio())
                     .orElse(false);
             if (analysisCompleted && recordingCompleted) {
                 return;

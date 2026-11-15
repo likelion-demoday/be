@@ -2,6 +2,7 @@ package com.example.resay.domain.recording.service;
 
 import com.example.resay.domain.recording.code.RecordingErrorCode;
 import com.example.resay.domain.recording.entity.Recording;
+import com.example.resay.domain.recording.entity.RecordingStatus;
 import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.global.exception.GeneralException;
 import com.example.resay.global.security.AudioUrlSigner;
@@ -30,7 +31,11 @@ public class RecordingAudioService {
         Recording recording = recordingRepository.findById(recordingId)
                 .orElseThrow(() -> new GeneralException(RecordingErrorCode.RECORDING_NOT_FOUND));
         Path path = Path.of(recording.getAudioFilePath());
-        if (recording.isDeleted() || !recording.hasAudio() || !Files.isRegularFile(path)) {
+        // 재생 주소는 화자 선택 화면에서만 발급한다. 분석이 시작되면 기존 주소가 남아 있어도 막는다.
+        if (recording.isDeleted()
+                || recording.getStatus() != RecordingStatus.TRANSCRIBING
+                || !recording.hasAudio()
+                || !Files.isRegularFile(path)) {
             throw new GeneralException(RecordingErrorCode.AUDIO_DELETED);
         }
         return new AudioFile(new FileSystemResource(path), mediaType(path));

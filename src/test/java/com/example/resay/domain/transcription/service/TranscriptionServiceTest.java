@@ -294,13 +294,17 @@ class TranscriptionServiceTest {
     }
 
     @Test
-    void expireSpeakerSelection_실패로_바꾸고_음성을_바로_지운다() {
+    void expireSpeakerSelection_실패로_바꾸면_커밋_후_리스너가_원본을_지운다() {
         when(recordingService.failTranscription(RECORDING_ID, RecordingFailureReason.SPEAKER_SELECTION_EXPIRED))
                 .thenReturn(true);
 
         transcriptionService.expireSpeakerSelection(RECORDING_ID);
 
-        verify(recordingService).deleteAudio(RECORDING_ID);
+        verify(recordingService).failTranscription(
+                RECORDING_ID,
+                RecordingFailureReason.SPEAKER_SELECTION_EXPIRED
+        );
+        verify(recordingService, never()).deleteAudio(anyLong());
     }
 
     @Test

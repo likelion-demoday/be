@@ -122,13 +122,11 @@ public class TranscriptionService {
         return transcriptionRepository.findSpeakerSelectionExpiredRecordingIds(now.minus(SPEAKER_SELECTION_TIMEOUT));
     }
 
-    // 화자를 고르지 않은 채 기한이 지난 녹음을 실패로 바꾸고 음성을 바로 지운다
-    // (이미 3일을 기다렸으므로 실패 후 3일을 더 보관하지 않는다)
+    // 화자를 고르지 않은 채 기한이 지난 녹음을 실패로 바꾼다.
+    // 원본 음성과 전사문은 실패 커밋 뒤 RecordingFailedEvent 리스너가 지운다.
     @Transactional
     public void expireSpeakerSelection(Long recordingId) {
-        if (recordingService.failTranscription(recordingId, RecordingFailureReason.SPEAKER_SELECTION_EXPIRED)) {
-            recordingService.deleteAudio(recordingId);
-        }
+        recordingService.failTranscription(recordingId, RecordingFailureReason.SPEAKER_SELECTION_EXPIRED);
     }
 
     // 제한 시간 안에 결과가 오지 않은 녹음을 실패로 바꾼다 (이후 늦게 온 결과는 무시된다)

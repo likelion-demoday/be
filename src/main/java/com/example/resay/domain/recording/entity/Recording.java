@@ -44,7 +44,7 @@ public class Recording extends BaseEntity {
     @Column(nullable = false, columnDefinition = "varchar(20)")
     private RecordingStatus status;
 
-    // 음성 보관 기간(완료·실패 후 3일)의 기준 시각
+    // 분석 완료 시각
     private LocalDateTime completedAt;
 
     private LocalDateTime failedAt;
@@ -53,7 +53,7 @@ public class Recording extends BaseEntity {
     @Column(columnDefinition = "varchar(40)")
     private RecordingFailureReason failureReason;
 
-    // 값이 있으면 음성 파일이 이미 삭제된 녹음 (보고서·전사 텍스트는 남는다)
+    // 값이 있으면 원본 음성 파일이 이미 삭제된 녹음
     private LocalDateTime audioDeletedAt;
 
     // 사용자가 고른 본인 화자 (전사 서비스가 붙인 화자 번호, 나머지 화자는 상대)
