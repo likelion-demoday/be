@@ -1,6 +1,7 @@
 package com.example.resay.domain.credit.service;
 
 import com.example.resay.domain.credit.code.CreditErrorCode;
+import com.example.resay.domain.credit.config.AnalysisFailureLimitProperties;
 import com.example.resay.domain.credit.config.CreditProperties;
 import com.example.resay.domain.credit.entity.CreditLedgerEntry;
 import com.example.resay.domain.credit.entity.CreditUsage;
@@ -37,7 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 @RequiredArgsConstructor
-@EnableConfigurationProperties(CreditProperties.class)
+@EnableConfigurationProperties({CreditProperties.class, AnalysisFailureLimitProperties.class})
 public class CreditService {
 
     // 입력 실수나 버그로 잔액이 비정상적으로 커지는 것을 막는 상한

@@ -1,5 +1,7 @@
 package com.example.resay.domain.credit.controller;
 
+import com.example.resay.domain.credit.entity.UsagePurpose;
+import com.example.resay.domain.credit.model.AnalysisCategory;
 import com.example.resay.domain.credit.service.CreditQueryService;
 import com.example.resay.domain.credit.service.CreditService;
 import com.example.resay.domain.recording.entity.Recording;
@@ -105,6 +107,26 @@ class AnalysisPaymentControllerTest {
 
         assertThat(statusOf(recordingId)).isEqualTo(RecordingStatus.TYPE_SELECTED);
         assertThat(balance()).isEqualTo(1000);
+    }
+
+    // 최근 1시간에 실패로 환급된 분석이 5건이면 429와 다시 시도할 수 있는 시간(초)을 준다
+    @Test
+    void rejectsWithRetryAfterWhenAnalysesFailedRepeatedly() throws Exception {
+        creditService.adjust(user.getId(), 1500, "테스트 지급", ADMIN_ID);
+        for (long failedRecordingId = 800_001L; failedRecordingId <= 800_005L; failedRecordingId++) {
+            creditService.useForAnalysis(user.getId(), failedRecordingId, AnalysisCategory.DAILY);
+            creditService.refund(UsagePurpose.ANALYSIS, failedRecordingId, "TRANSCRIPTION_FAILED");
+        }
+        Long recordingId = recordingWithType(user.getId(), RelationshipType.FRIEND_DAILY);
+
+        pay(accessToken, recordingId)
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.isSuccess").value(false))
+                .andExpect(jsonPath("$.code").value("CREDIT429_1"))
+                .andExpect(jsonPath("$.error.retryAfterSeconds").isNumber());
+
+        assertThat(statusOf(recordingId)).isEqualTo(RecordingStatus.TYPE_SELECTED);
+        assertThat(balance()).isEqualTo(1500);
     }
 
     // 결제 버튼을 연달아 눌러도 한 번만 차감되고, 두 번째 요청도 오류가 아니라 성공으로 응답한다
