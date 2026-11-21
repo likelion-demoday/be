@@ -10,9 +10,11 @@ import com.example.resay.domain.analysis.service.AnalysisFailureReconciler;
 import com.example.resay.domain.analysis.service.AnalysisService;
 import com.example.resay.domain.analysis.service.AnalysisStallService;
 import com.example.resay.domain.credit.dto.AnalysisPaymentResponseDto;
+import com.example.resay.domain.credit.model.AnalysisCategory;
 import com.example.resay.domain.credit.entity.CreditLedgerEntry;
 import com.example.resay.domain.credit.entity.CreditLedgerType;
 import com.example.resay.domain.credit.entity.CreditUsage;
+import com.example.resay.domain.credit.entity.UsagePurpose;
 import com.example.resay.domain.credit.entity.UsageStatus;
 import com.example.resay.domain.credit.repository.CreditLedgerRepository;
 import com.example.resay.domain.credit.repository.CreditUsageRepository;
@@ -31,6 +33,7 @@ import com.example.resay.global.exception.GeneralException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -41,11 +44,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 // 결제 → 실패 → 환급이 실제 커밋을 거쳐 이어지는지 확인한다.
 // 결제가 커밋되면 전사가 시작되는데, 여기서는 외부 호출이 나가지 않게 그 시작점만 막아 둔다
@@ -102,6 +107,9 @@ class AnalysisPaymentFlowTest {
 
     @Autowired
     private CreditLedgerRepository ledgerRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @AfterEach
     void cleanUp() {
@@ -225,6 +233,67 @@ class AnalysisPaymentFlowTest {
         assertThat(usageRepository.count()).isEqualTo(1);
         assertThat(creditQueryService.getSummary(userId).analysisFreeAvailable()).isFalse();
         assertLedgerMatchesBalance(userId);
+    }
+
+    // 실패하면 크레딧이 돌아오므로, 실패가 몰린 계정은 1시간 안에 5건이 되면 새 분석을 잠시 막는다 (설정: 5건 / 1시간)
+    @Test
+    void blocksAnalysisPaymentAfterFiveFailedAnalysesWithinOneHour() {
+        Long userId = userWithCredits(1500);
+        failedAnalyses(userId, 5);
+        Long recordingId = recordingWithType(userId, RelationshipType.FRIEND_DAILY);
+
+        GeneralException exception = catchThrowableOfType(
+                GeneralException.class, () -> analysisPaymentService.pay(userId, recordingId));
+
+        assertThat(exception.getErrorCode().getCode()).isEqualTo("CREDIT429_1");
+        assertThat(retryAfterSeconds(exception)).isBetween(3500L, 3601L);
+        assertThat(statusOf(recordingId)).isEqualTo(RecordingStatus.TYPE_SELECTED);
+        assertThat(usageRepository.count()).isEqualTo(5);
+        assertThat(balanceOf(userId)).isEqualTo(1500);
+    }
+
+    @Test
+    void allowsAnalysisPaymentWithFourRecentFailures() {
+        Long userId = userWithCredits(1500);
+        failedAnalyses(userId, 4);
+
+        AnalysisPaymentResponseDto response =
+                analysisPaymentService.pay(userId, recordingWithType(userId, RelationshipType.FRIEND_DAILY));
+
+        assertThat(response.usedCredits()).isEqualTo(1500);
+    }
+
+    // 가장 오래된 실패가 1시간을 벗어나는 시각에 다시 결제할 수 있다
+    @Test
+    void failuresOlderThanOneHourDoNotCount() {
+        Long userId = userWithCredits(1500);
+        failedAnalyses(userId, 5);
+        Long oldest = usageRepository.findAll().stream().mapToLong(CreditUsage::getId).min().orElseThrow();
+        jdbcTemplate.update("UPDATE credit_usages SET refunded_at = ? WHERE id = ?",
+                LocalDateTime.now().minusMinutes(59), oldest);
+        Long recordingId = recordingWithType(userId, RelationshipType.FRIEND_DAILY);
+
+        GeneralException exception = catchThrowableOfType(
+                GeneralException.class, () -> analysisPaymentService.pay(userId, recordingId));
+        assertThat(retryAfterSeconds(exception)).isBetween(1L, 61L);
+
+        jdbcTemplate.update("UPDATE credit_usages SET refunded_at = ? WHERE id = ?",
+                LocalDateTime.now().minusMinutes(61), oldest);
+        assertThat(analysisPaymentService.pay(userId, recordingId).alreadyPaid()).isFalse();
+    }
+
+    // 캐릭터 생성 실패는 분석 결제 제한에 세지 않는다
+    @Test
+    void characterRefundsDoNotCountTowardFailureLimit() {
+        Long userId = userWithCredits(2000);
+        for (int i = 0; i < 5; i++) {
+            long recordingId = 900_000L + SEQUENCE.incrementAndGet();
+            creditService.useForCharacter(userId, recordingId);
+            creditService.refund(UsagePurpose.CHARACTER, recordingId, "이미지 생성 실패");
+        }
+
+        assertThat(analysisPaymentService.pay(userId, recordingWithType(userId, RelationshipType.FRIEND_DAILY))
+                .alreadyPaid()).isFalse();
     }
 
     @Test
@@ -491,6 +560,19 @@ class AnalysisPaymentFlowTest {
         ).getId();
         creditService.adjust(userId, credits, "테스트 지급", ADMIN_ID);
         return userId;
+    }
+
+    // 결제 후 실패해 환급된 분석을 count건 만든다 (녹음 없이 크레딧 사용 건만)
+    private void failedAnalyses(Long userId, int count) {
+        for (int i = 0; i < count; i++) {
+            long recordingId = 900_000L + SEQUENCE.incrementAndGet();
+            creditService.useForAnalysis(userId, recordingId, AnalysisCategory.DAILY);
+            creditService.refund(UsagePurpose.ANALYSIS, recordingId, "TRANSCRIPTION_FAILED");
+        }
+    }
+
+    private static long retryAfterSeconds(GeneralException exception) {
+        return ((Number) ((Map<?, ?>) exception.getDetail()).get("retryAfterSeconds")).longValue();
     }
 
     private Long socialUser() {

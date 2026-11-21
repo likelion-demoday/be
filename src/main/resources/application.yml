@@ -98,6 +98,10 @@ credit:
   # 진행은 이미지 상태가 바뀐 시각으로 본다. 생성 작업은 한 번에 한 건씩 처리되므로, 대기열이 길면 정상 건도 이 시간을 넘길 수 있다
   # 이미지 2장 생성(각 180초)과 단일 작업 스레드의 최대 큐 대기(20건)를 합친 약 126분보다 길게 둔다.
   character-stall-timeout: ${CHARACTER_STALL_TIMEOUT:150m}
+  # 이 기간 안에 실패로 환급된 분석이 max-failures건이 되면 새 분석 결제를 막는다 (실패 반복으로 비용만 나가는 것을 막는다)
+  analysis-failure-limit:
+    max-failures: 5
+    window: 1h
 
 # 크레딧 충전 (카드 결제). 1원 = 1크레딧
 payment:

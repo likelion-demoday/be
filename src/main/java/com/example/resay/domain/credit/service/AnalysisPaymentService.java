@@ -1,5 +1,7 @@
 package com.example.resay.domain.credit.service;
 
+import com.example.resay.domain.credit.code.CreditErrorCode;
+import com.example.resay.domain.credit.config.AnalysisFailureLimitProperties;
 import com.example.resay.domain.credit.dto.AnalysisPaymentResponseDto;
 import com.example.resay.domain.credit.entity.CreditUsage;
 import com.example.resay.domain.credit.entity.UsagePurpose;
@@ -13,7 +15,11 @@ import com.example.resay.domain.recording.entity.RelationshipType;
 import com.example.resay.domain.recording.repository.RecordingRepository;
 import com.example.resay.domain.recording.service.RecordingService;
 import com.example.resay.global.exception.GeneralException;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -40,6 +46,7 @@ public class AnalysisPaymentService {
     private final CreditQueryService creditQueryService;
     private final CreditUsageRepository creditUsageRepository;
     private final TransactionTemplate transactionTemplate;
+    private final AnalysisFailureLimitProperties failureLimit;
 
     public AnalysisPaymentResponseDto pay(Long userId, Long recordingId) {
         // 녹음 확인은 결제 트랜잭션을 열기 전에 한다.
@@ -55,6 +62,7 @@ public class AnalysisPaymentService {
         if (recording.getStatus() != RecordingStatus.TYPE_SELECTED) {
             throw new GeneralException(RecordingErrorCode.INVALID_STATUS_TRANSITION);
         }
+        requireNotFailingRepeatedly(userId);
         AnalysisCategory category = categoryOf(recording.getRelationshipType());
 
         // 차감과 결제 완료 전환은 함께 성공하거나 함께 취소된다.
@@ -66,6 +74,23 @@ public class AnalysisPaymentService {
             }
             return new AnalysisPaymentResponseDto(recordingId, usage.amount(), usage.balance(), usage.alreadyUsed());
         });
+    }
+
+    // 실패하면 크레딧 · 무료 기회가 되살아나므로, 실패가 몰린 계정은 잠시 새 분석을 막는다 (AnalysisFailureLimitProperties)
+    private void requireNotFailingRepeatedly(Long userId) {
+        LocalDateTime now = LocalDateTime.now();
+        Duration window = failureLimit.window();
+        List<LocalDateTime> refundedAt =
+                creditUsageRepository.findRefundedAtSince(userId, UsagePurpose.ANALYSIS, now.minus(window));
+        int overLimit = refundedAt.size() - failureLimit.maxFailures();
+        if (overLimit < 0) {
+            return;
+        }
+        // 이 건이 기간을 벗어나면 남은 실패가 한도보다 하나 적어진다
+        LocalDateTime unblockAt = refundedAt.get(overLimit).plus(window);
+        long retryAfterSeconds = Math.max(1, Duration.between(now, unblockAt).toSeconds() + 1);
+        throw new GeneralException(
+                CreditErrorCode.ANALYSIS_FAILURE_LIMIT, Map.of("retryAfterSeconds", retryAfterSeconds));
     }
 
     private AnalysisPaymentResponseDto alreadyPaid(Long userId, Long recordingId) {
