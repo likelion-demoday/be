@@ -31,6 +31,17 @@ class CreditPropertiesTest {
         assertThat(VALIDATOR.validate(properties)).isEmpty();
     }
 
+    @Test
+    void deployedAnalysisFailureLimitIsFivePerHour() throws IOException {
+        List<PropertySource<?>> sources = new YamlPropertySourceLoader()
+                .load("deployed", new FileSystemResource("src/main/resources/application.yml"));
+        AnalysisFailureLimitProperties limit = new Binder(ConfigurationPropertySources.from(sources))
+                .bind("credit.analysis-failure-limit", AnalysisFailureLimitProperties.class).get();
+
+        assertThat(limit).isEqualTo(new AnalysisFailureLimitProperties(5, Duration.ofHours(1)));
+        assertThat(VALIDATOR.validate(limit)).isEmpty();
+    }
+
     // 0이나 음수면 방금 요청한 캐릭터 생성까지 멈춘 것으로 보고 환급한다
     @Test
     void rejectsZeroOrNegativeCharacterStallTimeout() {

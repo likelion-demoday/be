@@ -15,6 +15,21 @@ public interface CreditUsageRepository extends JpaRepository<CreditUsage, Long> 
     // 유효한(USED) 사용 건. activeKey는 CreditUsage.activeKey(용도, 녹음)로 만든다
     Optional<CreditUsage> findByActiveKey(String activeKey);
 
+    // since 이후에 환급된 사용 건의 환급 시각, 오래된 순 (분석 실패 반복 제한)
+    @Query("""
+            select u.refundedAt from CreditUsage u
+            where u.userId = :userId
+              and u.purpose = :purpose
+              and u.status = com.example.resay.domain.credit.entity.UsageStatus.REFUNDED
+              and u.refundedAt >= :since
+            order by u.refundedAt
+            """)
+    List<LocalDateTime> findRefundedAtSince(
+            @Param("userId") Long userId,
+            @Param("purpose") UsagePurpose purpose,
+            @Param("since") LocalDateTime since
+    );
+
     // 차감된 채 남아 있는데 녹음은 이미 실패했거나 없어진 건 (환급이 누락된 건)
     @Query("""
             select u.recordingId from CreditUsage u

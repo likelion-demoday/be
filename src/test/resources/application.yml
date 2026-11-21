@@ -58,6 +58,10 @@ credit:
     analysis-conflict: 2000
     character: 500
   character-stall-timeout: 15m
+  # 이 기간 안에 실패로 환급된 분석이 max-failures건이 되면 새 분석 결제를 막는다 (실패 반복으로 비용만 나가는 것을 막는다)
+  analysis-failure-limit:
+    max-failures: 5
+    window: 1h
 
 payment:
   products:
