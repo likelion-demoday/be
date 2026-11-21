@@ -143,10 +143,10 @@ class RecordingServiceTest {
     }
 
     @Test
-    void upload_5분_미만이면_너무_짧음_오류로_응답하고_저장_파일_삭제() {
+    void upload_2분_미만이면_너무_짧음_오류로_응답하고_저장_파일_삭제() {
         MockMultipartFile file = mp3File();
         when(localFileStorage.save(file, "mp3")).thenReturn(SAVED_PATH);
-        when(audioDurationReader.readSeconds(SAVED_PATH)).thenReturn(5 * 60 - 1);
+        when(audioDurationReader.readSeconds(SAVED_PATH)).thenReturn(2 * 60 - 1);
 
         GeneralException exception = assertThrows(GeneralException.class,
                 () -> recordingService.upload(1L, file));
@@ -171,10 +171,10 @@ class RecordingServiceTest {
     }
 
     @Test
-    void upload_정확히_5분과_30분은_허용() {
+    void upload_정확히_2분과_30분은_허용() {
         MockMultipartFile file = mp3File();
         when(localFileStorage.save(file, "mp3")).thenReturn(SAVED_PATH);
-        when(audioDurationReader.readSeconds(SAVED_PATH)).thenReturn(5 * 60, 30 * 60);
+        when(audioDurationReader.readSeconds(SAVED_PATH)).thenReturn(2 * 60, 30 * 60);
 
         recordingService.upload(1L, file);
         recordingService.upload(1L, file);
