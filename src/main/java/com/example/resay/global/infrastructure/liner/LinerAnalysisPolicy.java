@@ -187,6 +187,39 @@ final class LinerAnalysisPolicy {
         return List.copyOf(requiredTypes);
     }
 
+    static Set<QualitativeAnalysis.ReportMetricType> countReportMetricTypes(
+            AnalysisScenario scenario
+    ) {
+        return switch (scenario) {
+            case FRIEND_DAILY -> Set.of(
+                    QualitativeAnalysis.ReportMetricType.COMPLIMENT,
+                    QualitativeAnalysis.ReportMetricType.ENCOURAGEMENT,
+                    QualitativeAnalysis.ReportMetricType.CARING_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.FRIENDLY_ADDRESS,
+                    QualitativeAnalysis.ReportMetricType.DIRECT_AFFECTION,
+                    QualitativeAnalysis.ReportMetricType.JOY_OR_GRATITUDE
+            );
+            case COUPLE_DAILY -> Set.of(
+                    QualitativeAnalysis.ReportMetricType.COMPLIMENT,
+                    QualitativeAnalysis.ReportMetricType.ENCOURAGEMENT,
+                    QualitativeAnalysis.ReportMetricType.CARING_EXPRESSION,
+                    QualitativeAnalysis.ReportMetricType.DIRECT_AFFECTION,
+                    QualitativeAnalysis.ReportMetricType.JOY_OR_GRATITUDE
+            );
+            case COUPLE_CONFLICT -> Set.of(
+                    QualitativeAnalysis.ReportMetricType.POSITION_EXPLANATION,
+                    QualitativeAnalysis.ReportMetricType.REBUTTAL,
+                    QualitativeAnalysis.ReportMetricType.AVOIDANCE,
+                    QualitativeAnalysis.ReportMetricType.APOLOGY,
+                    QualitativeAnalysis.ReportMetricType.YIELDING,
+                    QualitativeAnalysis.ReportMetricType.EMOTION_CHECK,
+                    QualitativeAnalysis.ReportMetricType.QUESTION,
+                    QualitativeAnalysis.ReportMetricType.MISSED_RESPONSE
+            );
+            case PARENT_CHILD_CONFLICT -> PARENT_CHILD_METRIC_EVIDENCE_QUOTE_TYPES;
+        };
+    }
+
     static boolean supportsMetricEvidenceQuotes(
             AnalysisScenario scenario,
             QualitativeAnalysis.ReportMetricType type

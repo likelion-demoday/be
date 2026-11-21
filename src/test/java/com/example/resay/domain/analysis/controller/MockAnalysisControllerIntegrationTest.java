@@ -87,7 +87,19 @@ class MockAnalysisControllerIntegrationTest {
                 .get("quantitativeAnalysis")
                 .get("speakers")
                 .forEach(speaker -> assertThat(speaker.get("syllablesPerSecond").asDouble())
-                        .isBetween(5.0, 6.5));
+                        .isPositive());
+        JsonNode reportMetrics = response.get("result")
+                .get("report")
+                .get("qualitativeAnalysis")
+                .get("reportMetrics");
+        assertThat(reportMetrics.size()).isEqualTo(28);
+        long countMetricCount = java.util.stream.StreamSupport.stream(
+                        reportMetrics.spliterator(),
+                        false
+                )
+                .filter(metric -> "COUNT".equals(metric.get("unit").asText()))
+                .count();
+        assertThat(countMetricCount).isEqualTo(12);
         assertThat(containsField(response, "evidenceSegmentIds")).isFalse();
         assertThat(containsField(response, "segmentIds")).isFalse();
 

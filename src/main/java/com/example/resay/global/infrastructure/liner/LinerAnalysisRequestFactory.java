@@ -15,8 +15,8 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class LinerAnalysisRequestFactory {
 
-    private static final String PROMPT_VERSION = "analysis-prompt-v28";
-    private static final String SCHEMA_VERSION = "analysis-result-v13";
+    private static final String PROMPT_VERSION = "analysis-prompt-v29";
+    private static final String SCHEMA_VERSION = "analysis-result-v14";
     private static final int MAX_COMPLETION_TOKENS = 32768;
     private static final String REASONING_EFFORT = "medium";
 
@@ -87,7 +87,7 @@ public class LinerAnalysisRequestFactory {
             relationshipSummary는 두 화자의 이번 대화 상호작용을 짧은 조합형 제목과 설명으로 요약하세요. 관계 전체나 속마음을 단정하지 마세요.
             speakerAffectionSummaries는 COUPLE_DAILY에서만 화자별 애정 표현을 요약하고, 그 외 시나리오에서는 빈 배열로 작성하세요.
             speakerAffectionSummaries의 title과 description은 해당 speakerRole이 직접 사용한 표현과 그 화자의 PERCENT reportMetrics만 바탕으로 작성하세요. 상대 화자의 행동을 섞거나 두 화자에게 같은 요약을 반복하지 마세요.
-            reportMetrics는 화면에 필요한 비율 지표이며 모든 항목을 PERCENT로만 작성하세요. COUNT 항목은 작성하지 마세요.
+            reportMetrics는 화면에 필요한 횟수와 비율 지표입니다. COUNT는 서로 다른 근거 발화 수, PERCENT는 이번 대화에서 해당 표현이 관찰된 상대적 정도입니다.
             reportMetrics의 PERCENT는 성격 점수가 아니라 이번 대화에서 해당 표현이 관찰된 상대적 정도를 0부터 100까지 추정한 값입니다.
             모든 시나리오에서 SENTENCE_COMPLETENESS, ELABORATION, CLARITY, SENTENCE_VARIETY를 두 화자 각각의 PERCENT reportMetric으로 반드시 작성하세요.
             SENTENCE_COMPLETENESS는 문장이 중간에 끊기지 않고 의미가 끝까지 마무리되는 정도입니다.
@@ -115,10 +115,11 @@ public class LinerAnalysisRequestFactory {
             CLARITY는 여러 의미로 해석되거나 지시 대상을 문맥에서도 찾기 어려운 경우 감점하고, 91점 이상은 모호한 발화가 거의 없을 때만 사용하세요.
             SENTENCE_VARIETY는 질문, 설명, 제안, 반응, 비교, 이유 제시 등 문장 기능과 어휘, 연결 표현, 문장 구조의 실제 차이를 함께 검토하세요.
             SENTENCE_VARIETY에서 주제만 바뀌고 같은 문장 구조를 반복하는 경우 높은 점수를 주지 말고, 81점 이상은 서로 다른 문장 기능과 구조가 대화 전반에 반복적으로 나타난 경우에만 사용하세요.
+            COUNT의 value는 서로 다른 evidenceSegmentIds 수와 같아야 합니다. 0이면 근거를 빈 배열로, 0보다 크면 해당 발화를 모두 작성하세요.
             PERCENT가 0이면 evidenceSegmentIds는 빈 배열로 작성하고, 0보다 크면 근거 발화를 하나 이상 작성하세요.
             reportMetrics의 displayEvidences에는 화면에 문장으로 보여 줄 대표 발화만 작성하세요. segmentId는 반드시 같은 항목의 evidenceSegmentIds에 포함되어야 합니다.
             displayEvidences의 displayContent에도 representativeEvidences와 같은 최소 보정 규칙을 적용하고, 같은 segmentId에는 항상 같은 displayContent를 작성하세요.
-            같은 type과 speakerRole의 reportMetric은 하나만 작성하세요.
+            같은 type, speakerRole, unit 조합의 reportMetric은 하나만 작성하세요.
             speakerTendencies는 사람의 고정 성향이 아니라 이번 대화에서 반복된 대응 방식을 짧은 label과 설명으로 작성하세요.
             coachingSuggestions는 실제 발화 인용이 아니라 대화를 다시 이어 갈 때 사용할 수 있는 생성 제안입니다.
             coachingSuggestions의 speakerRole은 해당 개선 문장을 직접 말할 화자입니다. 두 화자의 제안을 섞지 마세요.
@@ -192,6 +193,7 @@ public class LinerAnalysisRequestFactory {
                     공통 관심사, 장난스럽거나 재미있는 교류, 맞장구, 확인 표현, 후속 질문을 관찰하세요.
                     interestInsights의 점수는 이번 대화에서 관찰된 관심 표현만 기준으로 작성하세요.
                     두 사람의 친밀도나 관계의 좋고 나쁨을 판단하지 마세요.
+                    COMPLIMENT, ENCOURAGEMENT, CARING_EXPRESSION, FRIENDLY_ADDRESS, DIRECT_AFFECTION, JOY_OR_GRATITUDE는 화자별 COUNT로 작성하고, 관찰되지 않은 항목도 value 0으로 작성하세요.
                     SWEAR_WORD, DIRECTNESS, EXPRESSION_INTENSITY, SOFTENING_EXPRESSION은 화자별 PERCENT로 작성하세요. 비속어 횟수 자체가 아니라 이번 대화에서 각 표현 특성이 관찰된 상대적 정도를 평가하고, 관찰되지 않은 항목도 value 0으로 작성하세요.
                     speakerTendencies와 coachingSuggestions는 빈 배열로 작성하세요.
                     representativeEvidences에는 두 화자의 T/F 유형 대표 반응을 화자별 1개 이상 3개 이하로 작성하세요.
@@ -202,7 +204,8 @@ public class LinerAnalysisRequestFactory {
                     공통 관심사, 명시적인 애정 표현, 맞장구, 확인 표현, 후속 질문을 관찰하세요.
                     interestInsights의 점수는 이번 대화에서 관찰된 관심 표현만 기준으로 작성하세요.
                     사랑의 크기나 관계 전체를 점수화하지 말고 속마음을 추측하지 마세요.
-                    reportMetrics에는 DIRECT_AFFECTION, CARING_EXPRESSION, COMPLIMENT_OR_ENCOURAGEMENT, AFFECTIONATE_ADDRESS를 화자별 PERCENT로 작성하세요. 관찰되지 않은 항목도 value 0으로 작성하세요.
+                    COMPLIMENT, ENCOURAGEMENT, CARING_EXPRESSION, DIRECT_AFFECTION, JOY_OR_GRATITUDE는 화자별 COUNT로 작성하세요.
+                    DIRECT_AFFECTION, CARING_EXPRESSION, COMPLIMENT_OR_ENCOURAGEMENT, AFFECTIONATE_ADDRESS는 화자별 PERCENT로 작성하세요. 관찰되지 않은 항목도 value 0으로 작성하세요.
                     speakerAffectionSummaries는 SELF와 PARTNER 각각 한 개씩 작성하세요. 각 항목은 해당 화자의 애정 표현 특징을 짧은 제목과 설명으로 요약하고, evidenceSegmentIds에는 그 화자가 직접 말한 근거 발화만 넣으세요.
                     speakerTendencies와 coachingSuggestions는 빈 배열로 작성하세요.
                     representativeEvidences에는 두 화자의 T/F 유형 대표 반응을 화자별 1개 이상 3개 이하로 작성하세요.
@@ -215,6 +218,8 @@ public class LinerAnalysisRequestFactory {
                     CONFLICT_POSITION은 SELF와 PARTNER에 대해 각각 한 개씩 작성하고, 각 항목의 speakerRoles에는 해당 화자 한 명만 포함하세요. 두 사람의 입장을 한 항목에 합치지 마세요.
                     공격, 방어, 회피는 사람의 성향이 아니라 근거 발화에서 나타난 대화 행동으로만 분류하세요.
                     애착 유형이나 정신 상태를 진단하지 마세요.
+                    POSITION_EXPLANATION, REBUTTAL, AVOIDANCE, APOLOGY, YIELDING, EMOTION_CHECK, QUESTION, MISSED_RESPONSE는 화자별 COUNT로 작성하세요.
+                    POSITION_EXPLANATION, REBUTTAL, AVOIDANCE, APOLOGY, YIELDING의 COUNT가 0보다 크면 displayEvidences에 대표 발화를 최대 3개 작성하고, 그 밖의 지표는 빈 배열로 작성하세요.
                     DIRECT_EXPRESSION, ASSERTIVE_EXPRESSION, SOFTENING_EXPRESSION, RECOVERY_EXPRESSION은 화자별 PERCENT로 작성하세요. 관찰되지 않은 항목도 value 0으로 작성하세요.
                     speakerTendencies는 두 화자에 대해 각각 한 개 작성하세요.
                     coachingSuggestions는 SELF와 PARTNER 각각에 대해 대화 개선 단계 세 개를 순서대로 작성하여 총 6개가 되게 하세요.
@@ -230,6 +235,8 @@ public class LinerAnalysisRequestFactory {
                     CONFLICT_POSITION은 PARENT와 CHILD에 대해 각각 한 개씩 작성하고, 각 항목의 speakerRoles에는 해당 화자 한 명만 포함하세요. 두 사람의 입장을 한 항목에 합치지 마세요.
                     안전 걱정, 돌봄, 보호 의도가 발화에 명시되면 CARE_EXPRESSION으로 분류하세요.
                     양육 능력, 성격, 정신 상태를 진단하지 마세요.
+                    SITUATION_QUESTION, CONCRETE_ADVICE, EMOTION_CHECK, ASSERTIVE_EXPRESSION, EXPERIENCE_COMPARISON, SHORT_RESPONSE, TOPIC_AVOIDANCE, REBUTTAL, EMOTION_EXPRESSION, APOLOGY, CHILD_EXPRESSION, PARENT_CONFIRMATION은 관련 화자별 COUNT로 작성하세요.
+                    위 COUNT가 0보다 크면 displayEvidences에 대표 발화를 최대 3개 작성하고, 0이면 빈 배열로 작성하세요.
                     ADVICE, ASSERTIVE_EXPRESSION, EMOTION_CHECK, SOFTENING_EXPRESSION은 화자별 PERCENT로 작성하세요. 실제 발화로 확인할 수 없는 침묵은 계산하지 마세요. 관찰되지 않은 항목도 value 0으로 작성하세요.
                     speakerTendencies는 부모와 자녀에 대해 각각 한 개 작성하세요.
                     coachingSuggestions는 이 대화의 핵심 갈등 주제를 직접 반영하여 PARENT와 CHILD 각각 다시 대화하기 단계 세 개씩, 총 6개를 작성하세요. 어디에나 적용되는 일반적인 조언은 사용하지 마세요.
@@ -318,12 +325,10 @@ public class LinerAnalysisRequestFactory {
     private Map<String, Object> reportMetricSchema(AnalysisScenario scenario) {
         return objectSchema(
                 Map.of(
-                        "type", enumSchema(
-                                LinerAnalysisPolicy.requiredPercentReportMetricTypes(scenario)
-                        ),
+                        "type", enumSchema(LinerAnalysisPolicy.reportMetricTypes(scenario)),
                         "speakerRole", nullableSchema(enumSchema(scenario.requiredRoles())),
-                        "value", integerSchema(0, 100),
-                        "unit", enumSchema(List.of(QualitativeAnalysis.ReportMetricUnit.PERCENT)),
+                        "value", integerSchema(0, 1000),
+                        "unit", enumSchema(List.of(QualitativeAnalysis.ReportMetricUnit.values())),
                         "title", stringSchema(),
                         "description", stringSchema(),
                         "evidenceSegmentIds", arraySchema(Map.of("type", "integer")),

@@ -91,10 +91,20 @@ public class LinerAnalysisModelClient implements AnalysisModelClient {
     ) {
         List<QualitativeAnalysis.ReportMetricType> requiredTypes =
                 LinerAnalysisPolicy.requiredPercentReportMetricTypes(source.scenario());
+        Set<QualitativeAnalysis.ReportMetricType> countTypes =
+                LinerAnalysisPolicy.countReportMetricTypes(source.scenario());
         Map<ReportMetricKey, QualitativeAnalysis.ReportMetric> metricsByKey = new HashMap<>();
         List<QualitativeAnalysis.ReportMetric> completedMetrics = new ArrayList<>();
 
         for (QualitativeAnalysis.ReportMetric metric : response.reportMetrics()) {
+            boolean allowedCountMetric = metric != null
+                    && countTypes.contains(metric.type())
+                    && metric.unit() == QualitativeAnalysis.ReportMetricUnit.COUNT
+                    && source.scenario().requiredRoles().contains(metric.speakerRole());
+            if (allowedCountMetric) {
+                completedMetrics.add(metric);
+                continue;
+            }
             boolean allowedPercentMetric = metric != null
                     && requiredTypes.contains(metric.type())
                     && metric.unit() == QualitativeAnalysis.ReportMetricUnit.PERCENT

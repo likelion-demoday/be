@@ -30,7 +30,7 @@ class LinerAnalysisEvaluationFixtureLoader {
         );
 
         AnalysisSource correctedSource = read(
-                "/mock/analysis/" + directory + ".json",
+                "/analysis/evaluation/" + directory + "/corrected.json",
                 AnalysisSource.class
         );
         AnalysisSource noisySource = read(

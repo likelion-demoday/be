@@ -102,8 +102,8 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("대표 근거만 작성하세요")
                 .contains("displayContent를 요약하거나")
                 .contains("speakerInsights.patterns의 displayEvidences에는")
-                .contains("reportMetrics는 화면에 필요한 비율 지표이며 모든 항목을 PERCENT로만 작성하세요")
-                .contains("COUNT 항목은 작성하지 마세요")
+                .contains("reportMetrics는 화면에 필요한 횟수와 비율 지표입니다")
+                .contains("COUNT의 value는 서로 다른 evidenceSegmentIds 수와 같아야 합니다")
                 .contains("reportMetrics의 displayEvidences에는")
                 .contains("SENTENCE_COMPLETENESS, ELABORATION, CLARITY, SENTENCE_VARIETY")
                 .contains("완결성, 확장성, 명료성, 다양성")
@@ -121,6 +121,7 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("대명사나 생략이 있다는 이유만으로 감점하지 마세요")
                 .contains("주제만 바뀌고 같은 문장 구조를 반복하는 경우 높은 점수를 주지 말고")
                 .contains("SWEAR_WORD, DIRECTNESS, EXPRESSION_INTENSITY, SOFTENING_EXPRESSION")
+                .contains("COMPLIMENT, ENCOURAGEMENT, CARING_EXPRESSION, FRIENDLY_ADDRESS")
                 .contains("비속어 횟수 자체가 아니라")
                 .contains("관찰되지 않은 항목도 value 0으로 작성하세요")
                 .contains("사용자가 보는 모든 생성 문장은 자연스러운 한국어로만 작성하세요")
@@ -131,8 +132,8 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("화자별 1개 이상 3개 이하");
 
 
-        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v28");
-        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v13");
+        assertThat(requestFactory.promptVersion()).isEqualTo("analysis-prompt-v29");
+        assertThat(requestFactory.schemaVersion()).isEqualTo("analysis-result-v14");
 
         Map<?, ?> input = objectMapper.readValue(request.messages().get(1).content(), Map.class);
         assertThat(input.keySet().stream().map(Object::toString).toList())
@@ -204,13 +205,19 @@ class LinerAnalysisRequestFactoryTest {
                 "ELABORATION",
                 "CLARITY",
                 "SENTENCE_VARIETY",
+                "COMPLIMENT",
+                "ENCOURAGEMENT",
+                "CARING_EXPRESSION",
+                "FRIENDLY_ADDRESS",
+                "DIRECT_AFFECTION",
+                "JOY_OR_GRATITUDE",
                 "SWEAR_WORD",
                 "DIRECTNESS",
                 "EXPRESSION_INTENSITY",
                 "SOFTENING_EXPRESSION"
         );
         Map<?, ?> reportMetricUnit = (Map<?, ?>) reportMetricProperties.get("unit");
-        assertThat(reportMetricUnit.get("enum")).isEqualTo(List.of("PERCENT"));
+        assertThat(reportMetricUnit.get("enum")).isEqualTo(List.of("COUNT", "PERCENT"));
         Map<?, ?> speakerInsights = (Map<?, ?>) rootProperties.get("speakerInsights");
         assertThat(speakerInsights.keySet().stream().map(Object::toString).toList())
                 .containsExactlyInAnyOrder("type", "items");
@@ -356,6 +363,7 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("두 사람의 입장을 한 항목에 합치지 마세요")
                 .contains("공격, 방어, 회피는 사람의 성향이 아니라")
                 .contains("애착 유형이나 정신 상태를 진단하지 마세요")
+                .contains("POSITION_EXPLANATION, REBUTTAL, AVOIDANCE, APOLOGY, YIELDING")
                 .contains("SELF와 PARTNER 각각에 대해 대화 개선 단계 세 개")
                 .contains("DIRECT_EXPRESSION, ASSERTIVE_EXPRESSION, SOFTENING_EXPRESSION, RECOVERY_EXPRESSION은 화자별 PERCENT")
                 .contains("총 6개가 되게 하세요");
@@ -407,6 +415,7 @@ class LinerAnalysisRequestFactoryTest {
                 .contains("2단계는 부모의 걱정과 자녀의 필요")
                 .contains("3단계는 다음 행동·시간·확인 방법")
                 .contains("실제로 바로 말할 수 있는 한 문장")
+                .contains("SITUATION_QUESTION, CONCRETE_ADVICE, EMOTION_CHECK")
                 .contains("어느 한쪽의 성격·태도·양육 능력을 탓하지 말고");
     }
 

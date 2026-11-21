@@ -242,17 +242,16 @@ public record AnalysisReportDto(
                     .forEach(speakerRoles::add);
 
             for (AnalysisReport.ReportMetric metric : sourceMetrics) {
-                if (metric == null
-                        || metric.unit() != QualitativeAnalysis.ReportMetricUnit.PERCENT) {
+                if (metric == null) {
                     continue;
                 }
-                boolean commonPercentMetric = metric != null
-                        && CommonSentenceMetricPolicy.isCommon(metric.type());
-                if (!commonPercentMetric) {
+                boolean commonMetric = CommonSentenceMetricPolicy.isCommon(metric.type());
+                if (!commonMetric) {
                     result.add(ReportMetric.from(metric));
                     continue;
                 }
-                if (speakerRoles.contains(metric.speakerRole())) {
+                if (metric.unit() == QualitativeAnalysis.ReportMetricUnit.PERCENT
+                        && speakerRoles.contains(metric.speakerRole())) {
                     commonMetrics.putIfAbsent(
                             new MetricKey(metric.type(), metric.speakerRole()),
                             metric
