@@ -31,7 +31,7 @@ public class RecordingService {
     // 30분 wav는 약 300MB로 용량 제한을 넘으므로 압축 포맷만 받는다
     private static final List<String> ALLOWED_EXTENSIONS = List.of("mp3", "m4a");
     private static final long MAX_FILE_SIZE = 200L * 1024 * 1024;
-    private static final int MIN_DURATION_SECONDS = 5 * 60;
+    private static final int MIN_DURATION_SECONDS = 2 * 60;
     private static final int MAX_DURATION_SECONDS = 30 * 60;
     public static final Set<RecordingStatus> UNPAID_STATUSES =
             EnumSet.of(RecordingStatus.UPLOADED, RecordingStatus.TYPE_SELECTED);
